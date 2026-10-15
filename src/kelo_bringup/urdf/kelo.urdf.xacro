@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<robot name="kelo" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="base_frame" default="base_link"/>
+  <xacro:arg name="laser_frame" default="laser"/>
+  <xacro:arg name="camera_frame" default="camera_link"/>
+  <xacro:arg name="camera_optical_frame" default="camera_depth_optical_frame"/>
+  <xacro:arg name="hedgehog_frame" default="hedgehog_link"/>
+
+  <xacro:arg name="body_l" default="0.6"/>
+  <xacro:arg name="body_w" default="0.5"/>
+  <xacro:arg name="body_h" default="0.2"/>
+
+  <xacro:arg name="laser_xyz" default="0 0 0"/>
+  <xacro:arg name="laser_rpy" default="0 0 0"/>
+  <xacro:arg name="camera_xyz" default="0 0 0"/>
+  <xacro:arg name="camera_rpy" default="0 0 0"/>
+  <xacro:arg name="hedgehog_xyz" default="0 0 0"/>
+  <xacro:arg name="hedgehog_rpy" default="0 0 0"/>
+
+  <material name="grey"><color rgba="0.55 0.55 0.55 1.0"/></material>
+  <material name="black"><color rgba="0.1 0.1 0.1 1.0"/></material>
+  <material name="orange"><color rgba="0.9 0.5 0.0 1.0"/></material>
+
+  <link name="$(arg base_frame)">
+    <visual>
+      <origin xyz="0 0 0.1"/>
+      <geometry><box size="$(arg body_l) $(arg body_w) $(arg body_h)"/></geometry>
+      <material name="grey"/>
+    </visual>
+  </link>
+
+  <link name="$(arg laser_frame)">
+    <visual><geometry><cylinder radius="0.035" length="0.05"/></geometry><material name="black"/></visual>
+  </link>
+  <joint name="base_to_laser" type="fixed">
+    <parent link="$(arg base_frame)"/>
+    <child link="$(arg laser_frame)"/>
+    <origin xyz="$(arg laser_xyz)" rpy="$(arg laser_rpy)"/>
+  </joint>
+
+  <link name="$(arg camera_frame)">
+    <visual><geometry><box size="0.03 0.09 0.03"/></geometry><material name="black"/></visual>
+  </link>
+  <joint name="base_to_camera" type="fixed">
+    <parent link="$(arg base_frame)"/>
+    <child link="$(arg camera_frame)"/>
+    <origin xyz="$(arg camera_xyz)" rpy="$(arg camera_rpy)"/>
+  </joint>
+  <link name="$(arg camera_optical_frame)"/>
+  <joint name="camera_to_depth_optical" type="fixed">
+    <parent link="$(arg camera_frame)"/>
+    <child link="$(arg camera_optical_frame)"/>
+    <origin xyz="0 0 0" rpy="-1.5707963267948966 0 -1.5707963267948966"/>
+  </joint>
+
+  <link name="$(arg hedgehog_frame)">
+    <visual><geometry><cylinder radius="0.02" length="0.04"/></geometry><material name="orange"/></visual>
+  </link>
+  <joint name="base_to_hedgehog" type="fixed">
+    <parent link="$(arg base_frame)"/>
+    <child link="$(arg hedgehog_frame)"/>
+    <origin xyz="$(arg hedgehog_xyz)" rpy="$(arg hedgehog_rpy)"/>
+  </joint>
+
+</robot>

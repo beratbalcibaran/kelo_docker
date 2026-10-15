@@ -1,0 +1,67 @@
+frames:
+  map: map
+  odom: odom
+  base: base_link
+  laser: laser
+  camera: camera_link
+  camera_optical: camera_depth_optical_frame
+  hedgehog: hedgehog_link
+  marvelmind_map: marvelmind_map
+
+topics:
+  scan: /scan
+  odom: /odom
+  cmd_vel: /cmd_vel
+  cmd_vel_teleop: /cmd_vel_teleop
+  camera_depth: /camera/camera/depth/image_rect_raw
+  camera_info: /camera/camera/depth/camera_info
+  camera_points: /camera/points_filtered
+  camera_clearing: /camera/points_clearing
+  marvelmind_raw: /hedgehog_pos_ang
+  marvelmind_pose: /marvelmind/pose
+
+sensors:
+  lidar: true
+  camera: true
+  marvelmind: false
+
+robot:
+  cmd_vel_type: Twist
+  odom_mode: corrected
+
+serial:
+  lidar_port: /dev/serial/by-id/usb-Hokuyo_Data_Flex_for_USB_URG-Series_USB_Driver-if00
+  lidar_baud: 115200
+  marvelmind_port: /dev/serial/by-id/usb-Marvelmind_Robotics_STM32_Virtual_ComPort_207033A25246-if00
+  marvelmind_baud: 9600
+
+lidar:
+  angle_min: -1.60
+  angle_max: 1.60
+
+camera:
+  depth_profile: 424x240x15
+  hfov_deg: 87.0
+  vfov_deg: 58.0
+
+mounts:
+  laser:    {x: 0.45, y: 0.0, z: 0.20, roll: 0.0, pitch: 0.0, yaw: 0.0}
+  camera:   {x: 0.42, y: 0.0, z: 0.68, roll: 0.0, pitch: 0.1745, yaw: 0.0}
+  hedgehog: {x: 0.0,  y: 0.0, z: 0.70, roll: 0.0, pitch: 0.0, yaw: 0.0}
+
+body: {length: 0.85, width: 0.53, height: 0.70}
+
+paths:
+  data_dir: /data
+  maps_dir: /data/maps
+  alignment_file: /data/marvelmind_alignment.yaml
+  waypoints_file: /data/waypoints.yaml
+
+odom_correction:
+  yaw_k:
+    wz: [0.6, 1.5]
+    k: [5.3, 8.6]
+  linear_error:
+    v: [0.06, 0.15]
+    e: [-0.006, -0.018]
+  max_age_s: 0.5

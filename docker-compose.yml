@@ -1,0 +1,117 @@
+x-kelo: &kelo
+  image: kelo-slam:latest
+  build: .
+  network_mode: host
+  ipc: host
+  shm_size: "1gb"
+  stop_grace_period: 15s
+  restart: unless-stopped
+  environment: &env
+    ROS_DOMAIN_ID: "${ROS_DOMAIN_ID:-0}"
+    KELO_DATA_DIR: /data
+    KELO_MAP: "${KELO_MAP:-/data/maps/current.yaml}"
+  volumes:
+    - ${KELO_DATA:-./data}:/data
+  logging:
+    driver: json-file
+    options: {max-size: "20m", max-file: "5"}
+
+services:
+  gui:
+    <<: *kelo
+    profiles: ["gui"]
+    container_name: kelo-gui
+    restart: "no"
+    network_mode: bridge
+    ports: ["6080:6080"]
+    environment:
+      <<: *env
+      ROS_DOMAIN_ID: "77"
+      KELO_VNC_PASSWORD: "${KELO_VNC_PASSWORD:-}"
+      KELO_GUI_SOURCE: sim
+
+  gui-hardware:
+    <<: *kelo
+    profiles: ["gui-hardware"]
+    container_name: kelo-gui-hardware
+    restart: "no"
+    privileged: true
+    volumes:
+      - ${KELO_DATA:-./data}:/data
+      - /dev:/dev
+    environment:
+      <<: *env
+      KELO_VNC_PASSWORD: "${KELO_VNC_PASSWORD:-}"
+      KELO_GUI_SOURCE: hardware
+
+  production:
+    <<: *kelo
+    profiles: ["production"]
+    container_name: kelo-production
+    command: ["/run-stack.sh"]
+    privileged: true
+    volumes:
+      - ${KELO_DATA:-./data}:/data
+      - /dev:/dev
+    environment:
+      <<: *env
+      KELO_SOURCE: hardware
+      KELO_MODE: "${KELO_MODE:-navigation}"
+      KELO_INITIAL_POSE: "${KELO_INITIAL_POSE:-}"
+
+  mapping:
+    <<: *kelo
+    profiles: ["mapping"]
+    container_name: kelo-mapping
+    command: ["/run-stack.sh"]
+    restart: "no"
+    privileged: true
+    volumes:
+      - ${KELO_DATA:-./data}:/data
+      - /dev:/dev
+    environment:
+      <<: *env
+      KELO_SOURCE: hardware
+      KELO_MODE: mapping
+      KELO_ODOM_SOURCE: "${KELO_ODOM_SOURCE:-robot}"
+
+  sim:
+    <<: *kelo
+    profiles: ["sim"]
+    container_name: kelo-sim
+    command: ["/run-stack.sh"]
+    restart: "no"
+    network_mode: bridge
+    environment:
+      <<: *env
+      ROS_DOMAIN_ID: "77"
+      KELO_SOURCE: sim
+      KELO_MODE: mapping
+
+  sim-nav:
+    <<: *kelo
+    profiles: ["sim-nav"]
+    container_name: kelo-sim-nav
+    command: ["/run-stack.sh"]
+    restart: "no"
+    network_mode: bridge
+    environment:
+      <<: *env
+      ROS_DOMAIN_ID: "77"
+      KELO_SOURCE: sim
+      KELO_MODE: navigation
+      KELO_INITIAL_POSE: "${KELO_INITIAL_POSE:-0 0 0}"
+
+  replay:
+    <<: *kelo
+    profiles: ["replay"]
+    container_name: kelo-replay
+    command: ["/run-stack.sh"]
+    restart: "no"
+    network_mode: bridge
+    environment:
+      <<: *env
+      ROS_DOMAIN_ID: "77"
+      KELO_SOURCE: replay
+      KELO_MODE: "${KELO_MODE:-mapping}"
+      KELO_BAG: "${KELO_BAG:-}"

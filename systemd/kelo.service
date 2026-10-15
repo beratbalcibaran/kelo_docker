@@ -1,0 +1,19 @@
+[Unit]
+Description=KELO autonomous navigation (production mode)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kelo
+EnvironmentFile=-/etc/kelo/kelo.env
+ExecStartPre=-/usr/bin/docker compose --profile production down
+ExecStart=/usr/bin/docker compose --profile production up --no-build
+ExecStop=/usr/bin/docker compose --profile production stop -t 15
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

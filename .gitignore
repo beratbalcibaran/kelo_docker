@@ -1,0 +1,10 @@
+data/bags/
+data/hardware.yaml
+data/marvelmind_alignment.yaml
+._*
+__pycache__/
+.DS_Store
+*.swp
+data/maps/*
+!data/maps/.gitkeep
+data/mm_samples_*.csv
