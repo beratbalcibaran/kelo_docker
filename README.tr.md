@@ -62,11 +62,27 @@ sensör gerekmez.
 4. Logda `KELO interface ready` göründüğünde
    `http://localhost:6080/vnc.html?autoconnect=true&resize=scale` adresini açın ve logda yazan VNC
    parolasını girin.
-5. Panelde kaynak `sim` iken:
-   - **Start Mapping**, WASD veya ok tuşlarıyla sürün (panel penceresi seçili olmalı), **Save Map**,
-     **Stop Mapping**.
-   - **Start Navigation**, **Localize** (robot konumunu bulana kadar yerinde döner), ardından
-     **Send Goal** veya RViz'den hedef.
+5. Panelde kaynağı `sim` bırakın ve şu adımları izleyin:
+
+   **Harita çıkarma**
+   1. **Start Mapping**: simülatör ve RViz açılır, harita oluşmaya başlar.
+   2. Panel penceresine bir kez tıklayın, ardından WASD veya ok tuşlarıyla odanın her yerini dolaşın;
+      RViz'de duvarlar kapanana kadar sürün.
+   3. **Save Map**: bir isim verin (ör. `oda`). Logda `Saved: ...` ve `current.yaml -> ...` görünür.
+   4. **Stop Mapping**.
+
+   **Harita üzerinde navigasyon**
+   1. **Start Navigation**: robot, harita çıkarmaya başladığı noktada yeniden başlar. Bu nokta
+      haritada `x=0, y=0`'dır.
+   2. **Set Initial Pose**: X `0`, Y `0`, Yaw `0` girin. Robot gerekirse yerinde döner; logda
+      `LOCALIZED` görünene kadar bekleyin.
+   3. **Send Goal**: haritada boş bir nokta girin, ör. X `0`, Y `2`, Yaw `0` (başlangıcın 2 m solu).
+      Robot varınca logda `Goal reached.` görünür. Hedef RViz'den **2D Goal Pose** ile de verilebilir.
+   4. İş bitince **Stop Navigation**.
+
+   **Localize** (konum vermeden) Marvelmind hizalama dosyasına ihtiyaç duyar; yeni indirilen kopyada bu
+   dosya yoktur, bu durumda tüm haritada arar ve yanlış yeri seçebilir. Simülatörde
+   **Set Initial Pose** kullanın.
 6. Durdurmak için `Ctrl+C` veya `docker compose --profile gui down`.
 
 Depoda harita yoktur: önce **Start Mapping** / **Save Map** ile bir harita oluşturun. Haritalar

@@ -62,11 +62,29 @@ sensor is required.
 4. When the log shows `KELO interface ready`, open
    `http://localhost:6080/vnc.html?autoconnect=true&resize=scale` and enter the VNC password printed
    in the log.
-5. In the panel, with source `sim`:
-   - **Start Mapping**, drive with WASD or the arrow keys (the panel window must have focus),
-     **Save Map**, **Stop Mapping**.
-   - **Start Navigation**, **Localize** (the robot turns in place until it finds its position), then
-     **Send Goal** or a goal in RViz.
+5. In the panel, leave the source on `sim` and follow these steps:
+
+   **Build a map**
+   1. **Start Mapping**: the simulator and RViz start, the map begins to grow.
+   2. Click the panel window once, then drive with WASD or the arrow keys around the whole room
+      until the walls in RViz are closed.
+   3. **Save Map**: give a name (e.g. `room`). The log shows `Saved: ...` and
+      `current.yaml -> ...`.
+   4. **Stop Mapping**.
+
+   **Navigate on the map**
+   1. **Start Navigation**: the robot starts again at the point where mapping began. That point is
+      `x=0, y=0` on the map.
+   2. **Set Initial Pose**: enter X `0`, Y `0`, Yaw `0`. The robot may turn in place; wait until
+      the log shows `LOCALIZED`.
+   3. **Send Goal**: enter a free point on the map, e.g. X `0`, Y `2`, Yaw `0` (2 m to the left of the
+      start). The log shows `Goal reached.` when the robot arrives. A goal can also be set in RViz
+      with **2D Goal Pose**.
+   4. **Stop Navigation** when done.
+
+   **Localize** (without a position) needs a Marvelmind alignment file, which a fresh copy does not
+   have; it then searches the whole map and may pick the wrong spot. Use **Set Initial Pose** in the
+   simulator.
 6. Stop with `Ctrl+C`, or `docker compose --profile gui down`.
 
 The repository ships without maps: create one with **Start Mapping** / **Save Map** first. Maps
