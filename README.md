@@ -52,7 +52,7 @@ sensor is required.
    ```
 2. Download the project:
    ```bash
-   git clone https://github.com/<user>/kelo_docker.git
+   git clone https://github.com/beratbalcibaran/kelo_docker.git
    cd kelo_docker
    ```
 3. Build the image and start the control panel (the first build takes 15–30 min and about 5 GB):

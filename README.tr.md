@@ -52,7 +52,7 @@ sensör gerekmez.
    ```
 2. Projeyi indirin:
    ```bash
-   git clone https://github.com/<user>/kelo_docker.git
+   git clone https://github.com/beratbalcibaran/kelo_docker.git
    cd kelo_docker
    ```
 3. İmajı derleyip kontrol panelini başlatın (ilk derleme 15–30 dk sürer, yaklaşık 5 GB yer kaplar):
