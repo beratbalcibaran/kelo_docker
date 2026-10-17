@@ -11,8 +11,8 @@ DATA_DIR = os.environ.get("KELO_DATA_DIR", "/data")
 MAP_YAML = os.path.join(DATA_DIR, "maps", "current.yaml")
 
 SOURCES = ("sim", "hardware", "replay")
-DRIVE_LINEAR = 0.2
-DRIVE_ANGULAR = 0.5
+DRIVE_LINEAR = 0.30
+DRIVE_ANGULAR = 0.80
 
 
 class KeloGUI:
