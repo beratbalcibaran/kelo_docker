@@ -1,4 +1,4 @@
-# KELO Autonomous Navigation
+#  Navigation
 
 **English** | [Türkçe](README.tr.md)
 
