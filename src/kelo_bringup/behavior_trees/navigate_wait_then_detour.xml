@@ -1,0 +1,114 @@
+<!--
+  KELO navigate_to_pose: wait for an obstacle on the path, then drive around it.
+
+  - The path is planned once per goal and kept while it is free (no periodic replanning).
+  - While driving, the next 2 m of the path are checked twice a second against the global costmap
+    (without the first 0.4 m: closer than that the collision monitor stops the robot, and a robot
+    standing next to a wall would otherwise make every new path invalid).
+    When something new stands on them (a person, a box), FollowPath is halted and the robot stops.
+    The last 0.5 m before the goal are not checked: a goal close to a wall or a table lies in the
+    inflated zone, and the robot must still drive to it.
+  - The robot then waits 5 s (WaitIdentify 1 s, WaitBlocked 4 s) and plans again: if the obstacle
+    has left, the new path is the direct one; if it is still there, the new path goes around it.
+  - If no path exists (the way is closed), planning fails and the robot waits again, until a path
+    is free, the goal is changed or the goal is cancelled.
+  - Every second wait also clears both costmaps and gives the sensors 2 s to mark what is really
+    there. Without it, an obstacle that left while it was in the camera blind zone (closer than
+    0.3 m to the camera), or the upper part of a person that the downward camera rays never cross,
+    stays in the costmap and blocks the robot for ever.
+  The same wait follows any other planning or control failure.
+  - A person is not a box: when, after WaitIdentify (the person detection is slower than the LiDAR),
+    the social node reports a person (or where they are walking) on the path ahead
+    (IsPersonBlocking, kelo_bt_nodes), the robot waits for them to step aside, checking
+    every 0.5 s for up to 10 s; then both costmaps are cleared as above and the path is planned again:
+    the direct path when they left. A person who stays longer is passed: the plan goes around them,
+    wide where there is room (the falling cost of the people layer), close by in a narrow passage
+    (only the person's body is lethal), as a box would be.
+-->
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence>
+      <Script code="need_plan := true"/>
+      <RecoveryNode number_of_retries="100000" name="NavigateRecovery">
+        <PipelineSequence name="NavigateWaitThenDetour">
+          <ControllerSelector selected_controller="{selected_controller}" default_controller="FollowPath" topic_name="controller_selector"/>
+          <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>
+          <RateController hz="1.0" name="PlanWhenNeeded">
+            <Fallback>
+              <ReactiveSequence name="KeepPath">
+                <Inverter>
+                  <GlobalUpdatedGoal/>
+                </Inverter>
+                <ScriptCondition code="need_plan == false"/>
+              </ReactiveSequence>
+              <Sequence name="Plan">
+                <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+                <Script code="need_plan := false"/>
+              </Sequence>
+            </Fallback>
+          </RateController>
+          <ReactiveSequence name="FollowWhileFree">
+            <RateController hz="2.0" name="CheckPathAhead">
+              <Sequence>
+                <TruncatePath input_path="{path}" output_path="{path_to_check}" distance="0.5"/>
+                <TruncatePathLocal input_path="{path_to_check}" output_path="{path_ahead}" distance_forward="2.0" distance_backward="0.0"/>
+                <!-- not the first 0.4 m (kelo_bt_nodes): a robot standing next to a wall is in inscribed cells,
+                     and IsPathValid would reject every path that starts there -->
+                <SkipPathStart input_path="{path_ahead}" output_path="{path_ahead}" distance="0.4"/>
+                <IsPathValid path="{path_ahead}"/>
+              </Sequence>
+            </RateController>
+            <RecoveryNode number_of_retries="1" name="RecoveryFollowPath">
+              <FollowPath path="{path}" controller_id="{selected_controller}" error_code_id="{follow_path_error_code}"/>
+              <Sequence>
+                <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
+                <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+              </Sequence>
+            </RecoveryNode>
+          </ReactiveSequence>
+        </PipelineSequence>
+        <ReactiveFallback name="WaitOrNewGoal">
+          <GoalUpdated/>
+          <Sequence name="PersonOrObstacle">
+            <!-- 1 s to see what blocks the way: the LiDAR is faster than the person detection -->
+            <Wait name="WaitIdentify" wait_duration="1.0"/>
+            <Fallback name="PersonOrBox">
+              <Sequence name="WaitForPerson">
+                <IsPersonBlocking topic="/kelo/person_blocking" timeout="1.0"/>
+                <ForceSuccess>
+                  <RetryUntilSuccessful num_attempts="20">
+                    <Sequence>
+                      <Wait name="WaitPerson" wait_duration="0.5"/>
+                      <Inverter>
+                        <IsPersonBlocking topic="/kelo/person_blocking" timeout="1.0"/>
+                      </Inverter>
+                    </Sequence>
+                  </RetryUntilSuccessful>
+                </ForceSuccess>
+                <!-- the person left (or stayed 10 s): clear what they left in the costmaps (the upper
+                     part the camera rays never cross again) and give the sensors 2 s -->
+                <ClearEntireCostmap name="ClearLocalCostmap-Person" service_name="local_costmap/clear_entirely_local_costmap"/>
+                <ClearEntireCostmap name="ClearGlobalCostmap-Person" service_name="global_costmap/clear_entirely_global_costmap"/>
+                <Wait name="WaitSensorsPerson" wait_duration="2.0"/>
+                <Script code="need_plan := true"/>
+              </Sequence>
+              <RoundRobin name="WaitThenReplan">
+                <Sequence name="Wait">
+                  <Wait name="WaitBlocked" wait_duration="4.0"/>
+                  <Script code="need_plan := true"/>
+                </Sequence>
+                <Sequence name="WaitAndClear">
+                  <Wait name="WaitBlockedAgain" wait_duration="4.0"/>
+                  <ClearEntireCostmap name="ClearLocalCostmap-Blocked" service_name="local_costmap/clear_entirely_local_costmap"/>
+                  <ClearEntireCostmap name="ClearGlobalCostmap-Blocked" service_name="global_costmap/clear_entirely_global_costmap"/>
+                  <Wait name="WaitSensors" wait_duration="2.0"/>
+                  <Script code="need_plan := true"/>
+                </Sequence>
+              </RoundRobin>
+            </Fallback>
+          </Sequence>
+        </ReactiveFallback>
+      </RecoveryNode>
+    </Sequence>
+  </BehaviorTree>
+</root>

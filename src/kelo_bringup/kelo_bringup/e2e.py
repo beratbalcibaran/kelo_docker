@@ -235,6 +235,10 @@ def _navigate_wait(n, x, y, yaw=0.0, timeout=120.0):
 
 STAGING = (3.4, 1.0)
 CORRIDOR_GOAL = (5.9, 1.0)
+# people scenarios: the longest straight lane of the simulator room with room to pass a person on
+# either side (+-0.9 m without lethal cost, found on the global costmap), the goal away from the wall
+LANE_START = (3.2, 0.7)
+LANE_GOAL = (6.0, 0.7)
 
 
 def _wait_moving(n, speed=0.08, timeout=40.0):
@@ -465,6 +469,57 @@ def sc_relocalize(n, _args):
     return ok
 
 
+def _loc_state(n, timeout=3.0):
+    state = []
+    sub = n.create_subscription(String, '/kelo/localization_state', lambda m: state.append(m.data),
+                                QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+    n.spin_for(timeout, lambda: state)
+    n.destroy_subscription(sub)
+    return state[-1] if state else None
+
+
+def sc_restored(n, args):
+    """Navigation restarted where the robot stood: loc_monitor restores the last pose by itself."""
+    end = time.time() + 40.0
+    state = None
+    while time.time() < end and state != 'LOCALIZED':
+        state = _loc_state(n, 2.0)
+        n.spin_for(1.0)
+    ok = check(state == 'LOCALIZED', f'LOCALIZED without Localize (last pose restored), state {state}')
+    return sc_localization(n, args) and ok
+
+
+def sc_kidnap(n, args):
+    """The robot is carried away (sim teleport, odometry does not see it): the scan no longer fits
+    the map at the AMCL pose -> LOST, a running goal is cancelled; Localize finds the robot again."""
+    import subprocess
+    start = tuple(float(v) for v in (args[0:3] if len(args) >= 3 else (1.0, 1.0, 0.0)))
+    wx, wy = (float(args[3]), float(args[4])) if len(args) >= 5 else (6.2, 2.2)
+    n.spin_for(5.0, lambda: n.gt.pose)
+    if _loc_state(n) != 'LOCALIZED':
+        return check(False, 'not LOCALIZED before the kidnapping')
+    pub = n.create_publisher(String, '/sim/teleport', 10)
+    n.spin_for(0.5)
+    pub.publish(String(data=yaml.safe_dump({'x': wx, 'y': wy, 'yaw': n.gt.pose[2]})))
+    n.spin_for(1.0)
+    t0 = time.time()
+    state = None
+    while time.time() - t0 < 30.0 and state != 'LOST':
+        state = _loc_state(n, 1.0)
+        n.spin_for(1.0)
+    ok = check(state == 'LOST', f'state LOST after the robot was carried away ({time.time() - t0:.0f} s)')
+    r = subprocess.run(['ros2', 'run', 'kelo_bringup', 'send_goal', '0.5', '0.5'], capture_output=True,
+                       text=True, timeout=30)
+    ok &= check(r.returncode == 5, 'send_goal refused while LOST')
+    r = subprocess.run(['ros2', 'run', 'kelo_bringup', 'localize'], capture_output=True, text=True, timeout=400)
+    for line in r.stdout.splitlines():
+        if line.startswith('[localize]'):
+            log('  ' + line)
+    ok &= check(r.returncode == 0, 'Localize finds the robot again')
+    n.spin_for(3.0)   # TF that arrived while localize ran
+    return sc_localization(n, list(map(str, start))) and ok
+
+
 def sc_detour(n, args):
     kind = args[0] if args else 'box'
     when = args[1] if len(args) > 1 else 'far'
@@ -502,11 +557,277 @@ def sc_detour(n, args):
     return ok
 
 
+def sc_people(n, args):
+    """People-aware navigation.
+    stand: a person stands on the path and stays: the robot slows down, waits for them (person
+    wait), then passes them with the wide personal space (checked up to beside the person).
+    leave: the person leaves after 8 s: the robot waits and then drives on straight, no detour.
+    cross: a person walks across the path in front of the robot: it gives way and drives on straight."""
+    kind = args[0] if args else 'stand'
+    n.spin_for(5.0, lambda: n.gt.pose)
+    _navigate_wait(n, *LANE_START)
+    c0 = n.contacts
+    handle = _navigate(n, *LANE_GOAL)
+    if not _wait_moving(n):
+        return check(False, 'robot did not start moving')
+    _wait_cruise(n)
+    x0, y0, yaw0 = n.gt.pose
+    c, s = math.cos(yaw0), math.sin(yaw0)
+    t0 = time.time()
+    if kind == 'cross':
+        ahead, speed = 1.4, 0.5
+        px, py = x0 + ahead * c, y0 + ahead * s
+        a, b = (px - 1.8 * s, py + 1.8 * c), (px + 0.8 * s, py - 0.8 * c)
+        n.obstacles({'add': {'type': 'cylinder', 'name': 'person', 'path': [list(a), list(b)], 'speed': speed,
+                             'r': 0.22, 'z': [0.0, 1.7]}})
+        walk = math.dist(a, b) / speed
+
+        def person(t):
+            f = min(max((t - t0) * speed / math.dist(a, b), 0.0), 1.0)
+            return a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])
+    else:
+        ahead = 1.3
+        n.obstacles({'add': {'type': 'cylinder', 'name': 'person', 'ahead': ahead, 'r': 0.22, 'z': [0.0, 1.7]}})
+        walk = 8.0 if kind == 'leave' else None
+
+        def person(_t):
+            return x0 + ahead * c, y0 + ahead * s
+    log(f'person ({kind}) {ahead:.1f} m ahead, robot at {n.gt.speed:.2f} m/s')
+    fut = handle.get_result_async()
+    gone = False
+    closest, lateral, still, near_speed, along = math.inf, 0.0, 0.0, 0.0, 0.0
+    last = time.time()
+    while time.time() - t0 < 150.0 and not fut.done():
+        n.spin_for(0.1)
+        now = time.time()
+        x, y, _ = n.gt.pose
+        if not gone:
+            px, py = person(now)
+            d = math.hypot(x - px, y - py)
+            closest = min(closest, d)
+            if d < 1.3:
+                near_speed = max(near_speed, n.gt.speed)
+            if walk is not None and now - t0 > walk:
+                n.obstacles({'clear': True})
+                gone = True
+                log(f'person gone after {now - t0:.1f} s')
+        lateral = max(lateral, abs(-s * (x - x0) + c * (y - y0)))
+        along = max(along, c * (x - x0) + s * (y - y0))
+        if n.gt.speed < 0.02:
+            still += now - last
+        last = now
+    dur = time.time() - t0
+    ok_goal = fut.done() and fut.result().status == GoalStatus.STATUS_SUCCEEDED
+    if not fut.done():
+        handle.cancel_goal_async()
+        n.spin_for(1.0)
+    n.obstacles({'clear': True})
+    log(f'time {dur:.1f} s, standing {still:.1f} s, closest robot-person {closest:.2f} m, '
+        f'max speed near the person {near_speed:.2f} m/s, max lateral offset {lateral:.2f} m, '
+        f'progress along the lane {along:.2f} m (person at {ahead:.2f} m), goal {"reached" if ok_goal else "not reached"}')
+    ok = True
+    if kind != 'stand':
+        ok &= check(ok_goal, 'reached the goal')
+    ok &= check(n.contacts == c0, f'no collision (counter {n.contacts - c0})')
+    ok &= check(near_speed <= 0.17, 'slow near the person (<= 0.17 m/s within 1.3 m)')
+    if kind == 'stand':
+        ok &= check(still >= 8.0, 'waited for the person before passing (>= 8 s standing)')
+        ok &= check(lateral >= 0.5, 'passed the person on a detour')
+        ok &= check(closest >= 0.7, 'kept the personal space while passing (centre distance >= 0.7 m)')
+        # in the small simulator room the way past a standing person runs between them and a wall:
+        # 40 % near the person times the collision monitor slowdown is a crawl, so the goal behind
+        # them is not required here, only that the robot got beside them
+        ok &= check(along >= ahead, 'got beside the person (passing them)')
+    elif kind == 'leave':
+        ok &= check(still >= 3.0, 'waited for the person (>= 3 s standing)')
+        ok &= check(lateral < 0.35, 'drove on straight after the person left (no detour)')
+    else:
+        ok &= check(lateral < 0.35, 'gave way and drove on straight (no detour)')
+    return ok
+
+
+def _load_world(path):
+    with open(path, encoding='utf-8') as f:
+        world = yaml.safe_load(f)
+    st = world.get('start', {})
+    return world, (float(st.get('x', 0.0)), float(st.get('y', 0.0)), float(st.get('yaw', 0.0)))
+
+
+def _world_to_map(start, x, y):
+    sx, sy, syaw = start
+    c, s = math.cos(-syaw), math.sin(-syaw)
+    return c * (x - sx) - s * (y - sy), s * (x - sx) + c * (y - sy)
+
+
+def _drive_to(n, gx, gy, timeout=120.0):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        x, y, yaw = n.gt.pose
+        dx, dy = gx - x, gy - y
+        d = math.hypot(dx, dy)
+        if d < 0.08:
+            return True
+        err = wrap(math.atan2(dy, dx) - yaw)
+        m = Twist()
+        m.angular.z = max(-0.5, min(0.5, 1.5 * err))
+        m.linear.x = 0.0 if abs(err) > 0.3 else min(0.2, 0.6 * d)
+        n.teleop.publish(m)
+        n.spin_for(0.05)
+    n.stop()
+    return False
+
+
+def sc_world_tour(n, args):
+    """Mapping drive for a world with an eval section; a person walks by during the first legs."""
+    world, _ = _load_world(args[0])
+    ev = world['eval']
+    person = ev.get('person')
+    n.spin_for(3.0, lambda: n.gt.pose)
+    if person:
+        n.obstacles({'add': {'type': 'cylinder', 'path': person['path'], 'speed': person['speed'],
+                             'r': person.get('r', 0.2), 'z': person.get('z', [0.0, 1.7])}})
+        log(f"person walking along {person['path']}")
+    for i, (gx, gy) in enumerate(ev['mapping_route']):
+        if not _drive_to(n, gx, gy):
+            x, y, _ = n.gt.pose
+            return check(False, f'tour waypoint not reached: {gx}, {gy} (robot {x:.2f}, {y:.2f})')
+        if person and i + 1 == int(person.get('until_waypoint', 1)):
+            n.obstacles({'clear': True})
+            log('person left')
+    n.stop()
+    return check(n.contacts == 0, f'mapping tour complete, collisions={n.contacts}')
+
+
+class PlanWatch:
+    """Counts reroutes: a new global plan that leaves the previous one by more than `dev` m."""
+
+    def __init__(self, dev=0.4, horizon=3.0, min_gap=2.0):
+        self.dev, self.horizon, self.min_gap = dev, horizon, min_gap
+        self.prev = None
+        self.last = -1e9
+        self.count = 0
+
+    def cb(self, msg):
+        pts = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
+        if len(pts) < 2:
+            return
+        if self.prev is not None:
+            ahead, dist = [], 0.0
+            for a, b in zip(pts, pts[1:]):
+                ahead.append(a)
+                dist += math.hypot(b[0] - a[0], b[1] - a[1])
+                if dist > self.horizon:
+                    break
+            worst = max(min(math.hypot(x - px, y - py) for px, py in self.prev) for x, y in ahead)
+            now = time.time()
+            if worst > self.dev and now - self.last > self.min_gap:
+                self.count += 1
+                self.last = now
+        self.prev = pts
+
+    def reset(self):
+        self.prev, self.count = None, 0
+
+
+def _reset_at_goal(n, start, wx, wy):
+    """After a failed goal: put the robot on that goal as if it had been reached (sim teleport,
+    AMCL re-seeded), so that one failure does not decide the goals after it."""
+    n.stop()
+    n.spin_for(1.0)
+    pub = n.create_publisher(String, '/sim/teleport', 10)
+    ipub = n.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
+    n.spin_for(0.5)
+    pub.publish(String(data=yaml.safe_dump({'x': wx, 'y': wy, 'yaw': start[2]})))
+    n.spin_for(1.0)
+    gx, gy = _world_to_map(start, wx, wy)
+    if math.hypot(n.gt.pose[0] - wx, n.gt.pose[1] - wy) > 0.05:
+        log(f'reset to ({wx}, {wy}) failed')
+        return False
+    m = PoseWithCovarianceStamped()
+    m.header.frame_id = 'map'
+    m.header.stamp = n.get_clock().now().to_msg()
+    m.pose.pose.position.x, m.pose.pose.position.y = gx, gy
+    m.pose.pose.orientation.w = 1.0
+    m.pose.covariance[0] = m.pose.covariance[7] = 0.05 ** 2
+    m.pose.covariance[35] = math.radians(3) ** 2
+    ipub.publish(m)
+    n.spin_for(3.0)
+    log(f'robot reset to goal ({wx}, {wy}) for the next goal')
+    return True
+
+
+def sc_world_goals(n, args):
+    """Navigation goals of a world eval section: success, time, reroutes and late stops per goal.
+    A failed goal is followed by a reset of the robot onto that goal, so each goal is measured alone."""
+    import json
+    from nav2_msgs.msg import CollisionMonitorState
+    from nav_msgs.msg import Path
+    world, start = _load_world(args[0])
+    out = args[1] if len(args) > 1 else ''
+    plans = PlanWatch()
+    n.create_subscription(Path, '/plan', plans.cb, 10)
+    cm = {'state': 0, 'stops': 0}
+
+    def cm_cb(m):
+        if m.action_type == CollisionMonitorState.STOP and cm['state'] != CollisionMonitorState.STOP:
+            cm['stops'] += 1
+        cm['state'] = m.action_type
+    n.create_subscription(CollisionMonitorState, '/collision_monitor_state', cm_cb, 10)
+    n.spin_for(5.0, lambda: n.gt.pose)
+    rows = []
+    for i, (wx, wy) in enumerate(world['eval']['goals']):
+        gx, gy = _world_to_map(start, wx, wy)
+        plans.reset()
+        cm['stops'] = 0
+        c0 = n.contacts
+        n.gt.reset()
+        stops, still_since, moved = 0, None, False
+        t0 = time.time()
+        try:
+            handle = _navigate(n, gx, gy)
+        except RuntimeError as exc:
+            rows.append({'goal': i + 1, 'success': False, 'error': str(exc)})
+            continue
+        fut = handle.get_result_async()
+        while time.time() - t0 < 150.0 and not fut.done():
+            n.spin_for(0.1)
+            x, y, _ = n.gt.pose
+            far = math.hypot(x - wx, y - wy) > 0.5
+            if n.gt.speed > 0.08:
+                moved, still_since = True, None
+            elif moved and far and n.gt.speed < 0.02:
+                if still_since is None:
+                    still_since = time.time()
+                elif still_since > 0 and time.time() - still_since > 1.0:
+                    stops += 1
+                    still_since = -1.0
+        ok = fut.done() and fut.result().status == GoalStatus.STATUS_SUCCEEDED
+        if not fut.done():
+            handle.cancel_goal_async()
+            n.spin_for(2.0)
+        x, y, _ = n.gt.pose
+        row = {'goal': i + 1, 'target': [wx, wy], 'success': bool(ok), 'time_s': round(time.time() - t0, 1),
+               'path_m': round(n.gt.dist, 2), 'reroutes': plans.count, 'stops': stops,
+               'cm_stops': cm['stops'], 'collisions': n.contacts - c0,
+               'final_error_m': round(math.hypot(x - wx, y - wy), 2)}
+        if not ok:
+            row['reset'] = _reset_at_goal(n, start, wx, wy)
+        rows.append(row)
+        log(f"goal {i + 1} ({wx}, {wy}): {'OK' if ok else 'FAILED'} {row['time_s']} s, path {row['path_m']} m, "
+            f"reroutes {row['reroutes']}, stops {row['stops']}, collision_monitor stops {row['cm_stops']}, "
+            f"collisions {row['collisions']}")
+    if out:
+        with open(out, 'w', encoding='utf-8') as f:
+            json.dump(rows, f, indent=1)
+    good = sum(r.get('success', False) for r in rows)
+    return check(good == len(rows), f'{good}/{len(rows)} goals reached')
+
+
 SCENARIOS = {'odom': sc_odom, 'tour': sc_tour, 'localization': sc_localization,
              'obstacle': sc_obstacle, 'dropout': sc_dropout,
              'teleop_obstacle': sc_teleop_obstacle, 'teleop_dropout': sc_teleop_dropout,
              'near_wall': sc_near_wall, 'goal_motion': sc_goal_motion, 'relocalize': sc_relocalize,
-             'detour': sc_detour}
+             'detour': sc_detour, 'restored': sc_restored, 'kidnap': sc_kidnap, 'people': sc_people, 'world_tour': sc_world_tour, 'world_goals': sc_world_goals}
 
 
 def main():

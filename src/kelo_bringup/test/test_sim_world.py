@@ -91,3 +91,16 @@ def test_moving_cylinder_ping_pong():
 def test_table_obstacle_type():
     boxes, cyls = W.obstacle_from_dict({'type': 'table', 'xy': [0, 0, 1, 1], 'top': [0.7, 0.75]})
     assert len(boxes) == 1 and len(cyls) == 4 and boxes[0].lo[2] == pytest.approx(0.7)
+
+
+@pytest.mark.parametrize('yaw_deg', [0.0, 30.0, 45.0, 60.0, 135.0])
+def test_box_ahead_of_a_turned_robot_does_not_reach_back_over_it(yaw_deg):
+    from kelo_bringup.sim_robot import SimRobot
+    yaw = math.radians(yaw_deg)
+    c, s = math.cos(yaw), math.sin(yaw)
+    ob = {'type': 'box', 'size': [0.30, 1.2], 'z': [0.0, 0.30]}
+    parts = SimRobot._oriented_box(ob, 0.95 * c, 0.95 * s, c, s)
+    boxes = [b for p in parts for b in W.obstacle_from_dict(p)[0]]
+    assert W.collides(FOOT, (0.0, 0.0, yaw), 0.4, boxes, []) is None
+    # the tiles still block the robot once it drives up to the box
+    assert W.collides(FOOT, (0.55 * c, 0.55 * s, yaw), 0.4, boxes, []) is not None

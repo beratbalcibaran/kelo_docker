@@ -78,6 +78,21 @@ def sensors(hw):
     return out
 
 
+def camera_layer_enabled(hw):
+    return sensors(hw)['camera'] and bool((hw.get('mapping') or {}).get('camera_layer', False))
+
+
+def people_aware(hw):
+    """social node, people layers in the costmaps, person wait in the behaviour tree."""
+    return bool((hw.get('navigation') or {}).get('people_aware', True))
+
+
+def camera_layer_file(map_yaml):
+    real = os.path.realpath(map_yaml)
+    path = (real[:-5] if real.endswith('.yaml') else real) + '_camera.yaml'
+    return path if os.path.isfile(path) else None
+
+
 def odom_plan(hw, odom_source):
     if odom_source not in ODOM_SOURCES:
         raise ValueError(f'odom_source must be one of {ODOM_SOURCES}: {odom_source}')
@@ -99,11 +114,13 @@ def _drop_cm_source(cm, name):
     cm.pop(name, None)
 
 
-def nav2_params(hw, odom_topic, cfg=None):
+def nav2_params(hw, odom_topic, cfg=None, camera_map=False):
     cfg = copy.deepcopy(cfg) if cfg is not None else _load_cfg('nav2_params.yaml')
     sens = sensors(hw)
     for name in ('bt_navigator', 'velocity_smoother', 'controller_server'):
         cfg[name]['ros__parameters']['odom_topic'] = odom_topic
+    bt = cfg['bt_navigator']['ros__parameters']
+    bt['default_nav_to_pose_bt_xml'] = os.path.join(share(), 'behavior_trees', bt['default_nav_to_pose_bt_xml'])
     lc = cfg['local_costmap']['local_costmap']['ros__parameters']
     if sens['camera']:
         lc['camera_layer']['camera']['topic'] = hw['topics']['camera_points']
@@ -111,6 +128,24 @@ def nav2_params(hw, odom_topic, cfg=None):
     else:
         lc['plugins'] = [p for p in lc['plugins'] if p != 'camera_layer']
         lc.pop('camera_layer', None)
+    gc = cfg['global_costmap']['global_costmap']['ros__parameters']
+    if camera_map:
+        # second static layer: can only add obstacles (use_maximum of the costmap, nav2_params.yaml),
+        # unknown cells leave the lidar map as it is
+        layer = {'plugin': 'nav2_costmap_2d::StaticLayer', 'map_topic': hw['topics']['camera_map'],
+                 'map_subscribe_transient_local': True, 'subscribe_to_updates': False}
+        gc['plugins'].insert(gc['plugins'].index('static_layer') + 1, 'camera_static_layer')
+        gc['camera_static_layer'] = dict(layer)
+        # also in the local costmap: the controller must keep mapped low objects that are in the
+        # camera blind zone, or beside/behind the robot where the camera never looks. It follows the
+        # localization, so localize turns it off while the pose is not known yet.
+        lc['plugins'].insert(0, 'camera_static_layer')
+        lc['camera_static_layer'] = dict(layer)
+    if not people_aware(hw):
+        gc['plugins'] = [p for p in gc['plugins'] if p != 'people_layer']
+        gc.pop('people_layer', None)
+        # the behaviour tree keeps IsPersonBlocking: without the social node its topic is silent and
+        # it always reports 'no person'
     cm = cfg['collision_monitor']['ros__parameters']
     if 'camera' in cm.get('observation_sources', []):
         if sens['camera']:

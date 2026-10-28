@@ -5,6 +5,8 @@
   <xacro:arg name="laser_frame" default="laser"/>
   <xacro:arg name="camera_frame" default="camera_link"/>
   <xacro:arg name="camera_optical_frame" default="camera_depth_optical_frame"/>
+  <xacro:arg name="camera_color_optical_frame" default="camera_color_optical_frame"/>
+  <xacro:arg name="camera_color_y" default="0.0"/>
   <xacro:arg name="hedgehog_frame" default="hedgehog_link"/>
 
   <xacro:arg name="body_l" default="0.6"/>
@@ -52,6 +54,12 @@
     <parent link="$(arg camera_frame)"/>
     <child link="$(arg camera_optical_frame)"/>
     <origin xyz="0 0 0" rpy="-1.5707963267948966 0 -1.5707963267948966"/>
+  </joint>
+  <link name="$(arg camera_color_optical_frame)"/>
+  <joint name="camera_to_color_optical" type="fixed">
+    <parent link="$(arg camera_frame)"/>
+    <child link="$(arg camera_color_optical_frame)"/>
+    <origin xyz="0 $(arg camera_color_y) 0" rpy="-1.5707963267948966 0 -1.5707963267948966"/>
   </joint>
 
   <link name="$(arg hedgehog_frame)">

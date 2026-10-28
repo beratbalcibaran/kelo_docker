@@ -107,3 +107,13 @@ def test_select_command_watchdog_and_stale_stop():
     assert select_command(now, None, old, None, **LIM) == (0.0, 0.0, 0.0, 'IDLE')
     assert select_command(now, None, (9.9, 0.2, 0, 0), (8.0, True), **LIM)[3] == 'NAV'
     assert select_command(now, None, (9.9, 0.2, 0, 0), (9.9, False), **LIM)[3] == 'NAV'
+
+
+def test_sim_person_point_ahead():
+    from kelo_bringup.sim_person import point_ahead
+    path = [(0.0, 0.0), (1.0, 0.0), (1.0, 2.0)]
+    x, y, yaw = point_ahead(path, 0.1, 0.05, 1.5)
+    assert (x, y) == pytest.approx((1.0, 0.5))
+    assert yaw == pytest.approx(math.pi / 2)
+    assert point_ahead(path, 0.0, 0.0, 3.5) is None
+    assert point_ahead(path[:1], 0.0, 0.0, 0.5) is None

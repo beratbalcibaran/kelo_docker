@@ -1,7 +1,9 @@
 DESCRIPTION = """Compare two occupancy maps (precision, recall, F1).
 
 usage:
-  ros2 run kelo_bringup map_compare <candidate.yaml> <reference.yaml> [--tol 0.10] [--min-f1 0.85]
+  ros2 run kelo_bringup map_compare <candidate.yaml> <reference.yaml> [--tol 0.10] [--min-f1 0.85] [--camera]
+
+--camera: add the camera layer saved next to the candidate (<candidate>_camera.yaml)
 
 exit code 0 when F1 >= min-f1
 """
@@ -78,8 +80,16 @@ def match_ratio(a, b, tol):
     return hit / len(a)
 
 
-def compare(cand_yaml, ref_yaml, tol=0.10):
+def camera_yaml_of(map_yaml):
+    real = os.path.realpath(map_yaml)
+    return (real[:-5] if real.endswith('.yaml') else real) + '_camera.yaml'
+
+
+def compare(cand_yaml, ref_yaml, tol=0.10, camera=False):
     a, _ = load_map(cand_yaml)
+    if camera:
+        cam, _ = load_map(camera_yaml_of(cand_yaml))
+        a = np.unique(np.concatenate([a, cam]).round(6), axis=0)
     b, _ = load_map(ref_yaml)
     precision, recall = match_ratio(a, b, tol), match_ratio(b, a, tol)
     f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
@@ -92,10 +102,11 @@ def main():
     ap.add_argument('reference')
     ap.add_argument('--tol', type=float, default=0.10)
     ap.add_argument('--min-f1', type=float, default=0.85)
+    ap.add_argument('--camera', action='store_true')
     args = ap.parse_args()
-    r = compare(args.candidate, args.reference, args.tol)
+    r = compare(args.candidate, args.reference, args.tol, args.camera)
     ok = r['f1'] >= args.min_f1
-    print(f"map_compare: precision={r['precision']:.3f} recall={r['recall']:.3f} F1={r['f1']:.3f} "
+    print(f"map_compare{' (lidar + camera layer)' if args.camera else ''}: precision={r['precision']:.3f} recall={r['recall']:.3f} F1={r['f1']:.3f} "
           f"(cells {r['cand_cells']} / {r['ref_cells']}, tol {args.tol} m) -> "
           f"{'PASS' if ok else 'FAIL'} (threshold {args.min_f1})")
     sys.exit(0 if ok else 1)

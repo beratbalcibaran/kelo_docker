@@ -3,6 +3,7 @@ import os
 import time
 
 import xacro
+import yaml
 from launch.actions import (EmitEvent, ExecuteProcess, IncludeLaunchDescription, LogInfo,
                             RegisterEventHandler, TimerAction)
 from launch.event_handlers import OnProcessExit
@@ -13,10 +14,11 @@ from launch_ros.event_handlers import OnStateTransition
 from launch_ros.events.lifecycle import ChangeState
 from lifecycle_msgs.msg import Transition
 
-from kelo_bringup.common import (SOURCES, config_path, data_dir, load_hardware, nav2_params,
-                                 odom_plan, safety_params, sensors, share, write_params)
+from kelo_bringup.common import (SOURCES, camera_layer_enabled, camera_layer_file, config_path,
+                                 data_dir, load_hardware, nav2_params, odom_plan, people_aware,
+                                 safety_params, sensors, share, write_params)
 
-MODES = ('mapping', 'navigation', 'sensors')
+MODES = ('mapping', 'navigation', 'sensors', 'camera_layer')
 NAV_LIFECYCLE = ['controller_server', 'smoother_server', 'planner_server', 'behavior_server',
                  'velocity_smoother', 'collision_monitor', 'bt_navigator', 'waypoint_follower']
 
@@ -59,6 +61,8 @@ def sim_params(plan, sens, opts):
             sim[key] = float(val)
     if opts.get('sim_odom_model'):
         sim['odom_model'] = opts['sim_odom_model']
+    if opts.get('sim_world'):
+        sim['world'] = opts['sim_world']
     return sim
 
 
@@ -79,12 +83,21 @@ def build(opts, hw=None):
         if not opts.get('bag'):
             raise ValueError('source:=replay requires bag:=<bag directory>')
         acts.append(SetParameter(name='use_sim_time', value=True))
+    if mode == 'camera_layer':
+        if not replay:
+            raise ValueError('mode:=camera_layer rebuilds the camera layer from a bag: it requires source:=replay')
+        if not camera_layer_enabled(hw):
+            raise ValueError('mode:=camera_layer requires sensors.camera and mapping.camera_layer in hardware.yaml')
 
-    safety = write_params(safety_params(hw), 'kelo_safety_')
+    safety_cfg = safety_params(hw)
+    safety = write_params(safety_cfg, 'kelo_safety_')
+    camera_map = mode in ('mapping', 'camera_layer') and camera_layer_enabled(hw)
 
     urdf = xacro.process_file(os.path.join(share(), 'urdf', 'kelo.urdf.xacro'), mappings={
         'base_frame': fr['base'], 'laser_frame': fr['laser'], 'camera_frame': fr['camera'],
         'camera_optical_frame': fr['camera_optical'], 'hedgehog_frame': fr['hedgehog'],
+        'camera_color_optical_frame': fr['camera_color_optical'],
+        'camera_color_y': str(hw['camera'].get('color_offset_y', 0.0)),
         'body_l': str(hw['body']['length']), 'body_w': str(hw['body']['width']),
         'body_h': str(hw['body']['height']),
         'laser_xyz': _xyz(hw['mounts']['laser']), 'laser_rpy': _rpy(hw['mounts']['laser']),
@@ -149,7 +162,8 @@ def build(opts, hw=None):
                          output='screen', parameters=[safety, {
                              'depth_topic': tp['camera_depth'], 'info_topic': tp['camera_info'],
                              'output_topic': tp['camera_points'], 'clearing_topic': tp['camera_clearing'],
-                             'base_frame': fr['base']}]))
+                             'map_clearing_topic': tp['camera_map_clearing'] if camera_map else '',
+                             'base_frame': fr['base'], 'scan_topic': tp['scan']}]))
     acts.append(Node(package='kelo_bringup', executable='status_node', name='kelo_status',
                      output='screen', parameters=[safety, {
                          'odom_topic': plan['topic'], 'camera_info_topic': tp['camera_info'],
@@ -164,11 +178,46 @@ def build(opts, hw=None):
         acts += _mapping(hw, sens, opts, source)
     elif mode == 'navigation':
         acts += _navigation(hw, sens, plan, opts, safety, replay)
+    elif mode == 'camera_layer':
+        acts += _localization(hw, plan, opts)
+    if camera_map:
+        filt = safety_cfg['cloud_filter']['ros__parameters']
+        acts.append(Node(package='kelo_bringup', executable='camera_mapper', name='camera_mapper',
+                         output='screen', parameters=[{
+                             'output_topic': tp['camera_map'], 'points_topic': tp['camera_points'],
+                             'clearing_topic': tp['camera_map_clearing'], 'map_frame': fr['map'],
+                             'base_frame': fr['base'], 'camera_frame': fr['camera_optical'],
+                             'min_height': float(filt['min_height']),
+                             'max_height': float(filt['max_height'])}]))
+
+    if mode != 'camera_layer' and str(opts.get('views', 'true')).lower() == 'true':
+        acts += _driver_views(hw, sens, mode, opts)
 
     if str(opts.get('use_rviz', 'false')).lower() == 'true':
         acts.append(Node(package='rviz2', executable='rviz2', output='screen', respawn=True,
                          respawn_delay=3.0,
                          arguments=['-d', os.path.join(share(), 'rviz', 'kelo.rviz')]))
+    return acts
+
+
+def _driver_views(hw, sens, mode, opts):
+    """Objects and the people-aware navigation, the driver views (rendered only while watched), the
+    video recorder and the web view."""
+    def node(exe, **kw):
+        return Node(package='kelo_bringup', executable=exe, name=exe, output='screen', respawn=True,
+                    respawn_delay=3.0, **kw)
+    acts = [node('objects')]
+    if mode == 'navigation' and people_aware(hw):
+        acts.append(node('social'))
+    if sens['camera']:
+        acts.append(node('parking_view'))
+    acts.append(node('surround_view'))
+    if mode == 'mapping':
+        acts.append(node('coverage_view'))
+    acts.append(node('video_recorder'))
+    web = hw.get('web', {}) or {}
+    if web.get('enabled', True) and str(opts.get('web', 'true')).lower() == 'true':
+        acts.append(node('web_view'))
     return acts
 
 
@@ -186,12 +235,14 @@ def _hardware_drivers(hw, sens):
         rs = os.path.join(get_package_share_directory('realsense2_camera'), 'launch', 'rs_launch.py')
         acts.append(IncludeLaunchDescription(PythonLaunchDescriptionSource(rs), launch_arguments={
             'camera_name': 'camera', 'camera_namespace': 'camera',
-            'enable_color': 'false', 'enable_depth': 'true', 'enable_infra1': 'false',
+            'enable_color': 'true' if hw['camera'].get('color') else 'false',
+            'rgb_camera.color_profile': hw['camera'].get('color_profile', '848x480x15'),
+            'enable_depth': 'true', 'enable_infra1': 'false',
             'enable_infra2': 'false', 'enable_gyro': 'false', 'enable_accel': 'false',
             'depth_module.depth_profile': hw['camera']['depth_profile'],
             'pointcloud.enable': 'false',
             'publish_tf': 'false',
-            'initial_reset': 'true'}.items()))
+            'initial_reset': 'true' if hw['camera'].get('initial_reset', True) else 'false'}.items()))
     if sens['marvelmind']:
         acts.append(Node(
             package='marvelmind_ros2', executable='marvelmind_ros2', name='marvelmind_ros2',
@@ -231,26 +282,111 @@ def _mapping(hw, sens, opts, source):
     return acts
 
 
+def localization_params(cfg, map_yaml, pose):
+    """Map file and initial pose written into the node sections of the params file. Launch passes
+    extra dict parameters as a '/**' wildcard file, and rcl lets a node-name section win over a
+    wildcard: with a dict, set_initial_pose/yaml_filename of nav2_params.yaml would silently win."""
+    cfg['map_server']['ros__parameters']['yaml_filename'] = map_yaml
+    if pose is not None:
+        cfg['amcl']['ros__parameters'].update({
+            'set_initial_pose': True, 'always_reset_initial_pose': False,
+            'initial_pose': {'x': pose[0], 'y': pose[1], 'z': 0.0, 'yaw': pose[2]}})
+    return cfg
+
+
+REBUILD_LOCALIZERS = ('auto', 'slam', 'amcl')
+
+
+def rebuild_localizer(map_yaml, choice='auto'):
+    """slam: slam_toolbox localization on the saved pose graph (same scan matcher as the mapping run),
+    amcl: particle filter on the PGM. auto picks slam when <map>.posegraph exists."""
+    if choice not in REBUILD_LOCALIZERS:
+        raise ValueError(f'rebuild_localizer must be one of {REBUILD_LOCALIZERS}: {choice}')
+    real = os.path.realpath(map_yaml)
+    stem = real[:-5] if real.endswith('.yaml') else real
+    graph = os.path.isfile(stem + '.posegraph')
+    if choice == 'slam' and not graph:
+        raise ValueError(f'rebuild_localizer slam needs {stem}.posegraph (written by save_map)')
+    return ('slam' if graph and choice != 'amcl' else 'amcl'), stem
+
+
+def _localization(hw, plan, opts):
+    """camera_layer mode: localization on the finished lidar map, no Nav2. The camera layer is
+    rebuilt with poses that agree with the final map (loop closures included)."""
+    pose = parse_initial_pose(opts.get('initial_pose')) or (0.0, 0.0, 0.0)
+    kind, stem = rebuild_localizer(opts['map'], opts.get('rebuild_localizer') or 'auto')
+    params = write_params(localization_params(nav2_params(hw, plan['topic']), opts['map'],
+                                              None if kind == 'slam' else pose), 'kelo_nav2_')
+    acts = [LogInfo(msg=f'[kelo] camera layer rebuild on {opts["map"]} with {kind}, initial pose '
+                        f'{pose[0]:.3f} {pose[1]:.3f} {math.degrees(pose[2]):.1f} deg'),
+            Node(package='nav2_map_server', executable='map_server', name='map_server', output='screen',
+                 parameters=[params])]
+    managed = ['map_server']
+    if kind == 'amcl':
+        acts.append(Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen',
+                         parameters=[params]))
+        managed.append('amcl')
+    else:
+        with open(config_path('slam_toolbox.yaml'), encoding='utf-8') as f:
+            cfg = yaml.safe_load(f)
+        cfg['slam_toolbox']['ros__parameters'].update({
+            'mode': 'localization', 'map_file_name': stem, 'map_start_pose': list(pose),
+            'use_map_saver': False})
+        # the graph map goes to a side topic: /map stays the saved PGM from map_server
+        slam = LifecycleNode(package='slam_toolbox', executable='localization_slam_toolbox_node',
+                             name='slam_toolbox', namespace='', output='screen',
+                             parameters=[write_params(cfg, 'kelo_slam_loc_')],
+                             remappings=[('/map', '/slam_localization/map'),
+                                         ('/map_metadata', '/slam_localization/map_metadata')])
+        acts += _lifecycle_start(slam)
+    acts.append(Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
+                     name='lifecycle_manager_localization', output='screen',
+                     parameters=[{'autostart': True, 'node_names': managed, 'bond_timeout': 10.0}]))
+    return acts
+
+
+def _lifecycle_start(node):
+    return [node,
+            EmitEvent(event=ChangeState(lifecycle_node_matcher=matches_action(node),
+                                        transition_id=Transition.TRANSITION_CONFIGURE)),
+            RegisterEventHandler(OnStateTransition(
+                target_lifecycle_node=node, start_state='configuring', goal_state='inactive',
+                entities=[EmitEvent(event=ChangeState(
+                    lifecycle_node_matcher=matches_action(node),
+                    transition_id=Transition.TRANSITION_ACTIVATE))]))]
+
+
 def _navigation(hw, sens, plan, opts, safety, replay):
     map_yaml = opts['map']
-    params = write_params(nav2_params(hw, plan['topic']), 'kelo_nav2_')
-    amcl_extra = {}
-    pose = parse_initial_pose(opts.get('initial_pose'))
-    if pose is not None:
-        amcl_extra = {'set_initial_pose': True, 'always_reset_initial_pose': False,
-                      'initial_pose': {'x': pose[0], 'y': pose[1], 'z': 0.0, 'yaw': pose[2]}}
+    camera_yaml = camera_layer_file(map_yaml) if camera_layer_enabled(hw) else None
+    cfg = nav2_params(hw, plan['topic'], camera_map=camera_yaml is not None)
+    params = write_params(localization_params(cfg, map_yaml, parse_initial_pose(opts.get('initial_pose'))),
+                          'kelo_nav2_')
     acts = [
         Node(package='nav2_map_server', executable='map_server', name='map_server', output='screen',
-             parameters=[params, {'yaml_filename': map_yaml}], respawn=True, respawn_delay=2.0),
+             parameters=[params], respawn=True, respawn_delay=2.0),
         Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen',
-             parameters=[params, amcl_extra], respawn=True, respawn_delay=2.0),
-        Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
-             name='lifecycle_manager_localization', output='screen',
-             parameters=[{'autostart': True, 'node_names': ['map_server', 'amcl'], 'bond_timeout': 10.0}]),
+             parameters=[params], respawn=True, respawn_delay=2.0),
     ]
+    loc_nodes = ['map_server', 'amcl']
+    if camera_yaml is not None:
+        acts += [LogInfo(msg=f'[kelo] camera layer: {camera_yaml}'),
+                 Node(package='nav2_map_server', executable='map_server', name='map_server_camera',
+                      output='screen', respawn=True, respawn_delay=2.0,
+                      parameters=[{'yaml_filename': camera_yaml, 'topic_name': hw['topics']['camera_map'],
+                                   'frame_id': hw['frames']['map']}])]
+        loc_nodes.append('map_server_camera')
+    acts.append(Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
+                     name='lifecycle_manager_localization', output='screen',
+                     parameters=[{'autostart': True, 'node_names': loc_nodes, 'bond_timeout': 10.0}]))
     if sens['marvelmind']:
         acts.append(Node(package='kelo_bringup', executable='mm_monitor', name='mm_monitor',
                          output='screen', parameters=[safety]))
+    # scan fit of the AMCL pose (LOST -> goal cancelled), last good pose saved and restored at start
+    acts.append(Node(package='kelo_bringup', executable='loc_monitor', name='loc_monitor', output='screen',
+                     respawn=True, respawn_delay=2.0, parameters=[{
+                         'map_yaml': map_yaml, 'map_frame': hw['frames']['map'], 'scan_topic': hw['topics']['scan'],
+                         'restore_last_pose': not sens['marvelmind'] and not opts.get('initial_pose')}]))
 
     def node(pkg, exe, name, remap=None):
         return Node(package=pkg, executable=exe, name=name, output='screen',

@@ -1,0 +1,16 @@
+# KELO object detector on the Jetson GPU (TensorRT, YOLOX-s) for the objects node, on 127.0.0.1:5810.
+# Runs on the host because there is no l4t-jetpack base image for R39 (docker/detector/ needs R36).
+[Unit]
+Description=KELO object detector (TensorRT GPU)
+After=network.target
+
+[Service]
+User=baran
+WorkingDirectory=/home/baran/Desktop/kelo_docker/data/models
+Environment=PYTHONPATH=/home/baran/Desktop/kelo_docker/src/kelo_bringup
+ExecStart=/usr/bin/python3 -m kelo_bringup.detector_service --backend tensorrt --model /home/baran/Desktop/kelo_docker/data/models/yolox_s.onnx --engine-dir /home/baran/Desktop/kelo_docker/data/models --host 127.0.0.1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

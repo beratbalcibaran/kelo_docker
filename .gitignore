@@ -8,3 +8,8 @@ __pycache__/
 data/maps/*
 !data/maps/.gitkeep
 data/mm_samples_*.csv
+data/eval/
+data/last_pose.yaml*
+data/videos/
+data/models/
+.env

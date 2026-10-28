@@ -19,15 +19,18 @@ class KeloGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("KELO Control Panel")
-        self.root.geometry("760x620")
+        self.root.geometry("760x620-0+0")
 
         self.procs = {}
         self.ros_node = None
         self.cmd_pub = None
         self.pressed_keys = set()
+        self.release_ticks = 0
+        self.recording = False
 
         self.rviz_proc = None
         self.rviz_restarts = 0
+        self.view_procs = []
         self._build_widgets()
         self._refresh_status()
         self._drive_tick()
@@ -47,6 +50,7 @@ class KeloGUI:
         self.odom_source = tk.StringVar(value="robot")
         self.bag_path = tk.StringVar(value="")
         self.use_rviz = tk.BooleanVar(value=True)
+        self.sim_person = tk.BooleanVar(value=True)
         ttk.Label(opts, text="sensor source").pack(side="left")
         ttk.Combobox(opts, textvariable=self.source, values=SOURCES, width=9,
                      state="readonly").pack(side="left", padx=4)
@@ -70,6 +74,14 @@ class KeloGUI:
         ttk.Button(nav_btns, text="Localize", command=self.localize).pack(side="left", padx=4)
         ttk.Button(nav_btns, text="Send Goal", command=self.send_goal_dialog).pack(side="left", padx=4)
         ttk.Button(nav_btns, text="Stop Navigation", command=lambda: self.stop("navigation")).pack(side="left", padx=4)
+        ttk.Checkbutton(nav_btns, text="Person on path (sim)", variable=self.sim_person).pack(side="left", padx=6)
+
+        video = ttk.LabelFrame(top, text="Video (driver views -> /data/videos)", padding=8)
+        video.pack(fill="x", pady=6)
+        self.rec_btn = ttk.Button(video, text="Record", command=self.toggle_record)
+        self.rec_btn.pack(side="left", padx=4)
+        ttk.Button(video, text="Save Clip (dashcam)", command=lambda: self._recorder("save_clip")).pack(side="left", padx=4)
+        ttk.Label(video, text="Phone/tablet: http://<robot>:8080", foreground="#555").pack(side="left", padx=10)
 
         self.drive_info = ttk.Label(
             top, text="Driving: WASD or arrow keys while this window has focus (works in every mode, speed limited).",
@@ -142,6 +154,9 @@ class KeloGUI:
             return
         self._start("navigation", ["ros2", "launch", PACKAGE, "bringup.launch.py",
                                    f"map:={MAP_YAML}"] + args)
+        if self.source.get() == "sim" and self.sim_person.get():
+            # test helper: for every goal a person steps onto the path in front of the robot
+            self._start("person", ["ros2", "run", PACKAGE, "sim_person"])
         self._log("[GUI] A start pose is needed: 'Set Initial Pose' (x, y, yaw) or 'Localize' "
                   "(Marvelmind position or global search + turn in place).\n")
 
@@ -207,6 +222,24 @@ class KeloGUI:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         threading.Thread(target=self._stream_output, args=("goal", proc), daemon=True).start()
 
+    def toggle_record(self):
+        self._recorder("stop" if self.recording else "start")
+
+    def _recorder(self, action):
+        def run():
+            cmd = ["ros2", "service", "call", f"/video_recorder/{action}", "std_srvs/srv/Trigger"]
+            try:
+                out = subprocess.run(cmd, capture_output=True, text=True, timeout=15).stdout
+            except Exception as e:
+                out = str(e)
+            msg = out.split("message=")[-1].rstrip(")\n '\"") if "message=" in out else "video recorder not running"
+            ok = "success=True" in out
+            if action in ("start", "stop") and ok:
+                self.recording = action == "start"
+                self.root.after(0, lambda: self.rec_btn.configure(text="Stop Recording" if self.recording else "Record"))
+            self._log(f"[GUI] video {action}: {msg}\n")
+        threading.Thread(target=run, daemon=True).start()
+
     def _rviz_watchdog(self):
         stack_up = self._running("mapping") or self._running("navigation")
         want = self.use_rviz.get() and stack_up
@@ -225,11 +258,22 @@ class KeloGUI:
                 self.rviz_proc = subprocess.Popen(["ros2", "run", "rviz2", "rviz2", "-d", cfg],
                                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                                   preexec_fn=os.setsid)
+                if not any(p.poll() is None for p in self.view_procs):
+                    # RViz helper (camera layer beside the map) and the camera windows; the objects and
+                    # the driver views themselves run in the stack
+                    self.view_procs = [subprocess.Popen(["ros2", "run", PACKAGE, exe],
+                                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                                        preexec_fn=os.setsid)
+                                       for exe in ("map_side_view", "camera_view")]
             except Exception as e:
                 self._log(f"[GUI] RViz could not be started: {e}\n")
         elif not want and alive:
             self._kill_group(self.rviz_proc)
             self.rviz_proc = None
+        if not want and self.view_procs:
+            for p in self.view_procs:
+                self._kill_group(p)
+            self.view_procs = []
         self.root.after(2000, self._rviz_watchdog)
 
     @staticmethod
@@ -283,7 +327,7 @@ class KeloGUI:
         self._log(f"[GUI] '{name}' ended.\n")
 
     def stop(self, group):
-        names = [group]
+        names = [group] + (["person"] if group == "navigation" else [])
         if any(self._running(n) for n in names):
             self._log(f"[GUI] Stopping '{group}': sending SIGINT to the nodes "
                       "(this is the 'exit code -2' in the logs).\n")
@@ -341,14 +385,21 @@ class KeloGUI:
             msg = self._Twist()
             msg.linear.x, msg.angular.z = lin, ang
             self.cmd_pub.publish(msg)
-        elif self.cmd_pub is not None:
+            self.release_ticks = 5
+        elif self.cmd_pub is not None and self.release_ticks > 0:
+            # zero for 0.5 s after the keys are released, then silent: another driver (the web
+            # view joystick) can use the same topic
             self.cmd_pub.publish(self._Twist())
+            self.release_ticks -= 1
         self.root.after(100, self._drive_tick)
 
     def on_close(self):
         self.use_rviz.set(False)
         if self.rviz_proc is not None and self.rviz_proc.poll() is None:
             self._kill_group(self.rviz_proc)
+        for p in self.view_procs:
+            if p.poll() is None:
+                self._kill_group(p)
         for name in list(self.procs.keys()):
             self.stop(name)
         if self.ros_node is not None:

@@ -63,6 +63,21 @@ RUN set -e; cd /ros2_ws/src && mkdir rf2o_laser_odometry && cd rf2o_laser_odomet
  && cd /ros2_ws && . /opt/ros/jazzy/setup.sh \
  && colcon build --packages-select rf2o_laser_odometry --cmake-args -DCMAKE_BUILD_TYPE=Release
 
+# object detection for the driver views (objects node): vision_msgs and the YOLOX-tiny COCO model
+RUN apt-get update && apt-get install -y --no-install-recommends ros-jazzy-vision-msgs \
+    && rm -rf /var/lib/apt/lists/*
+ARG YOLOX_URL=https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.onnx
+ARG YOLOX_SHA256=427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7
+RUN mkdir -p /opt/kelo/models \
+ && curl -fsSL -o /opt/kelo/models/yolox_tiny.onnx "${YOLOX_URL}" \
+ && echo "${YOLOX_SHA256}  /opt/kelo/models/yolox_tiny.onnx" | sha256sum -c -
+
+# behaviour tree node for the people-aware navigation (IsPersonBlocking)
+COPY src/kelo_bt_nodes /ros2_ws/src/kelo_bt_nodes
+RUN cd /ros2_ws \
+ && . /opt/ros/jazzy/setup.sh && . install/setup.sh \
+ && colcon build --packages-select kelo_bt_nodes --cmake-args -DCMAKE_BUILD_TYPE=Release
+
 COPY src/kelo_bringup /ros2_ws/src/kelo_bringup
 RUN cd /ros2_ws \
  && . /opt/ros/jazzy/setup.sh && . install/setup.sh \
@@ -83,7 +98,7 @@ ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
 
 VOLUME /data
 
-EXPOSE 6080
+EXPOSE 6080 8080
 
 HEALTHCHECK --interval=30s --timeout=15s --start-period=90s --retries=3 \
   CMD bash -c 'curl -fs http://127.0.0.1:6080/ >/dev/null 2>&1 || (source /opt/ros/jazzy/setup.bash && source /ros2_ws/install/setup.bash && ros2 node list 2>/dev/null | grep -q cmd_vel_gate)'

@@ -156,3 +156,63 @@ def depth_to_points(depth, k, stride, range_lim, height_lim, rot, trans):
     base = pts @ np.asarray(rot).T + np.asarray(trans)
     keep = (base[:, 2] >= height_lim[0]) & (base[:, 2] <= height_lim[1])
     return base[keep]
+
+
+def clearing_rays(depth, k, stride, min_range, max_range, rot, trans):
+    """End points of every valid depth pixel, pulled back to max_range (no return there = free)."""
+    fx, fy, cx, cy = k
+    d = np.asarray(depth, dtype=np.float32)[::stride, ::stride]
+    v, u = np.mgrid[0:d.shape[0], 0:d.shape[1]]
+    u, v = u * stride, v * stride
+    z = d.ravel()
+    pts = np.stack([(u.ravel() - cx) / fx * z, (v.ravel() - cy) / fy * z, z], axis=1)
+    rng = np.linalg.norm(pts, axis=1)
+    keep = (z > 0.0) & np.isfinite(z) & (rng >= min_range)
+    pts, rng = pts[keep], rng[keep]
+    pts *= (np.minimum(rng, max_range) / rng)[:, None]
+    return pts @ np.asarray(rot).T + np.asarray(trans)
+
+
+def blind_wedge_points(k, width, height, rot, trans, z_clear, min_x, n_cols=24,
+                       fractions=(0.3, 0.45, 0.6, 0.75, 0.9)):
+    """End points (base frame, height z_clear) of clearing rays through a blind wedge of the camera:
+    below the camera (z_clear under it) the space under the bottom edge of the image, above it the
+    space over the top edge, between the robot front (min_x) and where that image row meets the height
+    z_clear. A ray from the camera to such a point is steeper than any pixel, so the camera itself never
+    clears there: an object that left while it was this close (a person in front of the robot) would
+    stay in the voxel layer for ever."""
+    fx, fy, cx, cy = k
+    rot, trans = np.asarray(rot, dtype=float), np.asarray(trans, dtype=float)
+    below = z_clear < trans[2]
+    row = height - 1.0 if below else 0.0
+    u = np.linspace(0.0, width - 1.0, n_cols)
+    rays = np.stack([(u - cx) / fx, np.full_like(u, (row - cy) / fy), np.ones_like(u)], axis=1) @ rot.T
+    toward = rays[:, 2] < -1e-6 if below else rays[:, 2] > 1e-6
+    if abs(trans[2] - z_clear) < 1e-6 or not toward.any():
+        return np.zeros((0, 3))
+    rays = rays[toward]
+    t = (z_clear - trans[2]) / rays[:, 2]                 # bottom row reaches z_clear here
+    edge = trans[None, :2] + rays[:, :2] * t[:, None]
+    pts = [trans[None, :2] + (edge - trans[None, :2]) * f for f in fractions]
+    pts = np.concatenate(pts)
+    pts = pts[pts[:, 0] >= min_x]
+    return np.column_stack([pts, np.full(len(pts), z_clear)])
+
+
+def scan_sees_past(points_xy, laser_xy, laser_yaw, angle_min, angle_inc, ranges, range_min, margin=0.15):
+    """True for the points (base frame) that the LiDAR beam in their direction passes by more than
+    `margin`: nothing at LiDAR height there. Invalid readings count as blocked, inf as free."""
+    pts = np.asarray(points_xy, dtype=float).reshape(-1, 2)
+    r = np.asarray(ranges, dtype=float)
+    if len(pts) == 0 or len(r) == 0:
+        return np.zeros(len(pts), dtype=bool)
+    d = pts - np.asarray(laser_xy, dtype=float)
+    dist = np.hypot(d[:, 0], d[:, 1])
+    bearing = np.arctan2(d[:, 1], d[:, 0]) - laser_yaw
+    bearing = np.arctan2(np.sin(bearing), np.cos(bearing))
+    idx = np.round((bearing - angle_min) / angle_inc).astype(int)
+    inside = (idx >= 0) & (idx < len(r))
+    meas = np.full(len(pts), np.nan)
+    meas[inside] = r[idx[inside]]
+    free = np.isposinf(meas) | (np.isfinite(meas) & (meas >= range_min) & (meas > dist + margin))
+    return inside & free

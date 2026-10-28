@@ -5,8 +5,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PHASES="${*:-A B C D}"
 WORK="${E2E_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/kelo_e2e.XXXXXX")}"
 mkdir -p "$WORK/data"
-NAME=kelo-e2e
-DOMAIN=77
+NAME="${E2E_NAME:-kelo-e2e}"
+DOMAIN="${E2E_DOMAIN:-77}"
 FAIL=0
 RESULTS=()
 R='source /opt/ros/jazzy/setup.bash; source /ros2_ws/install/setup.bash;'
@@ -95,13 +95,15 @@ if [[ " $PHASES " == *" B "* ]]; then
   e2e "AMCL pose ~ true pose" localization
   for sc in "obstacle table" "obstacle low" "obstacle person" "teleop_obstacle table" "teleop_obstacle low" \
             "dropout camera" "dropout lidar" "teleop_dropout camera" "teleop_dropout lidar" "near_wall" \
-            "detour box far" "detour table far" "detour table sudden"; do
+            "detour box far" "detour table far" "detour table sudden" \
+            "people stand" "people leave" "people cross"; do
     e2e "safety: $sc" $sc
   done
   e2e "Send Goal: direct motion along the body axis" goal_motion
   stop B
   echo "=== B2: no alignment -> localize automatic global mode"
   mv "$WORK/data/marvelmind_alignment.yaml" "$WORK/alignment.bak" 2>/dev/null
+  rm -f "$WORK/data/last_pose.yaml"
   start navigation -e KELO_EXTRA_ARGS="sim_yaw0:=1.0472"
   sleep 15
   check "localize: no alignment -> switches to GLOBAL mode, LOCALIZED" \
@@ -109,14 +111,24 @@ if [[ " $PHASES " == *" B "* ]]; then
   grep '\[localize\]' "$WORK/last.txt" | sed 's/^/     /'
   e2e "AMCL pose ~ true pose (global localization)" localization
   e2e "second 'Localize' keeps a good estimate; --force re-localizes" relocalize
+  e2e "robot carried away -> LOST, goal refused, Localize finds it again" kidnap
   stop B2
+  echo "=== B3: navigation restarted where the robot stands -> last pose restored"
+  # the sim starts where the last saved pose says (map origin = sim start 1, 1, 0 of phase A)
+  LP=$(awk '/^x:/{x=$2} /^y:/{y=$2} /^yaw_deg:/{a=$2} END{if (x != "") printf "sim_x0:=%.3f sim_y0:=%.3f sim_yaw0:=%.4f", x+1, y+1, a*3.14159265/180}' "$WORK/data/last_pose.yaml" 2>/dev/null)
+  echo "[e2e] restart at the last saved pose: ${LP:-none saved}"
+  start navigation -e KELO_EXTRA_ARGS="$LP"
+  sleep 10
+  e2e "last pose restored at start (no Localize)" restored
+  stop B3
   mv "$WORK/alignment.bak" "$WORK/data/marvelmind_alignment.yaml" 2>/dev/null
 fi
 
 if [[ " $PHASES " == *" C "* ]]; then
   echo "=== C: replay (A's bag) -> same stack -> map comparison"
   BAG=$(ls -d "$WORK"/data/bags/map_sim_* 2>/dev/null | head -1)
-  LIVE=$(ls "$WORK"/data/maps/e2e_*.yaml 2>/dev/null | head -1)
+  # the LiDAR map (save_map also writes <name>_camera.yaml, which sorts first)
+  LIVE=$(ls "$WORK"/data/maps/e2e_*.yaml 2>/dev/null | grep -v '_camera\.yaml$' | head -1)
   if [ -z "$BAG" ] || [ -z "$LIVE" ]; then
     record "FAIL replay: phase A bag/map missing"
   else

@@ -4,5 +4,10 @@
     <General>
       <AllowMulticast>spdp</AllowMulticast>
     </General>
+    <Discovery>
+      <!-- one participant per process: the full stack with the driver views, the GUI and the tools
+           (localize, send_goal, ros2 CLI) needs more than the default -->
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+    </Discovery>
   </Domain>
 </CycloneDDS>

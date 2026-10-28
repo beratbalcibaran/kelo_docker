@@ -9,6 +9,7 @@ ARGS = {
     'map': '/data/maps/current.yaml', 'bag': '', 'bag_rate': '1.0', 'bag_delay': '5.0',
     'record': 'auto', 'initial_pose': '', 'use_rviz': 'false', 'wait_tf_s': '600',
     'sim_x0': '', 'sim_y0': '', 'sim_yaw0': '', 'sim_seed': '0', 'sim_odom_model': '',
+    'sim_world': '', 'rebuild_localizer': 'auto', 'views': 'true', 'web': 'true',
 }
 
 

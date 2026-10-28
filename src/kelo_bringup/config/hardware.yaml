@@ -5,6 +5,7 @@ frames:
   laser: laser
   camera: camera_link
   camera_optical: camera_depth_optical_frame
+  camera_color_optical: camera_color_optical_frame
   hedgehog: hedgehog_link
   marvelmind_map: marvelmind_map
 
@@ -15,8 +16,12 @@ topics:
   cmd_vel_teleop: /cmd_vel_teleop
   camera_depth: /camera/camera/depth/image_rect_raw
   camera_info: /camera/camera/depth/camera_info
+  camera_color: /camera/camera/color/image_raw
+  camera_color_info: /camera/camera/color/camera_info
   camera_points: /camera/points_filtered
   camera_clearing: /camera/points_clearing
+  camera_map_clearing: /camera/points_map_clearing
+  camera_map: /map_camera
   marvelmind_raw: /hedgehog_pos_ang
   marvelmind_pose: /marvelmind/pose
 
@@ -24,6 +29,9 @@ sensors:
   lidar: true
   camera: true
   marvelmind: false
+
+mapping:
+  camera_layer: true
 
 robot:
   cmd_vel_type: Twist
@@ -41,8 +49,48 @@ lidar:
 
 camera:
   depth_profile: 424x240x15
+  # colour stream for the parking camera view only (RViz); nothing in navigation uses it
+  color: true
+  color_profile: 848x480x15
+  # colour imager position in camera_link (D435: beside the depth origin); check against the
+  # camera's depth_to_color extrinsics on the robot
+  color_offset_y: 0.015
+  # USB reset of the camera at driver start (recovers a camera left in a bad state). Set false in a
+  # virtual machine with USB passthrough: the camera re-enumerates and is not passed through again.
+  initial_reset: true
   hfov_deg: 87.0
   vfov_deg: 58.0
+
+# object names for the driver views (objects node, display only): YOLOX-tiny (COCO) on the colour
+# image, OpenCV DNN on the CPU; the model is downloaded into the image by the Dockerfile
+perception:
+  detector: true
+  model: /opt/kelo/models/yolox_tiny.onnx
+  detector_hz: 3.0
+  score_min: 0.45
+  # detector service (docker/detector/: the kelo-detector container, TensorRT on the Jetson GPU,
+  # YOLOX-s); while it does not answer, the objects node runs the model above on the CPU
+  service: {enabled: true, host: 127.0.0.1, port: 5810}
+
+# people-aware navigation (social node): personal space and predicted walking path of people in the
+# costmaps, slower near people, and the behaviour tree waits for a person on the path (a box is
+# passed after 5 s). Off: people are obstacles like any other.
+navigation:
+  people_aware: true
+
+# driver views in a browser (web_view): http://<robot>:8080, user kelo, password KELO_WEB_PASSWORD
+web:
+  enabled: true
+  port: 8080
+  allow_drive: true
+
+# driving videos of the driver views (video_recorder) in /data/videos; dashcam_s > 0 keeps the last
+# seconds in memory for 'Save clip'
+recording:
+  fps: 10
+  height: 480
+  dashcam_s: 0
+  max_minutes: 30
 
 mounts:
   laser:    {x: 0.45, y: 0.0, z: 0.20, roll: 0.0, pitch: 0.0, yaw: 0.0}

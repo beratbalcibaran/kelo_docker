@@ -1,0 +1,54 @@
+# Task 1 evaluation room: tables, a shelf and low objects that the lidar plane (z 0.20) misses.
+# Same size as sim_world.yaml (8 x 6 m): the lidar (5 m) sees the far walls, so slam_toolbox stays reliable.
+# Used by scripts/camera_layer_eval.sh (eval section below, world coordinates).
+room: {width: 8.0, height: 6.0, wall_height: 2.0}
+
+start: {x: 1.0, y: 1.0, yaw: 0.0}
+
+obstacles:
+  # camera only: table tops, a shelf on legs (lowest board 0.30 m) and objects lower than the lidar plane
+  - {type: table, name: desk_a, xy: [2.6, 2.0, 4.0, 2.7], top: [0.60, 0.65], leg_r: 0.025}
+  - {type: table, name: desk_b, xy: [2.6, 4.0, 4.0, 4.7], top: [0.60, 0.65], leg_r: 0.025}
+  - {type: table, name: table_c, xy: [5.4, 3.0, 6.6, 3.7], top: [0.60, 0.65], leg_r: 0.025}
+  - {type: table, name: shelf, xy: [5.6, 5.4, 7.4, 5.8], top: [0.30, 1.60], leg_r: 0.025}
+  - {type: box, name: low_a, xy: [4.6, 1.6, 5.0, 2.0], z: [0.0, 0.15]}
+  - {type: box, name: low_b, xy: [6.0, 1.6, 6.4, 2.0], z: [0.0, 0.12]}
+  # seen by the lidar too
+  - {type: box, name: cabinet, xy: [1.2, 5.0, 1.8, 5.7], z: [0.0, 1.0]}
+  - {type: box, name: bin, xy: [0.3, 2.3, 0.6, 2.8], z: [0.0, 0.9]}
+  - {type: box, name: east_box, xy: [7.7, 2.6, 8.0, 3.2], z: [0.0, 1.0]}
+  - {type: box, name: south_box, xy: [4.2, 0.0, 4.8, 0.3], z: [0.0, 1.0]}
+  - {type: cylinder, name: pillar, center: [0.8, 4.0], r: 0.15, z: [0.0, 2.0]}
+
+eval:
+  mapping_route: [[7.0, 1.0], [7.0, 4.6], [4.7, 4.6], [4.7, 3.35], [1.8, 3.35], [1.8, 4.3], [1.8, 1.0],
+                  [1.0, 1.0], [3.0, 1.0], [1.0, 1.0]]
+  # walks in front of desk_a during the first leg, removed when the robot reaches the first waypoint
+  person: {path: [[2.6, 1.75], [4.0, 1.75]], speed: 0.4, r: 0.2, z: [0.0, 1.7], until_waypoint: 1}
+  goals: [[3.3, 3.35], [3.3, 5.3], [6.0, 4.5], [6.0, 2.5], [7.0, 1.0], [5.3, 1.0], [4.8, 2.6],
+          [1.5, 3.3], [3.3, 1.2], [7.0, 4.5]]
+
+robot:
+  height: 0.70
+  max_accel: 1.0
+  max_ang_accel: 2.5
+  cmd_timeout_s: 0.5
+
+odometry:
+  model: faulty
+  yaw_k: {wz: [0.6, 1.5], k: [5.3, 8.6]}
+  linear_error: {v: [0.06, 0.15], e: [-0.006, -0.018]}
+
+lidar: {beams: 683, rate_hz: 10.0, range_max: 5.6, noise_m: 0.01}
+
+camera: {width: 106, height: 60, hfov_deg: 87.0, vfov_deg: 58.0, rate_hz: 15.0,
+         min_depth: 0.28, max_depth: 6.0, noise_k: 0.004}
+
+marvelmind:
+  rate_hz: 8.0
+  noise_m: 0.02
+  outlier_prob: 0.01
+  outlier_m: 1.0
+  dropout_per_min: 1.0
+  dropout_s: [2.0, 6.0]
+  offset: [0.0, 0.0]

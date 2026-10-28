@@ -47,6 +47,10 @@ bt_navigator:
     default_server_timeout: 100
     wait_for_service_timeout: 1000
     action_server_result_timeout: 900.0
+    # behavior_trees/: stop and wait 5 s for an obstacle on the path, then plan around it
+    default_nav_to_pose_bt_xml: navigate_wait_then_detour.xml
+    # IsPersonBlocking (kelo_bt_nodes): wait for a person on the path instead of planning around them
+    plugin_lib_names: ["kelo_is_person_blocking_bt_node", "kelo_skip_path_start_bt_node"]
     navigators: ["navigate_to_pose", "navigate_through_poses"]
     navigate_to_pose:
       plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
@@ -67,16 +71,33 @@ controller_server:
     controller_plugins: ["FollowPath"]
     progress_checker:
       plugin: "nav2_controller::PoseProgressChecker"
-      required_movement_radius: 0.3
+      # passing a person between them and a wall runs at a few cm/s (people speed limit times the
+      # collision monitor slowdown): that is progress, not a stuck robot
+      required_movement_radius: 0.15
       required_movement_angle: 0.5
-      movement_time_allowance: 15.0
+      movement_time_allowance: 20.0
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
       xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 0.25
     FollowPath:
-      plugin: "nav2_mppi_controller::MPPIController"
+      # rotation shim: on a new path (e.g. a detour planned while standing in front of an obstacle)
+      # turn in place towards it first, then MPPI drives. open loop: inside the collision monitor
+      # slowdown zone the measured turn rate is scaled down, and a closed loop ramps up from it.
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "nav2_mppi_controller::MPPIController"
+      angular_dist_threshold: 0.5
+      angular_disengage_threshold: 0.2
+      forward_sampling_distance: 0.6
+      rotate_to_heading_angular_vel: 0.5
+      max_angular_accel: 1.5
+      simulate_ahead_time: 1.0
+      # at the goal position the shim turns to the goal heading itself: MPPI crept there for minutes
+      # when the last turn (under a people speed limit) was only a few degrees out of tolerance
+      rotate_to_goal_heading: true
+      rotate_to_heading_once: false
+      closed_loop: false
       time_steps: 40
       model_dt: 0.07
       batch_size: 1000
@@ -165,8 +186,16 @@ local_costmap:
           raytrace_max_range: 5.0
           expected_update_rate: 1.5
       camera_layer:
-        plugin: "nav2_costmap_2d::ObstacleLayer"
+        # 3D voxels: a clearing ray that passes over a low object to the floor behind it must not
+        # erase it (a 2D ObstacleLayer does, once the object is in the camera blind zone)
+        plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
+        origin_z: 0.0
+        z_resolution: 0.08
+        z_voxels: 16
+        unknown_threshold: 16
+        mark_threshold: 0
+        publish_voxel_map: false
         observation_sources: camera camera_clearing
         camera:
           topic: /camera/points_filtered
@@ -187,7 +216,7 @@ local_costmap:
           marking: false
           clearing: true
           min_obstacle_height: -1.0
-          max_obstacle_height: 1.20
+          max_obstacle_height: 1.30
           raytrace_min_range: 0.0
           raytrace_max_range: 3.0
           expected_update_rate: 1.0
@@ -197,18 +226,31 @@ local_costmap:
         cost_scaling_factor: 10.0
         inflation_radius: 0.70
       always_send_full_costmap: true
+      # read by every StaticLayer from the costmap, not from the layer (Nav2 Jazzy): the static layers
+      # (camera layer, people layer) are combined by maximum, unknown cells leave the costmap as it is,
+      # and graded values (people layer) are kept instead of being made free or lethal
+      use_maximum: true
+      trinary_costmap: false
 
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 1.0
+      # the behaviour tree checks the path twice a second and plans right after clearing the costmaps:
+      # at 1 Hz a plan could still miss what the sensors had marked again
+      update_frequency: 3.0
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_link
       resolution: 0.05
-      footprint: "[[0.425, 0.265], [0.425, -0.265], [-0.425, -0.265], [-0.425, 0.265]]"
+      # the inscribed radius (half the body width), not the footprint: the planner (NavFn) plans the
+      # centre of the robot against lethal and inscribed cells, and IsPathValid (Nav2 Jazzy) checks the
+      # same with a radius, but the footprint at each pose's yaw with a polygon - NavFn leaves every
+      # yaw at 0. With the polygon, a detour past a person or around a corner next to a wall looked
+      # like a collision, every new path was rejected, and the robot waited for ever on a free path.
+      # The body shape is the local costmap's (MPPI) and the collision monitor's.
+      robot_radius: 0.265
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "camera_layer", "inflation_layer"]
+      plugins: ["static_layer", "obstacle_layer", "camera_layer", "people_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: true
@@ -226,8 +268,16 @@ global_costmap:
           obstacle_max_range: 4.5
           raytrace_max_range: 5.0
       camera_layer:
-        plugin: "nav2_costmap_2d::ObstacleLayer"
+        # 3D voxels: a clearing ray that passes over a low object to the floor behind it must not
+        # erase it (a 2D ObstacleLayer does, once the object is in the camera blind zone)
+        plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
+        origin_z: 0.0
+        z_resolution: 0.08
+        z_voxels: 16
+        unknown_threshold: 16
+        mark_threshold: 0
+        publish_voxel_map: false
         observation_sources: camera camera_clearing
         camera:
           topic: /camera/points_filtered
@@ -248,16 +298,34 @@ global_costmap:
           marking: false
           clearing: true
           min_obstacle_height: -1.0
-          max_obstacle_height: 1.20
+          max_obstacle_height: 1.30
           raytrace_min_range: 0.0
           raytrace_max_range: 3.0
           expected_update_rate: 1.0
           observation_persistence: 0.0
+      people_layer:
+        # personal space and predicted walking path of the people (social node): only adds cost.
+        # Global costmap only: the planner passes people wide. In the local costmap the graded costs
+        # around a person slowed MPPI to a crawl on a path past them; there the LiDAR and camera
+        # layers have the person, and the social node limits the speed.
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_topic: /kelo/people_map
+        map_subscribe_transient_local: true
+        subscribe_to_updates: false
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 10.0
+        # slower fall-off than the local costmap: with 10 a path 0.5 m from a wall cost almost nothing,
+        # and there the rotation stop zone (0.59 m) touches the wall: the robot could neither turn nor
+        # leave. 5: 0.5 m from a wall costs 82/252, paths keep off walls without leaving a straight
+        # lane; a 0.9 m door (0.45 m to each side) stays passable.
+        cost_scaling_factor: 5.0
         inflation_radius: 0.70
       always_send_full_costmap: true
+      # read by every StaticLayer from the costmap, not from the layer (Nav2 Jazzy): the static layers
+      # (camera layer, people layer) are combined by maximum, unknown cells leave the costmap as it is,
+      # and graded values (people layer) are kept instead of being made free or lethal
+      use_maximum: true
+      trinary_costmap: false
 
 planner_server:
   ros__parameters:

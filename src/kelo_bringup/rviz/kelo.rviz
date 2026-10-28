@@ -24,6 +24,34 @@ Visualization Manager:
       Topic:
         Value: /map
         Durability Policy: Transient Local
+    - Class: rviz_default_plugins/Map
+      Name: CameraLayer
+      Enabled: true
+      Topic:
+        Value: /map_camera_side
+        Durability Policy: Transient Local
+    - Class: rviz_default_plugins/MarkerArray
+      Name: MapLabels
+      Enabled: true
+      Topic:
+        Value: /map_side_view/markers
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Objects
+      Enabled: true
+      Topic:
+        Value: /kelo/objects/markers
+    - Class: rviz_default_plugins/Image
+      Name: ParkingViewColor
+      Enabled: false
+      Topic:
+        Value: /parking_view/color_image
+        Reliability Policy: Reliable
+    - Class: rviz_default_plugins/Image
+      Name: ParkingViewDepth
+      Enabled: false
+      Topic:
+        Value: /parking_view/image
+        Reliability Policy: Reliable
     - Class: rviz_default_plugins/LaserScan
       Name: LaserScan
       Enabled: true
@@ -83,5 +111,12 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/TopDownOrtho
-      Scale: 60
+      Scale: 55
+      X: 7.5
+      Y: 2
       Target Frame: <Fixed Frame>
+Window Geometry:
+  X: 0
+  Y: 0
+  Width: 1470
+  Height: 720

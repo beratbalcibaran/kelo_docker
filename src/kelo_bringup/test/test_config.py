@@ -19,7 +19,10 @@ def test_footprints_identical():
     nav = load('nav2_params.yaml')
     saf = load('safety.yaml')
     ref = poly(nav['local_costmap']['local_costmap']['ros__parameters']['footprint'])
-    assert poly(nav['global_costmap']['global_costmap']['ros__parameters']['footprint']) == ref
+    # the global costmap uses the inscribed radius (path validity like the planner), see nav2_params.yaml
+    gc = nav['global_costmap']['global_costmap']['ros__parameters']
+    assert 'footprint' not in gc
+    assert gc['robot_radius'] == min(max(abs(x) for x, _ in ref), max(abs(y) for _, y in ref))
     assert poly(nav['collision_monitor']['ros__parameters']['FootprintApproach']['points']) == ref
     assert poly(saf['collision_monitor_teleop']['ros__parameters']['FootprintApproach']['points']) == ref
 

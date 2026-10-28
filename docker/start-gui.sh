@@ -1,6 +1,6 @@
 #!/bin/bash
 set -u
-RES="${SCREEN_RES:-1600x900x24}"
+RES="${SCREEN_RES:-2240x1260x24}"
 DISP="${DISPLAY:-:99}"
 N="${DISP#:}"
 PASS="${KELO_VNC_PASSWORD:-}"

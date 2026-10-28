@@ -163,6 +163,41 @@ def depth_image(robot_pose, mount, boxes, cyls, width, height, intr, min_depth, 
     return t.reshape(height, width)
 
 
+PALETTE = np.array([[200, 120, 60], [70, 140, 200], [190, 170, 80], [140, 90, 160], [90, 160, 110],
+                    [200, 90, 90]], dtype=float)
+
+
+def color_image(robot_pose, mount, boxes, cyls, width, height, intr, offset_y=0.0):
+    """Simple colour camera (rgb8): checkered floor, light walls, one colour per obstacle, people blue,
+    darker with distance. Only for the parking camera view: no sensor model behind it."""
+    fx, fy, cx, cy = intr
+    pos, rot = sensor_pose(robot_pose, mount)
+    pos = pos + rot @ np.array([0.0, offset_y, 0.0])
+    u, v = np.meshgrid(np.arange(width), np.arange(height))
+    opt = np.stack([(u.ravel() - cx) / fx, (v.ravel() - cy) / fy, np.ones(u.size)], axis=1)
+    dirs = opt @ (rot @ R_LINK_OPTICAL).T
+    t = raycast(pos, dirs, boxes, cyls, floor=True)
+    hit = np.isfinite(t)
+    p = pos + np.where(hit, t, 0.0)[:, None] * dirs
+    rgb = np.tile(np.array([45.0, 45.0, 50.0]), (len(t), 1))
+    eps = 1e-3
+    obj = np.full(len(t), -1)
+    for i, b in enumerate(boxes):
+        inside = hit & (obj < 0) & np.all((p >= b.lo - eps) & (p <= b.hi + eps), axis=1)
+        obj[inside] = i
+        rgb[inside] = [215, 210, 195] if b.name.startswith('wall') else PALETTE[i % len(PALETTE)]
+    for c in cyls:
+        on = hit & (obj < 0) & (np.hypot(p[:, 0] - c.x, p[:, 1] - c.y) <= c.r + eps) & \
+            (p[:, 2] >= c.z1 - eps) & (p[:, 2] <= c.z2 + eps)
+        obj[on] = len(boxes)
+        rgb[on] = [60, 90, 200]
+    floor = hit & (obj < 0) & (p[:, 2] < 0.01)
+    tile = (np.floor(p[:, 0] / 0.5) + np.floor(p[:, 1] / 0.5)) % 2 == 0
+    rgb[floor] = np.where(tile[floor, None], [170, 165, 150], [140, 135, 120])
+    shade = np.clip(1.15 - 0.08 * np.where(hit, t, 0.0), 0.45, 1.0)
+    return np.clip(rgb * shade[:, None], 0, 255).astype(np.uint8).reshape(height, width, 3)
+
+
 def _poly_world(points, pose):
     x, y, yaw = pose
     c, s = math.cos(yaw), math.sin(yaw)

@@ -6,7 +6,7 @@ import sys
 import numpy as np
 import rclpy
 import yaml
-from geometry_msgs.msg import TransformStamped, Twist, TwistStamped
+from geometry_msgs.msg import Pose, PoseArray, TransformStamped, Twist, TwistStamped
 from marvelmind_ros2_msgs.msg import HedgePositionAngle
 from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import SetParametersResult
@@ -96,8 +96,14 @@ class SimRobot(Node):
         self.scan_pub = self.create_publisher(LaserScan, tp['scan'], 10)
         self.depth_pub = self.create_publisher(Image, tp['camera_depth'], 10)
         self.info_pub = self.create_publisher(CameraInfo, tp['camera_info'], 10)
+        self.color_on = bool(hw['camera'].get('color'))
+        if self.color_on:
+            self.color_pub = self.create_publisher(Image, tp['camera_color'], 10)
+            self.color_info_pub = self.create_publisher(CameraInfo, tp['camera_color_info'], 10)
         self.mm_pub = self.create_publisher(HedgePositionAngle, tp['marvelmind_raw'], 10)
         self.gt_pub = self.create_publisher(Odometry, '/sim/ground_truth', 10)
+        # people (cylinders named person*) in the base frame: the object labels of the driver views
+        self.people_pub = self.create_publisher(PoseArray, '/sim/people', 10)
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.contact_pub = self.create_publisher(UInt32, '/sim/contacts', latched)
         self.contact_pub.publish(UInt32(data=0))
@@ -106,6 +112,7 @@ class SimRobot(Node):
         else:
             self.create_subscription(Twist, tp['cmd_vel'], self._cmd, 10)
         self.create_subscription(String, '/sim/obstacles', self._obstacles_cb, 10)
+        self.create_subscription(String, '/sim/teleport', self._teleport_cb, 10)
 
         lid, cam = self.cfg['lidar'], self.cfg['camera']
         self.lidar_cfg, self.cam_cfg = lid, cam
@@ -114,6 +121,7 @@ class SimRobot(Node):
         self.create_timer(1.0 / float(lid['rate_hz']), self._scan)
         self.create_timer(1.0 / float(cam['rate_hz']), self._camera)
         self.create_timer(1.0 / float(mm['rate_hz']), self._marvelmind)
+        self.create_timer(0.2, self._people)
         self.get_logger().info(
             f'sim_robot: start ({self.x:.2f}, {self.y:.2f}, {math.degrees(self.yaw):.0f} deg), '
             f'odometry={self.odom_model}, odom TF={"yes" if self.publish_tf else "no"}')
@@ -144,23 +152,60 @@ class SimRobot(Node):
             ob = req.get('add')
             if ob:
                 ob = dict(ob)
+                parts = [ob]
                 if 'ahead' in ob:
                     ahead, lat = float(ob['ahead']), float(ob.get('lateral', 0.0))
                     c, s = math.cos(self.yaw), math.sin(self.yaw)
                     cx, cy = self.x + c * ahead - s * lat, self.y + s * ahead + c * lat
                     if ob.get('type', 'box') == 'box':
-                        sx, sy = [float(v) for v in ob.get('size', [0.4, 0.4])]
-                        hx = abs(c) * sx / 2 + abs(s) * sy / 2
-                        hy = abs(s) * sx / 2 + abs(c) * sy / 2
-                        ob['xy'] = [cx - hx, cy - hy, cx + hx, cy + hy]
+                        parts = self._oriented_box(ob, cx, cy, c, s)
                     else:
                         ob['center'] = [cx, cy]
-                b, cyl = W.obstacle_from_dict(ob, t=self._now())
-                self.dyn_boxes += b
-                self.dyn_cyls += cyl
-                self.get_logger().info(f'sim: obstacle added {ob}')
+                for part in parts:
+                    b, cyl = W.obstacle_from_dict(part, t=self._now())
+                    self.dyn_boxes += b
+                    self.dyn_cyls += cyl
+                self.get_logger().info(f'sim: obstacle added {ob} ({len(parts)} boxes)')
         except Exception as exc:
             self.get_logger().error(f'/sim/obstacles request invalid: {exc}')
+
+    @staticmethod
+    def _oriented_box(ob, cx, cy, c, s, tile=0.15):
+        """A box turned with the robot heading, as axis-aligned tiles: one bounding box of a turned
+        0.3 x 1.2 m box would reach back over the robot. Tiles stick out at most tile/2 * 0.41."""
+        sx, sy = [float(v) for v in ob.get('size', [0.4, 0.4])]
+        q = min(sx, sy, tile)
+        nx, ny = max(1, math.ceil(sx / q - 1e-9)), max(1, math.ceil(sy / q - 1e-9))
+        qx, qy = sx / nx, sy / ny
+        hx = (abs(c) * qx + abs(s) * qy) / 2
+        hy = (abs(s) * qx + abs(c) * qy) / 2
+        parts = []
+        for i in range(nx):
+            for j in range(ny):
+                u, v = -sx / 2 + (i + 0.5) * qx, -sy / 2 + (j + 0.5) * qy
+                px, py = cx + c * u - s * v, cy + s * u + c * v
+                parts.append(dict(ob, xy=[px - hx, py - hy, px + hx, py + hy]))
+        ob['center'] = [round(cx, 3), round(cy, 3)]
+        return parts
+
+    def _teleport_cb(self, msg):
+        """Evaluation only: move the robot to {x, y, yaw} (world, rad). Odometry does not jump, so the
+        caller re-seeds the localization."""
+        try:
+            req = yaml.safe_load(msg.data) or {}
+            pose = (float(req['x']), float(req['y']), wrap(float(req.get('yaw', 0.0))))
+        except Exception as exc:
+            self.get_logger().error(f'/sim/teleport request invalid: {exc}')
+            return
+        boxes, cyls = self._all_obstacles()
+        hit = W.collides(self.footprint, pose, self.height, boxes, cyls)
+        if hit:
+            self.get_logger().error(f'sim: teleport to {pose} rejected, footprint hits {hit}')
+            return
+        self.x, self.y, self.yaw = pose
+        self.v = [0.0, 0.0, 0.0]
+        self.last_contact = None
+        self.get_logger().warn(f'sim: teleported to ({pose[0]:.2f}, {pose[1]:.2f}, {math.degrees(pose[2]):.0f} deg)')
 
     def _tick(self):
         tnow = self.get_clock().now()
@@ -229,6 +274,20 @@ class SimRobot(Node):
     def _pose(self):
         return (self.x, self.y, self.yaw)
 
+    def _people(self):
+        msg = PoseArray()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.frames['base']
+        c, s = math.cos(self.yaw), math.sin(self.yaw)
+        for cyl in self._all_obstacles()[1]:
+            if cyl.name.startswith('person'):
+                dx, dy = cyl.x - self.x, cyl.y - self.y
+                p = Pose()
+                p.position.x, p.position.y = c * dx + s * dy, -s * dx + c * dy
+                p.orientation.w = 1.0
+                msg.poses.append(p)
+        self.people_pub.publish(msg)
+
     def _scan(self):
         if not self.enabled['lidar']:
             return
@@ -274,6 +333,20 @@ class SimRobot(Node):
         info.p = [fx, 0.0, cx, 0.0, 0.0, fy, cy, 0.0, 0.0, 0.0, 1.0, 0.0]
         self.depth_pub.publish(img)
         self.info_pub.publish(info)
+        if self.color_on:
+            rgb = W.color_image(self._pose(), self.hw['mounts']['camera'], boxes, cyls, w, h, self.intr,
+                                float(self.hw['camera'].get('color_offset_y', 0.0)))
+            cimg = Image()
+            cimg.header.stamp = stamp
+            cimg.header.frame_id = self.frames['camera_color_optical']
+            cimg.height, cimg.width, cimg.encoding, cimg.is_bigendian, cimg.step = h, w, 'rgb8', 0, w * 3
+            cimg.data = rgb.tobytes()
+            cinfo = CameraInfo()
+            cinfo.header = cimg.header
+            cinfo.width, cinfo.height, cinfo.distortion_model = w, h, info.distortion_model
+            cinfo.d, cinfo.k, cinfo.r, cinfo.p = info.d, info.k, info.r, info.p
+            self.color_pub.publish(cimg)
+            self.color_info_pub.publish(cinfo)
 
     def _marvelmind(self):
         if not self.enabled['marvelmind']:
