@@ -16,7 +16,7 @@ from lifecycle_msgs.msg import Transition
 
 from kelo_bringup.common import (SOURCES, camera_layer_enabled, camera_layer_file, config_path,
                                  data_dir, load_hardware, nav2_params, odom_plan, people_aware,
-                                 safety_params, sensors, share, write_params)
+                                 safety_params, sensors, share, views_enabled, write_params)
 
 MODES = ('mapping', 'navigation', 'sensors', 'camera_layer')
 NAV_LIFECYCLE = ['controller_server', 'smoother_server', 'planner_server', 'behavior_server',
@@ -190,7 +190,7 @@ def build(opts, hw=None):
                              'min_height': float(filt['min_height']),
                              'max_height': float(filt['max_height'])}]))
 
-    if mode != 'camera_layer' and str(opts.get('views', 'true')).lower() == 'true':
+    if mode != 'camera_layer' and str(opts.get('views', 'true')).lower() == 'true' and views_enabled(hw):
         acts += _driver_views(hw, sens, mode, opts)
 
     if str(opts.get('use_rviz', 'false')).lower() == 'true':

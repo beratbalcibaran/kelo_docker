@@ -16,6 +16,7 @@ import rclpy
 import yaml
 from action_msgs.msg import GoalStatus, GoalStatusArray
 from nav_msgs.msg import Odometry, Path
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from rclpy.time import Time
@@ -178,10 +179,10 @@ def main():
     node = SimPerson()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     node.destroy_node()
-    rclpy.shutdown()
+    rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

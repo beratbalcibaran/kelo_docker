@@ -266,8 +266,17 @@ Save Map, Stop Mapping, Start Navigation, Set Initial Pose, Localize, Send Goal 
 işlevleri sunulur. WASD ve ok tuşları robotu `collision_monitor_teleop` ve `cmd_vel_gate` üzerinden
 sürer.
 
-RViz ayrı ve denetlenen bir süreç olarak çalışır. Sonlanırsa panel onu robot, sensör ve güvenlik
-düğümlerini etkilemeden yeniden başlatır.
+**Özellikler.** Panel yığının isteğe bağlı kısımlarını açıp kapatır: nesne isimleri (YOLOX), renkli
+kamera, insanlara duyarlı navigasyon, kamera harita katmanı, sürüş görünümleri ve web görünümü. Değişiklik
+`/data/hardware.yaml`'a kaydedilir (paketteki `hardware.yaml`'ın üzerine birleştirilir, bu yüzden
+`production` servisi için de geçerlidir) ve bir sonraki başlatmada kullanılır; **Restart stack (apply)**
+çalışan modu bu ayarlarla yeniden başlatır (haritalamada önce sorar, kaydedilmemiş harita kaybolur).
+Güvenlik (kapı, çarpışma monitörleri, costmap'ler) burada hiçbir zaman kapatılmaz. Sürüş görünümleri
+kapalıyken yalnızca haritalama/navigasyon ve güvenlik çalışır; Jetson'da işlemcinin büyük kısmı boşalır.
+
+RViz ve kamera pencerelerinin (**KELO Camera**, **KELO Surround**) kendi kutucukları vardır ve ayrı,
+denetlenen süreçler olarak çalışır: biri sonlanırsa panel onu robot, sensör ve güvenlik düğümlerini
+etkilemeden yeniden başlatır.
 
 **RViz görünümü ve kamera penceresi.** RViz iki haritayı yan yana gösterir: robot, costmap'ler ve rota
 ile LiDAR haritası ve sağında kamera katmanı (`/map_camera`, robot ok olarak). RViz'in altındaki
@@ -275,7 +284,7 @@ ile LiDAR haritası ve sağında kamera katmanı (`/map_camera`, robot ok olarak
 sağda derinlik görüntüsü. Kontrol panelinin altındaki **KELO Surround** penceresi çevre görünümünü
 gösterir; **Coverage** butonuyla haritalama kapsamasını gösterir. Nesneler ve sürüş görünümleri
 (`objects`, `parking_view`, `surround_view`, haritalamada `coverage_view`) yığında çalışır ve yalnızca
-biri izlerken çizer; panel RViz ile birlikte `map_side_view` ve `camera_view` pencerelerini başlatır. Sanal ekran 2240 × 1260'tır (16:9, `SCREEN_RES`): RViz sol
+biri izlerken çizer; panel `map_side_view`'ı RViz ile, `camera_view`'ı kamera pencereleri kutucuğuyla başlatır. Sanal ekran 2240 × 1260'tır (16:9, `SCREEN_RES`): RViz sol
 üstte, kamera penceresi onun altında, kontrol paneli sağ üstte, çevre penceresi onun altında. RViz
 nesneleri de gösterir (`Objects`, kutular ve isimler).
 
@@ -387,7 +396,9 @@ bir şifre yazılır). Canlı görünümler (Surround, Camera, Depth, Coverage; 
 hız, hedef mesafesi, insan ve kayıt durumu; zemine çift dokunuş = oraya git, Cancel goal, Record, Save
 clip ve basılı tutarak sürülen joystick (`web.allow_drive`): klavye gibi teleop collision monitor ve
 kapıdan geçer, parmak bırakılınca veya bağlantı kopunca (0,3 s) durur. Şifresiz HTTP: yalnızca robotun
-kendi ağında kullanın.
+kendi ağında kullanın. Görünümler her kareyi `<topic>/compressed` üzerinde JPEG olarak da yayınlar (ham 2 MB
+yerine yaklaşık 40 KB); web görünümü bunları olduğu gibi iletir ve yavaş bir bağlantıda (ör. Tailscale
+relay) kareleri sıraya koymak yerine atlar, böylece tarayıcı her zaman güncel bir kare gösterir.
 
 **Person on path (sim)** (varsayılan işaretli, yalnızca simülatör): Start Navigation ile `sim_person`
 de başlar. Her hedefte robot hareket edince planlanan yolun yaklaşık 1,8 m önüne bir insan çıkar; robot
@@ -421,7 +432,8 @@ geçince, hedef bitince veya 60 s sonra kaldırılır. Diğer modlar:
 
 | Dosya | İçerik |
 |---|---|
-| `config/hardware.yaml` | Sensörler, topic'ler, frame'ler, montaj konumları, odometri düzeltme tabloları |
+| `config/hardware.yaml` | Sensörler, topic'ler, frame'ler, montaj konumları, odometri düzeltme tabloları, isteğe bağlı özellikler |
+| `/data/hardware.yaml` | Robotun yerel ayarları (panelin Features bölümü yazar), `hardware.yaml`'ın üzerine birleştirilir |
 | `config/safety.yaml` | Hız kapısı, teleop çarpışma monitörü, derinlik filtresi, Marvelmind monitörü, durum |
 | `config/nav2_params.yaml` | AMCL, Nav2, costmap'ler, Nav2 çarpışma monitörü |
 | `config/slam_toolbox.yaml` | SLAM parametreleri |

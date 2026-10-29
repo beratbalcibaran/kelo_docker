@@ -1,4 +1,5 @@
 import os
+import queue
 import signal
 import subprocess
 import threading
@@ -6,20 +7,34 @@ import time
 import tkinter as tk
 from tkinter import messagebox, simpledialog, scrolledtext, ttk
 
+import yaml
+
 PACKAGE = "kelo_bringup"
 DATA_DIR = os.environ.get("KELO_DATA_DIR", "/data")
 MAP_YAML = os.path.join(DATA_DIR, "maps", "current.yaml")
+# settings changed in the panel are written here and merged over the packaged hardware.yaml
+OVERRIDE_YAML = os.path.join(DATA_DIR, "hardware.yaml")
+# (hardware.yaml key path, label): read by the stack at start, so a change applies at the next start
+FEATURES = (
+    (("perception", "detector"), "Object names (YOLOX)"),
+    (("camera", "color"), "Colour camera"),
+    (("navigation", "people_aware"), "People-aware navigation"),
+    (("mapping", "camera_layer"), "Camera map layer"),
+    (("views", "enabled"), "Driver views"),
+    (("web", "enabled"), "Web view (:8080)"),
+)
 
 SOURCES = ("sim", "hardware", "replay")
 DRIVE_LINEAR = 0.30
 DRIVE_ANGULAR = 0.80
+LOG_MAX_LINES = 5000
 
 
 class KeloGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("KELO Control Panel")
-        self.root.geometry("760x620-0+0")
+        self.root.geometry("860x760-0+0")
 
         self.procs = {}
         self.ros_node = None
@@ -28,13 +43,14 @@ class KeloGUI:
         self.release_ticks = 0
         self.recording = False
 
-        self.rviz_proc = None
-        self.rviz_restarts = 0
-        self.view_procs = []
+        self.window_procs = {}
+        # log lines and UI updates from the worker threads; only the Tk thread touches the widgets
+        self.ui_queue = queue.Queue()
         self._build_widgets()
+        self._drain_ui_queue()
         self._refresh_status()
         self._drive_tick()
-        self._rviz_watchdog()
+        self._window_watchdog()
 
     def _build_widgets(self):
         top = ttk.Frame(self.root, padding=10)
@@ -50,6 +66,7 @@ class KeloGUI:
         self.odom_source = tk.StringVar(value="robot")
         self.bag_path = tk.StringVar(value="")
         self.use_rviz = tk.BooleanVar(value=True)
+        self.use_camera_windows = tk.BooleanVar(value=True)
         self.sim_person = tk.BooleanVar(value=True)
         ttk.Label(opts, text="sensor source").pack(side="left")
         ttk.Combobox(opts, textvariable=self.source, values=SOURCES, width=9,
@@ -59,7 +76,26 @@ class KeloGUI:
                      state="readonly").pack(side="left", padx=4)
         ttk.Label(opts, text="bag (replay)").pack(side="left", padx=(8, 0))
         ttk.Entry(opts, textvariable=self.bag_path, width=26).pack(side="left", padx=4)
-        ttk.Checkbutton(opts, text="RViz", variable=self.use_rviz).pack(side="left", padx=6)
+
+        feats = ttk.LabelFrame(top, text="Features (saved in /data/hardware.yaml, applied at the next start)",
+                               padding=8)
+        feats.pack(fill="x", pady=4)
+        hw = self._load_hardware()
+        self.features = {}
+        for i, (path, label) in enumerate(FEATURES):
+            var = tk.BooleanVar(value=bool(self._get(hw, path, True)))
+            ttk.Checkbutton(feats, text=label, variable=var,
+                            command=lambda p=path, v=var: self._feature_changed(p, v)).grid(
+                row=i // 3, column=i % 3, sticky="w", padx=6, pady=1)
+            self.features[path] = var
+        row = (len(FEATURES) + 2) // 3
+        ttk.Label(feats, text="Windows:").grid(row=row, column=0, sticky="w", padx=6, pady=(6, 0))
+        wins = ttk.Frame(feats)
+        wins.grid(row=row, column=1, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Checkbutton(wins, text="RViz", variable=self.use_rviz).pack(side="left", padx=6)
+        ttk.Checkbutton(wins, text="Camera / Surround windows", variable=self.use_camera_windows).pack(
+            side="left", padx=6)
+        ttk.Button(wins, text="Restart stack (apply)", command=self.restart_stack).pack(side="left", padx=10)
 
         slam_btns = ttk.LabelFrame(top, text="Mapping (slam_toolbox)", padding=8)
         slam_btns.pack(fill="x", pady=6)
@@ -81,7 +117,8 @@ class KeloGUI:
         self.rec_btn = ttk.Button(video, text="Record", command=self.toggle_record)
         self.rec_btn.pack(side="left", padx=4)
         ttk.Button(video, text="Save Clip (dashcam)", command=lambda: self._recorder("save_clip")).pack(side="left", padx=4)
-        ttk.Label(video, text="Phone/tablet: http://<robot>:8080", foreground="#555").pack(side="left", padx=10)
+        ttk.Label(video, text="Phone/tablet: http://<robot>:8080 (user kelo, KELO_WEB_PASSWORD)",
+                  foreground="#555").pack(side="left", padx=10)
 
         self.drive_info = ttk.Label(
             top, text="Driving: WASD or arrow keys while this window has focus (works in every mode, speed limited).",
@@ -98,10 +135,88 @@ class KeloGUI:
         self.root.focus_set()
 
     def _log(self, text):
-        self.log_box.configure(state="normal")
-        self.log_box.insert("end", text)
-        self.log_box.see("end")
-        self.log_box.configure(state="disabled")
+        """Safe from any thread: the text is shown by the Tk thread (_drain_ui_queue)."""
+        self.ui_queue.put(text)
+
+    def _drain_ui_queue(self):
+        texts = []
+        try:
+            while True:
+                item = self.ui_queue.get_nowait()
+                if callable(item):
+                    item()
+                else:
+                    texts.append(item)
+        except queue.Empty:
+            pass
+        if texts:
+            self.log_box.configure(state="normal")
+            self.log_box.insert("end", "".join(texts))
+            lines = int(self.log_box.index("end-1c").split(".")[0])
+            if lines > LOG_MAX_LINES:  # the stacks log a lot: keep the panel fast over long runs
+                self.log_box.delete("1.0", f"{lines - LOG_MAX_LINES + 1}.0")
+            self.log_box.see("end")
+            self.log_box.configure(state="disabled")
+        self.root.after(100, self._drain_ui_queue)
+
+    @staticmethod
+    def _load_hardware():
+        try:
+            from kelo_bringup.common import load_hardware
+            return load_hardware()
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _get(cfg, path, default):
+        for key in path:
+            if not isinstance(cfg, dict) or key not in cfg:
+                return default
+            cfg = cfg[key]
+        return cfg
+
+    def _feature_changed(self, path, var):
+        try:
+            over = {}
+            if os.path.isfile(OVERRIDE_YAML):
+                with open(OVERRIDE_YAML, encoding="utf-8") as f:
+                    over = yaml.safe_load(f) or {}
+            node = over
+            for key in path[:-1]:
+                if not isinstance(node.get(key), dict):
+                    node[key] = {}
+                node = node[key]
+            node[path[-1]] = bool(var.get())
+            tmp = OVERRIDE_YAML + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write("# local settings of this robot, merged over the packaged hardware.yaml (KELO panel)\n")
+                yaml.safe_dump(over, f, default_flow_style=False, sort_keys=False)
+            os.replace(tmp, OVERRIDE_YAML)
+        except Exception as e:
+            self._log(f"[GUI] Setting could not be saved: {e}\n")
+            var.set(not var.get())
+            return
+        state = "on" if var.get() else "off"
+        if self._running("mapping") or self._running("navigation"):
+            self._log(f"[GUI] {'.'.join(path)} {state}: saved; press 'Restart stack (apply)' to use it now.\n")
+        else:
+            self._log(f"[GUI] {'.'.join(path)} {state}: saved; used at the next start.\n")
+
+    def restart_stack(self):
+        mode = "navigation" if self._running("navigation") else "mapping" if self._running("mapping") else None
+        if mode is None:
+            self._log("[GUI] No stack running; the settings are used at the next start.\n")
+            return
+        if mode == "mapping" and not messagebox.askyesno(
+                "Restart mapping", "Restarting mapping starts a new map: what was mapped and not saved\n"
+                "with 'Save Map' is lost.\n\nRestart anyway?", default="no"):
+            return
+        self._log(f"[GUI] Restarting {mode} with the current settings...\n")
+        self.stop(mode)
+        if mode == "navigation":
+            self.start_navigation()
+        else:
+            self.start_mapping()
 
     def _refresh_status(self):
         running = [n for n, p in self.procs.items() if p.poll() is None]
@@ -152,8 +267,9 @@ class KeloGUI:
         args = self._launch_args("navigation")
         if args is None:
             return
-        self._start("navigation", ["ros2", "launch", PACKAGE, "bringup.launch.py",
-                                   f"map:={MAP_YAML}"] + args)
+        if not self._start("navigation", ["ros2", "launch", PACKAGE, "bringup.launch.py",
+                                          f"map:={MAP_YAML}"] + args):
+            return
         if self.source.get() == "sim" and self.sim_person.get():
             # test helper: for every goal a person steps onto the path in front of the robot
             self._start("person", ["ros2", "run", PACKAGE, "sim_person"])
@@ -236,45 +352,47 @@ class KeloGUI:
             ok = "success=True" in out
             if action in ("start", "stop") and ok:
                 self.recording = action == "start"
-                self.root.after(0, lambda: self.rec_btn.configure(text="Stop Recording" if self.recording else "Record"))
+                self.ui_queue.put(lambda: self.rec_btn.configure(
+                    text="Stop Recording" if self.recording else "Record"))
             self._log(f"[GUI] video {action}: {msg}\n")
         threading.Thread(target=run, daemon=True).start()
 
-    def _rviz_watchdog(self):
+    def _window_cmds(self, key):
+        if key == "rviz":
+            from ament_index_python.packages import get_package_share_directory
+            cfg = os.path.join(get_package_share_directory(PACKAGE), "rviz", "kelo.rviz")
+            # RViz and its helper (camera layer beside the map)
+            return [["ros2", "run", "rviz2", "rviz2", "-d", cfg], ["ros2", "run", PACKAGE, "map_side_view"]]
+        # KELO Camera and KELO Surround windows; the views themselves run in the stack
+        return [["ros2", "run", PACKAGE, "camera_view"]]
+
+    def _window_watchdog(self):
+        """RViz and the camera windows follow their check boxes while a stack runs; a window that was
+        closed or crashed is reopened (the stack is not affected)."""
         stack_up = self._running("mapping") or self._running("navigation")
-        want = self.use_rviz.get() and stack_up
-        alive = self.rviz_proc is not None and self.rviz_proc.poll() is None
-        if self.rviz_proc is not None and not alive:
-            code = self.rviz_proc.returncode
-            self.rviz_proc = None
-            if want:
-                self.rviz_restarts += 1
-                self._log(f"[GUI] RViz closed (exit code {code}); the stack was NOT affected. "
-                          f"Reopening ({self.rviz_restarts}).\n")
-        if want and self.rviz_proc is None:
-            try:
-                from ament_index_python.packages import get_package_share_directory
-                cfg = os.path.join(get_package_share_directory(PACKAGE), "rviz", "kelo.rviz")
-                self.rviz_proc = subprocess.Popen(["ros2", "run", "rviz2", "rviz2", "-d", cfg],
-                                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                                  preexec_fn=os.setsid)
-                if not any(p.poll() is None for p in self.view_procs):
-                    # RViz helper (camera layer beside the map) and the camera windows; the objects and
-                    # the driver views themselves run in the stack
-                    self.view_procs = [subprocess.Popen(["ros2", "run", PACKAGE, exe],
-                                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                                        preexec_fn=os.setsid)
-                                       for exe in ("map_side_view", "camera_view")]
-            except Exception as e:
-                self._log(f"[GUI] RViz could not be started: {e}\n")
-        elif not want and alive:
-            self._kill_group(self.rviz_proc)
-            self.rviz_proc = None
-        if not want and self.view_procs:
-            for p in self.view_procs:
-                self._kill_group(p)
-            self.view_procs = []
-        self.root.after(2000, self._rviz_watchdog)
+        for key, var in (("rviz", self.use_rviz), ("camera", self.use_camera_windows)):
+            want = var.get() and stack_up
+            procs = self.window_procs.get(key, [])
+            if procs and any(p.poll() is not None for p in procs):
+                for p in procs:
+                    if p.poll() is None:
+                        self._kill_group(p)
+                procs = []
+                if want:
+                    self._log(f"[GUI] {key} window closed; the stack was NOT affected. Reopening.\n")
+            if want and not procs:
+                try:
+                    procs = [subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                              preexec_fn=os.setsid) for cmd in self._window_cmds(key)]
+                except Exception as e:
+                    self._log(f"[GUI] {key} could not be started: {e}\n")
+                    var.set(False)
+            elif not want and procs:
+                for p in procs:
+                    self._kill_group(p)
+                procs = []
+            self.window_procs[key] = procs
+        self.root.after(2000, self._window_watchdog)
 
     @staticmethod
     def _kill_group(proc):
@@ -292,34 +410,45 @@ class KeloGUI:
     def _foreign_stack(self):
         if self._running("mapping") or self._running("navigation"):
             return False
-        try:
-            out = subprocess.run(["ros2", "node", "list"], capture_output=True, text=True, timeout=10).stdout
-        except Exception:
-            return False
-        return "/cmd_vel_gate" in out.split()
+        # without the ros2 daemon (its cache still lists a stack stopped a moment ago), and only when the
+        # gate is still there after a few seconds: nodes of a stopped stack can linger briefly in discovery
+        for attempt in range(3):
+            if attempt:
+                time.sleep(1.0)
+            try:
+                out = subprocess.run(["ros2", "node", "list", "--no-daemon", "--spin-time", "1"],
+                                     capture_output=True, text=True, timeout=10).stdout
+            except Exception:
+                return False
+            if "/cmd_vel_gate" not in out.split():
+                return False
+        return True
 
     def _running(self, name):
         return name in self.procs and self.procs[name].poll() is None
 
     def _start(self, name, cmd):
+        """Start a process group; False when it was not started (already running, other stack, error)."""
         if name in self.procs and self.procs[name].poll() is None:
-            return
+            self._log(f"[GUI] '{name}' is already running.\n")
+            return False
         if name in ("mapping", "navigation") and self._foreign_stack():
             messagebox.showwarning(
                 "Another stack is running",
                 "A KELO stack that this panel did not start is running (cmd_vel_gate exists).\n"
                 "Two stacks cannot run at once (two gates, two sim robots). Stop it first\n"
                 "(restart the container or run 'docker compose restart').")
-            return
+            return False
         self._log(f"\n[GUI] Starting ({name}): {' '.join(cmd)}\n")
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                     text=True, bufsize=1, preexec_fn=os.setsid)
         except FileNotFoundError:
             self._log("[GUI] ERROR: 'ros2' not found.\n")
-            return
+            return False
         self.procs[name] = proc
         threading.Thread(target=self._stream_output, args=(name, proc), daemon=True).start()
+        return True
 
     def _stream_output(self, name, proc):
         for line in proc.stdout:
@@ -395,11 +524,11 @@ class KeloGUI:
 
     def on_close(self):
         self.use_rviz.set(False)
-        if self.rviz_proc is not None and self.rviz_proc.poll() is None:
-            self._kill_group(self.rviz_proc)
-        for p in self.view_procs:
-            if p.poll() is None:
-                self._kill_group(p)
+        self.use_camera_windows.set(False)
+        for procs in self.window_procs.values():
+            for p in procs:
+                if p.poll() is None:
+                    self._kill_group(p)
         for name in list(self.procs.keys()):
             self.stop(name)
         if self.ros_node is not None:

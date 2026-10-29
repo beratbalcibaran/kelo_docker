@@ -31,6 +31,7 @@ from action_msgs.msg import GoalStatus, GoalStatusArray
 from geometry_msgs.msg import Point
 from nav2_msgs.msg import CollisionMonitorState, SpeedLimit
 from nav_msgs.msg import OccupancyGrid, Path
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
@@ -258,10 +259,10 @@ def main():
     node = Social()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     node.destroy_node()
-    rclpy.shutdown()
+    rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

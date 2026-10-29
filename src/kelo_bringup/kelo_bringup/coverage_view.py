@@ -18,14 +18,16 @@ import cv2
 import numpy as np
 import rclpy
 from nav_msgs.msg import OccupancyGrid
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
-from sensor_msgs.msg import Image
+from std_msgs.msg import Header
 from tf2_ros import Buffer, TransformException, TransformListener
 
 from kelo_bringup.common import load_hardware
 from kelo_bringup.logic import yaw_from_quat
+from kelo_bringup.view_publisher import ViewPublisher
 
 BG, WALL = (30, 32, 38), (235, 236, 240)
 BOTH, LIDAR_ONLY, FAR = (60, 150, 90), (200, 160, 60), (80, 95, 120)
@@ -134,7 +136,7 @@ class CoverageView(Node):
         self.create_subscription(OccupancyGrid, '/map', lambda m: setattr(self, 'map', m), latched)
         self.create_subscription(OccupancyGrid, hw['topics']['camera_map'], lambda m: setattr(self, 'camera', m),
                                  latched)
-        self.pub = self.create_publisher(Image, '~/image', 2)
+        self.pub = ViewPublisher(self, '~/image', 2)
         self.create_timer(0.2, self._follow)
         self.create_timer(1.0 / max(float(g('rate_hz')), 0.2), self._tick)
 
@@ -190,13 +192,10 @@ class CoverageView(Node):
                 cv2.putText(out, f'next {target[0]:.1f} m', (u + 18, v + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
                             WHITE, 2, cv2.LINE_AA)
         self._stats(out, both, lidar_only, far, fronts, info.resolution, target)
-        msg = Image()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = self.map.header.frame_id or self.fr['map']
-        msg.height, msg.width = out.shape[:2]
-        msg.encoding, msg.is_bigendian, msg.step = 'rgb8', 0, out.shape[1] * 3
-        msg.data = out.tobytes()
-        self.pub.publish(msg)
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
+        header.frame_id = self.map.header.frame_id or self.fr['map']
+        self.pub.publish(header, out)
 
     def _fit(self, img, grid):
         """Known part of the map scaled into the output (map +y up), and cell -> pixel."""
@@ -256,10 +255,10 @@ def main():
     node = CoverageView()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     node.destroy_node()
-    rclpy.shutdown()
+    rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

@@ -115,7 +115,7 @@ if [[ " $PHASES " == *" B "* ]]; then
   stop B2
   echo "=== B3: navigation restarted where the robot stands -> last pose restored"
   # the sim starts where the last saved pose says (map origin = sim start 1, 1, 0 of phase A)
-  LP=$(awk '/^x:/{x=$2} /^y:/{y=$2} /^yaw_deg:/{a=$2} END{if (x != "") printf "sim_x0:=%.3f sim_y0:=%.3f sim_yaw0:=%.4f", x+1, y+1, a*3.14159265/180}' "$WORK/data/last_pose.yaml" 2>/dev/null)
+  LP=$(LC_ALL=C awk '/^x:/{x=$2} /^y:/{y=$2} /^yaw_deg:/{a=$2} END{if (x != "") printf "sim_x0:=%.3f sim_y0:=%.3f sim_yaw0:=%.4f", x+1, y+1, a*3.14159265/180}' "$WORK/data/last_pose.yaml" 2>/dev/null)
   echo "[e2e] restart at the last saved pose: ${LP:-none saved}"
   start navigation -e KELO_EXTRA_ARGS="$LP"
   sleep 10

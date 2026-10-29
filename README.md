@@ -269,8 +269,17 @@ Start Mapping, Save Map, Stop Mapping, Start Navigation, Set Initial Pose, Local
 Navigation. WASD and the arrow keys drive the robot through `collision_monitor_teleop` and
 `cmd_vel_gate`.
 
-RViz runs as a separate, supervised process. If it terminates, the panel restarts it without affecting
-the robot, sensor or safety nodes.
+**Features.** The panel switches the optional parts of the stack: object names (YOLOX), colour camera,
+people-aware navigation, camera map layer, driver views and web view. A change is saved in
+`/data/hardware.yaml` (merged over the packaged `hardware.yaml`, so it also holds for the `production`
+service) and used at the next start; **Restart stack (apply)** restarts the running mode with it
+(mapping asks first, since an unsaved map is lost). Safety (gate, collision monitors, costmaps) is
+never switched off here. Off, the driver views leave only mapping/navigation and safety running,
+which saves most of the CPU on the Jetson.
+
+RViz and the camera windows (**KELO Camera**, **KELO Surround**) have their own check boxes and run as
+separate, supervised processes: if one terminates, the panel restarts it without affecting the robot,
+sensor or safety nodes.
 
 **RViz view and camera window.** RViz shows two maps side by side: the LiDAR map with the robot, the
 costmaps and the plan, and to its right the camera layer (`/map_camera`, with the robot as an arrow).
@@ -279,7 +288,7 @@ resolution: colour image on the left, depth image on the right. Below the contro
 **KELO Surround** window shows the surround view, or with its **Coverage** button the mapping
 coverage. The objects and the driver views (`objects`, `parking_view`, `surround_view`,
 `coverage_view` in mapping) run in the stack and draw only while someone watches; the panel starts
-the windows `map_side_view` and `camera_view` together with RViz. The virtual screen is
+`map_side_view` together with RViz and `camera_view` with the camera windows check box. The virtual screen is
 2240 × 1260 (16:9, `SCREEN_RES`): RViz at the top left, the camera window below it, the control panel
 at the top right and the surround window below it. RViz also shows the objects (`Objects`, boxes and
 names).
@@ -394,6 +403,9 @@ speed, goal distance, person and recording state; double tap on the floor = driv
 Record, Save clip, and a hold-to-drive joystick (`web.allow_drive`): it drives through the teleop
 collision monitor and the gate like the keyboard and stops when the finger leaves the pad or the
 connection drops (0.3 s). Plain HTTP: only on the robot's own network.
+The views publish each frame also as JPEG on `<topic>/compressed` (about 40 KB instead of 2 MB raw);
+the web view forwards these as they are, and a stream skips frames instead of queueing them on a slow
+link (e.g. a Tailscale relay), so the browser always shows a recent frame.
 
 **Person on path (sim)** (checked by default, simulator only): with Start Navigation, `sim_person`
 starts too. For every goal, once the robot drives, a person stands on the planned path about 1.8 m ahead
@@ -427,7 +439,8 @@ Environment variables read by `docker/run-stack.sh`:
 
 | File | Contents |
 |---|---|
-| `config/hardware.yaml` | Sensors, topics, frames, mounting positions, odometry correction tables |
+| `config/hardware.yaml` | Sensors, topics, frames, mounting positions, odometry correction tables, optional features |
+| `/data/hardware.yaml` | Local settings of the robot (written by the panel's Features), merged over `hardware.yaml` |
 | `config/safety.yaml` | Velocity gate, teleop collision monitor, depth filter, Marvelmind monitor, status |
 | `config/nav2_params.yaml` | AMCL, Nav2, costmaps, Nav2 collision monitor |
 | `config/slam_toolbox.yaml` | SLAM parameters |

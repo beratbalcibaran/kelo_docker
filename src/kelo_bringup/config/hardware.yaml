@@ -79,6 +79,11 @@ perception:
 navigation:
   people_aware: true
 
+# driver views: objects node, surround, parking and coverage views, video recorder and web view.
+# Off: only mapping/navigation and safety run (no object names, no people-aware navigation)
+views:
+  enabled: true
+
 # driver views in a browser (web_view): http://<robot>:8080, user kelo, password KELO_WEB_PASSWORD
 web:
   enabled: true

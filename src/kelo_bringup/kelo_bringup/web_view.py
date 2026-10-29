@@ -22,13 +22,11 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import cv2
-import numpy as np
 import rclpy
 from action_msgs.srv import CancelGoal
 from geometry_msgs.msg import PointStamped, Twist
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from tf2_ros import Buffer, TransformListener
@@ -36,8 +34,9 @@ from tf2_ros import Buffer, TransformListener
 from kelo_bringup.common import load_hardware
 from kelo_bringup.drive_inputs import DriveInputs
 
-VIEWS = {'surround': '/surround_view/image', 'color': '/parking_view/color_image',
-         'depth': '/parking_view/image', 'coverage': '/coverage_view/image'}
+# the views publish their frames as JPEG on <topic>/compressed (view_publisher): sent on as they are
+VIEWS = {'surround': '/surround_view/image/compressed', 'color': '/parking_view/color_image/compressed',
+         'depth': '/parking_view/image/compressed', 'coverage': '/coverage_view/image/compressed'}
 DRIVE_TIMEOUT_S = 0.3
 # send buffer of a stream: about one frame, so a slow link (e.g. Tailscale relay) skips frames
 # instead of queueing them, and the browser always shows a recent one
@@ -77,13 +76,11 @@ class WebView(Node):
         d('allow_drive', bool(web.get('allow_drive', True)))
         # above the render rate of the views (surround 15/s), so no frame is dropped by the limit
         d('max_fps', 20.0)
-        d('jpeg_quality', 60)
         d('max_vx', 0.30)
         d('max_wz', 0.80)
         g = lambda n: self.get_parameter(n).value
         self.port, self.allow_drive = int(g('port')), bool(g('allow_drive'))
         self.min_period = 1.0 / max(float(g('max_fps')), 0.5)
-        self.jpeg_quality = int(g('jpeg_quality'))
         self.max_vx, self.max_wz = float(g('max_vx')), float(g('max_wz'))
         self.password = password
         self.frames = Frames()
@@ -109,20 +106,16 @@ class WebView(Node):
         for view, topic in VIEWS.items():
             want = self.frames.clients.get(view, 0) > 0
             if want and view not in self.subs:
-                self.subs[view] = self.create_subscription(Image, topic, lambda m, v=view: self._image(v, m), 2)
+                self.subs[view] = self.create_subscription(CompressedImage, topic, lambda m, v=view: self._image(v, m), 2)
             elif not want and view in self.subs:
                 self.destroy_subscription(self.subs.pop(view))
 
     def _image(self, view, msg):
         now = time.time()
-        if msg.encoding != 'rgb8' or now - self.last_put.get(view, 0.0) < self.min_period:
+        if 'jpeg' not in msg.format or now - self.last_put.get(view, 0.0) < self.min_period:
             return
         self.last_put[view] = now
-        rgb = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.step)[:, :msg.width * 3]
-        ok, buf = cv2.imencode('.jpg', cv2.cvtColor(rgb.reshape(msg.height, msg.width, 3), cv2.COLOR_RGB2BGR),
-                               [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
-        if ok:
-            self.frames.put(view, buf.tobytes())
+        self.frames.put(view, bytes(msg.data))
 
     def _drive_tick(self):
         with self.lock:

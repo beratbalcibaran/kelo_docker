@@ -87,6 +87,11 @@ def people_aware(hw):
     return bool((hw.get('navigation') or {}).get('people_aware', True))
 
 
+def views_enabled(hw):
+    """Driver views (objects, surround, parking, coverage, video recorder, web view)."""
+    return bool((hw.get('views') or {}).get('enabled', True))
+
+
 def camera_layer_file(map_yaml):
     real = os.path.realpath(map_yaml)
     path = (real[:-5] if real.endswith('.yaml') else real) + '_camera.yaml'

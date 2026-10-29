@@ -28,10 +28,12 @@ import cv2
 import numpy as np
 import rclpy
 from nav_msgs.msg import OccupancyGrid
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
-from sensor_msgs.msg import Image, LaserScan, PointCloud2
+from sensor_msgs.msg import LaserScan, PointCloud2
+from std_msgs.msg import Header
 from tf2_ros import Buffer, TransformException, TransformListener
 
 from kelo_bringup import scene
@@ -40,6 +42,7 @@ from kelo_bringup.common import load_hardware
 from kelo_bringup.drive_inputs import DriveInputs
 from kelo_bringup.logic import yaw_from_quat
 from kelo_bringup.objects import cloud_xyz
+from kelo_bringup.view_publisher import ViewPublisher
 
 BG_TOP, BG_BOTTOM = np.array([28, 30, 36]), np.array([52, 56, 64])
 GRID = (70, 76, 88)
@@ -234,7 +237,7 @@ class SurroundView(Node):
         self.create_subscription(PointCloud2, hw['topics']['camera_points'],
                                  lambda m: setattr(self, 'cloud', (self._now(), m)), sd)
         self.create_subscription(OccupancyGrid, '/map', self._map, latched)
-        self.pub = self.create_publisher(Image, '~/image', 2)
+        self.pub = ViewPublisher(self, '~/image', 2)
         self.inputs.on_click(self._click)
         self.bg = self._background()
         self.create_timer(1.0 / max(float(g('rate_hz')), 0.5), self._tick)
@@ -342,13 +345,10 @@ class SurroundView(Node):
         self._points(img, cam, lidar, cloud)
         self._labels(img, cam, objects, path, left)
         self._hud(img, math.hypot(vx, vy), wz, nearest, path, left, len(objects))
-        out = Image()
-        out.header.stamp = self.get_clock().now().to_msg()
-        out.header.frame_id = self.fr['base']
-        out.height, out.width = img.shape[:2]
-        out.encoding, out.is_bigendian, out.step = 'rgb8', 0, img.shape[1] * 3
-        out.data = img.tobytes()
-        self.pub.publish(out)
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
+        header.frame_id = self.fr['base']
+        self.pub.publish(header, img)
 
     def _grid(self, img, cam, map_pose):
         """1 m floor grid fixed to the map (to odom without a map), so it slides when the robot moves."""
@@ -601,10 +601,10 @@ def main():
     node = SurroundView()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     node.destroy_node()
-    rclpy.shutdown()
+    rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

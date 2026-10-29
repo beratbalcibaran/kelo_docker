@@ -173,6 +173,31 @@ def test_camera_layer_mapping_switch():
     assert ('kelo_bringup', 'camera_mapper') not in nodes(build(opts(mode='mapping'), hw=h))
 
 
+VIEW_NODES = {('kelo_bringup', e) for e in ('objects', 'surround_view', 'parking_view', 'video_recorder',
+                                            'web_view', 'social')}
+
+
+def test_views_switch():
+    hw = all_sensors()
+    on = nodes(build(opts(), hw=hw))
+    assert VIEW_NODES <= on
+    hw['views'] = {'enabled': False}
+    off = nodes(build(opts(), hw=hw))
+    assert not VIEW_NODES & off
+    # navigation and safety stay
+    assert on - VIEW_NODES == off
+    assert not VIEW_NODES & nodes(build(opts(views='false'), hw=all_sensors()))
+
+
+def test_web_and_people_switches():
+    hw = all_sensors()
+    hw['web'] = {'enabled': False}
+    hw['navigation'] = {'people_aware': False}
+    got = nodes(build(opts(), hw=hw))
+    assert ('kelo_bringup', 'web_view') not in got and ('kelo_bringup', 'social') not in got
+    assert ('kelo_bringup', 'surround_view') in got
+
+
 def test_camera_layer_navigation_only_with_file(tmp_path):
     hw = all_sensors()
     hw['mapping'] = {'camera_layer': True}

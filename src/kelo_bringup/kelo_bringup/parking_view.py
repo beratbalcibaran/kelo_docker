@@ -27,6 +27,7 @@ import math
 import cv2
 import numpy as np
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
@@ -38,6 +39,7 @@ from kelo_bringup import scene
 from kelo_bringup.cloud_filter import quat_to_rot
 from kelo_bringup.common import load_hardware
 from kelo_bringup.drive_inputs import DriveInputs
+from kelo_bringup.view_publisher import ViewPublisher
 
 RED, YELLOW, GREEN, AMBER, WHITE = (230, 40, 40), (240, 200, 0), (40, 200, 60), (255, 150, 0), (255, 255, 255)
 PATH_BLUE, ARROW = (40, 140, 255), (200, 235, 255)
@@ -254,8 +256,8 @@ class ParkingView(Node):
         self.listener = TransformListener(self.buf, self)
         self.inputs = DriveInputs(self, hw, self.buf)
         self.inputs.on_click(self._click)
-        self.pub = self.create_publisher(Image, '~/image', 10)
-        self.color_pub = self.create_publisher(Image, '~/color_image', 10)
+        self.pub = ViewPublisher(self, '~/image', 10)
+        self.color_pub = ViewPublisher(self, '~/color_image', 10)
         self.near_pub = self.create_publisher(Float32, '~/nearest', 10)
         self.create_subscription(CameraInfo, g('info_topic'), self._info, qos_profile_sensor_data)
         self.create_subscription(Image, g('depth_topic'), self._depth, qos_profile_sensor_data)
@@ -288,12 +290,7 @@ class ParkingView(Node):
         return self.tfs[frame]
 
     def _publish(self, pub, header, out):
-        img = Image()
-        img.header = header
-        img.height, img.width = out.shape[:2]
-        img.encoding, img.is_bigendian, img.step = 'rgb8', 0, out.shape[1] * 3
-        img.data = out.tobytes()
-        pub.publish(img)
+        pub.publish(header, out)
 
     def _click(self, frame, u, v, is_goal):
         if frame not in ('color', 'depth'):
@@ -488,10 +485,10 @@ def main():
     node = ParkingView()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     node.destroy_node()
-    rclpy.shutdown()
+    rclpy.try_shutdown()
 
 
 if __name__ == '__main__':
