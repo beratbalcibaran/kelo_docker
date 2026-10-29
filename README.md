@@ -452,15 +452,15 @@ Requirements:
 - `ROS_DOMAIN_ID` in `/etc/kelo/kelo.env` matching the robot computer.
 
 **Object detection on the GPU (optional).** The `detector` profile runs YOLOX-s with TensorRT (FP16) in
-its own container (`docker/detector/Dockerfile`, NVIDIA L4T base image, no ROS); the objects node
-sends it the colour images over `127.0.0.1:5810` and falls back to YOLOX-tiny on the CPU while it
-does not answer:
+its own container (`docker/detector/Dockerfile`, NVIDIA L4T base image, no ROS); the objects node sends
+it the colour images over `172.17.0.1:5810` (docker0 address, reachable from all profiles, not from
+outside) and falls back to YOLOX-tiny on the CPU while it does not answer:
 
 ```bash
 cat /etc/nv_tegra_release        # R36.4 -> default base image; others: see docker/detector/Dockerfile
 docker compose --profile detector build      # --build-arg L4T_IMAGE=... for another JetPack
 docker compose --profile detector up -d      # first start builds the engine (a few minutes, /data/models)
-docker logs kelo-detector                     # "[detector] tensorrt ... listening on 127.0.0.1:5810"
+docker logs kelo-detector                     # "[detector] tensorrt ... listening on 172.17.0.1:5810"
 ```
 
 The objects node logs `object detection: using the detector service (tensorrt)`. Not yet tested on the

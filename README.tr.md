@@ -447,14 +447,14 @@ Gereksinimler:
 
 **GPU'da nesne tespiti (isteğe bağlı).** `detector` profili YOLOX-s'i TensorRT (FP16) ile kendi
 container'ında çalıştırır (`docker/detector/Dockerfile`, NVIDIA L4T taban imajı, ROS yok); nesne düğümü
-renkli görüntüleri `127.0.0.1:5810` üzerinden gönderir, servis cevap vermezken CPU'da YOLOX-tiny'ye
-döner:
+renkli görüntüleri `172.17.0.1:5810` (docker0 adresi, tüm profillerden erişilir, dışarıdan erişilmez)
+üzerinden gönderir, servis cevap vermezken CPU'da YOLOX-tiny'ye döner:
 
 ```bash
 cat /etc/nv_tegra_release        # R36.4 -> varsayılan taban imaj; diğerleri: docker/detector/Dockerfile
 docker compose --profile detector build      # başka JetPack için --build-arg L4T_IMAGE=...
 docker compose --profile detector up -d      # ilk açılış motoru derler (birkaç dakika, /data/models)
-docker logs kelo-detector                     # "[detector] tensorrt ... listening on 127.0.0.1:5810"
+docker logs kelo-detector                     # "[detector] tensorrt ... listening on 172.17.0.1:5810"
 ```
 
 Nesne düğümü `object detection: using the detector service (tensorrt)` yazar. Jetson'da henüz test

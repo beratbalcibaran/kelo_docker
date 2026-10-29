@@ -1,5 +1,5 @@
 # KELO object detector on the Jetson GPU: YOLOX-s with TensorRT (FP16), served to the objects node over
-# TCP 127.0.0.1:5810 (kelo_bringup/detector_service.py). No ROS in this image.
+# TCP 172.17.0.1:5810 (docker0) (kelo_bringup/detector_service.py). No ROS in this image.
 #
 # The base image must match the JetPack of the Jetson (cat /etc/nv_tegra_release):
 #   R36.4.x (JetPack 6.1/6.2): nvcr.io/nvidia/l4t-jetpack:r36.4.0 (default)
@@ -27,4 +27,4 @@ ENV PYTHONPATH=/opt/kelo
 
 # the engine is built on the first start (a few minutes) and kept in /data/models
 CMD ["python3", "-m", "kelo_bringup.detector_service", "--backend", "tensorrt", \
-     "--model", "/opt/kelo/models/yolox_s.onnx", "--engine-dir", "/data/models", "--host", "127.0.0.1"]
+     "--model", "/opt/kelo/models/yolox_s.onnx", "--engine-dir", "/data/models", "--host", "172.17.0.1"]

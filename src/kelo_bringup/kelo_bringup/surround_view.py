@@ -120,6 +120,23 @@ class Painter:
             return
         self.items.append((float(z.mean()), 'poly', np.round(uv).astype(np.int32), color, edge, alpha))
 
+    def faces(self, pts, color, normal=None):
+        """Many faces of one colour at once (M x K x 3 points, one normal for all): the same rules as
+        face(), computed with numpy instead of one call per face (the map walls are thousands)."""
+        pts = np.asarray(pts, dtype=float)
+        if len(pts) == 0:
+            return
+        m, k = pts.shape[:2]
+        keep = np.ones(m, dtype=bool)
+        if normal is not None:
+            keep = (self.cam.eye - pts.mean(axis=1)) @ np.asarray(normal, dtype=float) > 0.0
+        uv, z, ok = self.cam.project(pts.reshape(-1, 3))
+        keep &= ok.reshape(m, k).all(axis=1)
+        uv = np.round(uv).astype(np.int32).reshape(m, k, 2)
+        depth = z.reshape(m, k).mean(axis=1)
+        for i in np.flatnonzero(keep):
+            self.items.append((float(depth[i]), 'poly', uv[i], color, None, 1.0))
+
     def box(self, cx, cy, sx, sy, z0, z1, top, side, edge=None, yaw=0.0, alpha=1.0):
         for i, (f, n) in enumerate(box_faces(cx, cy, sx, sy, z0, z1, yaw)):
             shade = top if i == 0 else side * (0.85 + 0.15 * abs(n[0]))
@@ -187,7 +204,7 @@ class SurroundView(Node):
         d('view', 'chase')
         d('width', 960)
         d('height', 720)
-        d('rate_hz', 10.0)
+        d('rate_hz', 15.0)
         d('radius', 8.0)
         d('wall_height', 0.45)
         d('margin', 0.10)
@@ -340,11 +357,17 @@ class SurroundView(Node):
             return
         r = self.radius
         x0, y0 = math.floor(pose[0] - r), math.floor(pose[1] - r)
+        ends = []
         for k in range(int(2 * r) + 2):
-            for a, b in ((((x0 + k), pose[1] - r), ((x0 + k), pose[1] + r)),
-                         ((pose[0] - r, (y0 + k)), (pose[0] + r, (y0 + k)))):
-                seg = scene.to_base(np.linspace(a, b, 12), pose)
-                floor_line(img, cam, seg[np.hypot(seg[:, 0], seg[:, 1]) <= r], GRID, 1)
+            ends += [((x0 + k, pose[1] - r), (x0 + k, pose[1] + r)), ((pose[0] - r, y0 + k), (pose[0] + r, y0 + k))]
+        a, b = np.array([e[0] for e in ends], dtype=float), np.array([e[1] for e in ends], dtype=float)
+        # all grid lines in one projection (12 points each); the part of a line inside the radius is one run
+        seg = scene.to_base(np.linspace(a, b, 12, axis=1).reshape(-1, 2), pose)
+        uv, _, ok = cam.project(np.column_stack([seg, np.zeros(len(seg))]))
+        good = (ok & (np.hypot(seg[:, 0], seg[:, 1]) <= r)).reshape(len(ends), 12)
+        q = np.round(uv).astype(np.int32).reshape(len(ends), 12, 2)
+        for li, i in np.argwhere(good[:, :-1] & good[:, 1:]):
+            cv2.line(img, tuple(q[li, i]), tuple(q[li, i + 1]), GRID, 1, cv2.LINE_AA)
 
     def _walls_near(self, pose):
         """Occupied map cells within the radius in the base frame, with their free sides turned into
@@ -363,19 +386,18 @@ class SurroundView(Node):
         c, s = math.cos(yaw), math.sin(yaw)
         normals = [np.array([c, s, 0.0]), np.array([-c, -s, 0.0]), np.array([-s, c, 0.0]), np.array([s, -c, 0.0])]
         h = res / 2.0
+        off = np.array([(c * dx - s * dy, s * dx + c * dy) for dx, dy in ((h, h), (-h, h), (-h, -h), (h, -h))])
+        corners = xy[:, None, :] + off[None, :, :]  # N x 4 x 2
         top = tuple(int(v) for v in WALL_TOP)
-        for (x, y), fr in zip(xy, free):
-            corners = [(x + c * dx - s * dy, y + s * dx + c * dy) for dx, dy in ((h, h), (-h, h), (-h, -h), (h, -h))]
-            painter.face([(px, py, self.wall_h) for px, py in corners], top)
-            # sides: +x between corners 3,0; -x 1,2; +y 0,1; -y 2,3
-            for side, (i0, i1) in enumerate(((3, 0), (1, 2), (0, 1), (2, 3))):
-                if not fr[side]:
-                    continue
-                n = normals[side]
-                shade = WALL_SIDE * (0.8 + 0.2 * abs(n[0]))
-                (ax, ay), (bx, by) = corners[i0], corners[i1]
-                painter.face([(ax, ay, 0.0), (bx, by, 0.0), (bx, by, self.wall_h), (ax, ay, self.wall_h)],
-                             tuple(int(v) for v in shade), None, n)
+        painter.faces(np.concatenate([corners, np.full(corners.shape[:2] + (1,), self.wall_h)], axis=2), top)
+        # sides: +x between corners 3,0; -x 1,2; +y 0,1; -y 2,3; only towards a free cell
+        for side, (i0, i1) in enumerate(((3, 0), (1, 2), (0, 1), (2, 3))):
+            a, b = corners[free[:, side], i0], corners[free[:, side], i1]
+            z0, z1 = np.zeros((len(a), 1)), np.full((len(a), 1), self.wall_h)
+            quads = np.stack([np.hstack([a, z0]), np.hstack([b, z0]), np.hstack([b, z1]), np.hstack([a, z1])], axis=1)
+            n = normals[side]
+            shade = WALL_SIDE * (0.8 + 0.2 * abs(n[0]))
+            painter.faces(quads, tuple(int(v) for v in shade), n)
 
     def _robot(self, painter):
         """KELO: dark chassis on four wheels, white body on top, a light strip at the front and the

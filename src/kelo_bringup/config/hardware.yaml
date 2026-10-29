@@ -70,7 +70,8 @@ perception:
   score_min: 0.45
   # detector service (docker/detector/: the kelo-detector container, TensorRT on the Jetson GPU,
   # YOLOX-s); while it does not answer, the objects node runs the model above on the CPU
-  service: {enabled: true, host: 127.0.0.1, port: 5810}
+  # host: docker0 address, reachable from host-network and bridge (gui, sim) containers, not from outside
+  service: {enabled: true, host: 172.17.0.1, port: 5810}
 
 # people-aware navigation (social node): personal space and predicted walking path of people in the
 # costmaps, slower near people, and the behaviour tree waits for a person on the path (a box is
