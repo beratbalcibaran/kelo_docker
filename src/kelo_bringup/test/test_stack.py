@@ -304,3 +304,14 @@ def test_camera_layer_rebuild_localizer(tmp_path):
     assert ('slam_toolbox', 'localization_slam_toolbox_node') in n
     assert ('nav2_amcl', 'amcl') not in n
     assert ('nav2_amcl', 'amcl') in run(rebuild_localizer='amcl')
+
+
+@pytest.mark.parametrize('set_to, want', [(None, 0.25), (0.15, 0.15), (0.5, 0.30), (0.0, 0.05)])
+def test_max_speed_switch(set_to, want):
+    hw = load_hardware()
+    if set_to is not None:
+        hw['navigation']['max_speed'] = set_to
+    cfg = nav2_params(hw, '/odom')
+    assert cfg['controller_server']['ros__parameters']['FollowPath']['vx_max'] == want
+    vs = cfg['velocity_smoother']['ros__parameters']
+    assert (vs['max_velocity'][0], vs['min_velocity'][0]) == (want, -want)

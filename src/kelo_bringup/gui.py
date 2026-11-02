@@ -9,6 +9,11 @@ from tkinter import messagebox, simpledialog, scrolledtext, ttk
 
 import yaml
 
+try:
+    from kelo_bringup.common import MAX_SPEED_RANGE
+except ImportError:  # workspace not sourced
+    MAX_SPEED_RANGE = (0.05, 0.30)
+
 PACKAGE = "kelo_bringup"
 DATA_DIR = os.environ.get("KELO_DATA_DIR", "/data")
 MAP_YAML = os.path.join(DATA_DIR, "maps", "current.yaml")
@@ -27,6 +32,7 @@ FEATURES = (
 SOURCES = ("sim", "hardware", "replay")
 DRIVE_LINEAR = 0.30
 DRIVE_ANGULAR = 0.80
+VY_MAX = 0.30  # velocity_smoother max_velocity[1] in nav2_params.yaml
 LOG_MAX_LINES = 5000
 
 
@@ -112,6 +118,22 @@ class KeloGUI:
         ttk.Button(nav_btns, text="Stop Navigation", command=lambda: self.stop("navigation")).pack(side="left", padx=4)
         ttk.Checkbutton(nav_btns, text="Person on path (sim)", variable=self.sim_person).pack(side="left", padx=6)
 
+        speed = ttk.LabelFrame(top, text="Top speed (navigation; slower near walls and people)", padding=8)
+        speed.pack(fill="x", pady=6)
+        lo, hi = (round(v * 100) for v in MAX_SPEED_RANGE)
+        self.max_speed = tk.IntVar(value=round(self._get(hw, ("navigation", "max_speed"), 0.25) * 100))
+        self.max_speed.set(min(max(self.max_speed.get(), lo), hi))
+        self.speed_label = ttk.Label(speed, width=8)
+        scale = ttk.Scale(speed, from_=lo, to=hi, orient="horizontal", length=320,
+                          command=lambda v: self._speed_moved(float(v)))
+        scale.set(self.max_speed.get())
+        scale.pack(side="left", padx=4)
+        scale.bind("<ButtonRelease-1>", lambda _e: self._speed_changed())
+        self.speed_label.pack(side="left", padx=4)
+        self._speed_moved(self.max_speed.get())
+        ttk.Label(speed, text=f"{lo}-{hi} cm/s, applied at once and saved", foreground="#555").pack(
+            side="left", padx=10)
+
         video = ttk.LabelFrame(top, text="Video (driver views -> /data/videos)", padding=8)
         video.pack(fill="x", pady=6)
         self.rec_btn = ttk.Button(video, text="Record", command=self.toggle_record)
@@ -175,23 +197,27 @@ class KeloGUI:
             cfg = cfg[key]
         return cfg
 
+    @staticmethod
+    def _save_override(path, value):
+        over = {}
+        if os.path.isfile(OVERRIDE_YAML):
+            with open(OVERRIDE_YAML, encoding="utf-8") as f:
+                over = yaml.safe_load(f) or {}
+        node = over
+        for key in path[:-1]:
+            if not isinstance(node.get(key), dict):
+                node[key] = {}
+            node = node[key]
+        node[path[-1]] = value
+        tmp = OVERRIDE_YAML + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("# local settings of this robot, merged over the packaged hardware.yaml (KELO panel)\n")
+            yaml.safe_dump(over, f, default_flow_style=False, sort_keys=False)
+        os.replace(tmp, OVERRIDE_YAML)
+
     def _feature_changed(self, path, var):
         try:
-            over = {}
-            if os.path.isfile(OVERRIDE_YAML):
-                with open(OVERRIDE_YAML, encoding="utf-8") as f:
-                    over = yaml.safe_load(f) or {}
-            node = over
-            for key in path[:-1]:
-                if not isinstance(node.get(key), dict):
-                    node[key] = {}
-                node = node[key]
-            node[path[-1]] = bool(var.get())
-            tmp = OVERRIDE_YAML + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write("# local settings of this robot, merged over the packaged hardware.yaml (KELO panel)\n")
-                yaml.safe_dump(over, f, default_flow_style=False, sort_keys=False)
-            os.replace(tmp, OVERRIDE_YAML)
+            self._save_override(path, bool(var.get()))
         except Exception as e:
             self._log(f"[GUI] Setting could not be saved: {e}\n")
             var.set(not var.get())
@@ -201,6 +227,36 @@ class KeloGUI:
             self._log(f"[GUI] {'.'.join(path)} {state}: saved; press 'Restart stack (apply)' to use it now.\n")
         else:
             self._log(f"[GUI] {'.'.join(path)} {state}: saved; used at the next start.\n")
+
+    def _speed_moved(self, value):
+        self.max_speed.set(int(round(value)))
+        self.speed_label.config(text=f"{self.max_speed.get()} cm/s")
+
+    def _speed_changed(self):
+        v = self.max_speed.get() / 100.0
+        try:
+            self._save_override(("navigation", "max_speed"), v)
+        except Exception as e:
+            self._log(f"[GUI] Speed could not be saved: {e}\n")
+            return
+        if not (self._running("mapping") or self._running("navigation")):
+            self._log(f"[GUI] Top speed {v:.2f} m/s: saved; used at the next start.\n")
+            return
+        self._log(f"[GUI] Top speed {v:.2f} m/s: saved, applying to the running stack...\n")
+        threading.Thread(target=self._apply_speed, args=(v,), daemon=True).start()
+
+    def _apply_speed(self, v):
+        # same values as common.nav2_params writes at start: the controller plans at v, the smoother caps at v
+        cmds = [["ros2", "param", "set", "/controller_server", "FollowPath.vx_max", str(v)],
+                ["ros2", "param", "set", "/velocity_smoother", "max_velocity", f"[{v}, {VY_MAX}, {DRIVE_ANGULAR}]"],
+                ["ros2", "param", "set", "/velocity_smoother", "min_velocity", f"[{-v}, {-VY_MAX}, {-DRIVE_ANGULAR}]"]]
+        for cmd in cmds:
+            try:
+                out = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                text = (out.stdout + out.stderr).strip()
+            except Exception as e:
+                text = f"ERROR: {e}"
+            self._log(f"[GUI] {cmd[3]} {cmd[4]}: {text}\n")
 
     def restart_stack(self):
         mode = "navigation" if self._running("navigation") else "mapping" if self._running("mapping") else None

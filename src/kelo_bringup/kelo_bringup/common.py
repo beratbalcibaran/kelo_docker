@@ -87,6 +87,15 @@ def people_aware(hw):
     return bool((hw.get('navigation') or {}).get('people_aware', True))
 
 
+MAX_SPEED_RANGE = (0.05, 0.30)  # m/s; the collision monitor zones are sized for the top end
+
+
+def max_speed(hw):
+    """Top driving speed (navigation.max_speed), clamped to MAX_SPEED_RANGE."""
+    v = float((hw.get('navigation') or {}).get('max_speed', 0.25))
+    return min(max(v, MAX_SPEED_RANGE[0]), MAX_SPEED_RANGE[1])
+
+
 def views_enabled(hw):
     """Driver views (objects, surround, parking, coverage, video recorder, web view)."""
     return bool((hw.get('views') or {}).get('enabled', True))
@@ -124,6 +133,10 @@ def nav2_params(hw, odom_topic, cfg=None, camera_map=False):
     sens = sensors(hw)
     for name in ('bt_navigator', 'velocity_smoother', 'controller_server'):
         cfg[name]['ros__parameters']['odom_topic'] = odom_topic
+    v = max_speed(hw)
+    cfg['controller_server']['ros__parameters']['FollowPath']['vx_max'] = v
+    vs = cfg['velocity_smoother']['ros__parameters']
+    vs['max_velocity'][0], vs['min_velocity'][0] = v, -v
     bt = cfg['bt_navigator']['ros__parameters']
     bt['default_nav_to_pose_bt_xml'] = os.path.join(share(), 'behavior_trees', bt['default_nav_to_pose_bt_xml'])
     lc = cfg['local_costmap']['local_costmap']['ros__parameters']

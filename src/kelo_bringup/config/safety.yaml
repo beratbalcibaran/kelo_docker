@@ -39,7 +39,7 @@ collision_monitor_teleop:
       type: "polygon"
       action_type: "slowdown"
       points: "[[1.025, 0.415], [1.025, -0.415], [-0.575, -0.415], [-0.575, 0.415]]"
-      slowdown_ratio: 0.4
+      slowdown_ratio: 0.6
       min_points: 3
       visualize: true
       polygon_pub_topic: "teleop_slowdown_zone"
