@@ -18,13 +18,14 @@ import numpy as np
 import rclpy
 from geometry_msgs.msg import PointStamped
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 
 PANES = (('color', 'Colour camera', '/parking_view/color_image'),
          ('depth', 'Depth camera', '/parking_view/image'))
 SURROUND = ('surround', 'Surround', '/surround_view/image')
 COVERAGE = ('coverage', 'Coverage', '/coverage_view/image')
 STALE_S = 2.0
+TICK_MS = 40  # window refresh; a pane is only redrawn when a new frame came in
 
 
 def ppm(rgb):
@@ -63,8 +64,10 @@ class CameraView(Node):
         self.surround_geometry = self.get_parameter('surround_geometry').value
         self.lock = threading.Lock()
         self.latest = {}
+        # JPEG form of the views (view_publisher): ~40 KB per frame instead of ~2 MB raw, which DDS
+        # delivers without dropping frames
         for key, _, topic in PANES + (SURROUND, COVERAGE):
-            self.create_subscription(Image, topic, lambda m, k=key: self._image(k, m), 10)
+            self.create_subscription(CompressedImage, topic + '/compressed', lambda m, k=key: self._image(k, m), 2)
         self.click_pub = self.create_publisher(PointStamped, '/kelo/view_click', 10)
 
     def click(self, key, u, v, goal):
@@ -75,18 +78,20 @@ class CameraView(Node):
         self.click_pub.publish(msg)
 
     def _image(self, key, msg):
-        if msg.encoding != 'rgb8':
+        bgr = cv2.imdecode(np.frombuffer(msg.data, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if bgr is None:
             return
-        rgb = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.step)[:, :msg.width * 3]
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         with self.lock:
-            self.latest[key] = (time.time(), rgb.reshape(msg.height, msg.width, 3))
+            self.latest[key] = (time.time(), rgb)
 
     def frame(self, key):
+        """(arrival time, rgb) of the latest fresh frame, or None."""
         with self.lock:
             item = self.latest.get(key)
         if item is None or time.time() - item[0] > STALE_S:
             return None
-        return item[1]
+        return item
 
 
 class Window:
@@ -96,7 +101,7 @@ class Window:
         self.root.title('KELO Camera   (double click on the floor: drive there, right click: cancel the goal)')
         self.root.geometry(node.geometry)
         self.root.configure(bg='black')
-        self.labels, self.photos, self.shown = {}, {}, {}
+        self.labels, self.photos, self.shown, self.drawn = {}, {}, {}, {}
         for col, (key, title, _) in enumerate(PANES):
             self.root.columnconfigure(col, weight=1, uniform='pane')
             tk.Label(self.root, text=title, fg='white', bg='black').grid(row=0, column=col, sticky='ew')
@@ -145,18 +150,24 @@ class Window:
             lower = other  # the selected view has no image (e.g. coverage outside mapping)
         for key, src in [(k, k) for k, _, _ in PANES] + [('lower', lower)]:
             label = self.labels[key]
-            rgb = self.node.frame(src)
-            if rgb is None:
+            item = self.node.frame(src)
+            if item is None:
                 label.configure(image='', text='no image (colour stream off?)' if key == 'color' else 'no image')
                 self.photos.pop(key, None)
                 self.shown.pop(key, None)
+                self.drawn.pop(key, None)
                 continue
+            stamp, rgb = item
+            size = (label.winfo_width(), label.winfo_height())
+            if self.drawn.get(key) == (src, stamp, size):
+                continue  # nothing new for this pane
+            self.drawn[key] = (src, stamp, size)
             img = fit(rgb, label.winfo_width() - 4, label.winfo_height() - 4)
             photo = tk.PhotoImage(data=ppm(img), format='PPM')
             label.configure(image=photo, text='')
             self.photos[key] = photo
             self.shown[key] = (src, (img.shape[1], img.shape[0]), (rgb.shape[1], rgb.shape[0]))
-        self.root.after(100, self._tick)
+        self.root.after(TICK_MS, self._tick)
 
 
 def main():
