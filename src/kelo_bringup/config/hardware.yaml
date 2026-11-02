@@ -78,6 +78,9 @@ perception:
 # passed after 5 s). Off: people are obstacles like any other.
 navigation:
   people_aware: true
+  # top driving speed in m/s (0.05-0.30; the safety zones are sized for 0.30); the panel slider sets
+  # it while navigating and saves it here
+  max_speed: 0.25
 
 # driver views: objects node, surround, parking and coverage views, video recorder and web view.
 # Off: only mapping/navigation and safety run (no object names, no people-aware navigation)

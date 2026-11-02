@@ -11,8 +11,8 @@ From the people of the objects node (/kelo/objects, class 'person', with their v
   has the person from the LiDAR and the camera.
 - /speed_limit (nav2_msgs/SpeedLimit, percent): slower near people, `slow_percent` within
   `slow_near` metres of the footprint, back to full speed at `slow_far`. Not while the collision
-  monitor slows the robot down itself (its slowdown zone): both together made 0.3 * 0.4 * 0.4 m/s,
-  a crawl of 2 cm/s past a person.
+  monitor slows the robot down itself (its slowdown zone): both together made a crawl of
+  2 cm/s past a person.
 - /kelo/person_blocking (std_msgs/Bool): true while a person (or their predicted way) is on the next
   `check_ahead` metres of the Nav2 plan. The behaviour tree (IsPersonBlocking, kelo_bt_nodes) then
   waits for the person to step aside instead of planning around them at once, as it does for a box;
@@ -78,7 +78,7 @@ class Social(Node):
         d('check_ahead', 2.5)
         d('slow_near', 1.0)
         d('slow_far', 2.0)
-        d('slow_percent', 40.0)
+        d('slow_percent', 60.0)
         d('collision_monitor_state', '/collision_monitor_state')
         d('core_value', 90)
         d('rate_hz', 5.0)
