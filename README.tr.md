@@ -153,6 +153,7 @@ kelo_docker/
 | `status_node.py` | Genel durumu raporlar ve konumlandırma durumunu tutar |
 | `localize.py` | Robotun haritadaki konumunu bulur (GUI: Localize) |
 | `robot_check.py` | Robota ilk bağlantı kontrolü (topic'ler, tipler, frekanslar, TF sahipliği, saat farkı; robotu hareket ettirmez) |
+| `robot_discover.py` | Robot sürücüsünü bulur (ROS_DOMAIN_ID 0-10 arar; hız topic'i ve tipi, odometri, `odom → base_link` sahibi, USB sensörler) ve `hardware.yaml` ayarlarını önerir; panel robot Ethernet'i açılınca kendisi çalıştırır (robotu hareket ettirmez) |
 | `loc_monitor.py`, `scan_match.py` | Konumlandırmayı haritaya göre denetler (tarama uyumu), `LOST` bildirir, son konumu kaydeder ve geri yükler |
 | `send_goal.py` | Navigasyon hedefi gönderir (GUI: Send Goal) |
 | `waypoint_tool.py` | İsimli konumları kaydeder ve aralarında sürer |
@@ -943,20 +944,22 @@ Container içinde tekil senaryolar `kelo_e2e <senaryo>` ile çalıştırılır: 
 **İlk bağlantı kontrol listesi**
 
 1. [Açık konuları](#açık-konular) netleştirin ve ölçümleri `hardware.yaml`'a girin.
-2. Sensör modunda (`KELO_MODE=sensors`) başlatın; `/scan`, derinlik, Marvelmind, `/odom` ve TF ağacını doğrulayın.
+2. KELO stack kapalıyken robotu bağlayın: panel Ethernet'i görünce sürücüyü arar (ya da **Find robot** /
+   `ros2 run kelo_bringup robot_discover [--apply]`) ve bulduğu ayarları onayınızla yazar.
+3. Sensör modunda (`KELO_MODE=sensors`) başlatın; `/scan`, derinlik, Marvelmind, `/odom` ve TF ağacını doğrulayın.
    `ros2 run kelo_bringup robot_check` bunu robotu hareket ettirmeden otomatik yapar: `/odom` frekansı,
    frame'leri ve saat farkı (chrony), `odom → base_link`'i kimin yayınladığı (`odom_mode` ile uyumlu
    olmalı), sürücünün `/cmd_vel` abonesinin tipi ve başka bir node'un bu topic'e yayın yapmadığı, LiDAR,
    derinlik kamerası, Marvelmind ve harita. Sürücünün kendi dönüşümlerini görmek için bir kez KELO stack
    kapalıyken (yalnızca robot sürücüsü) çalıştırın; herhangi bir `FAIL` varsa çıkış kodu 1'dir.
-3. `ros2 topic info -v /cmd_vel` ile tek yayıncının `cmd_vel_gate` olduğunu doğrulayın.
-4. Robot kaldırılmış veya açık alandayken kısa tuş basışlarıyla hareket yönlerini doğrulayın.
-5. Tuşu bırakın ve robotun 0,5 s içinde durduğunu doğrulayın.
-6. Donanımsal acil durdurmayı yazılımdan bağımsız olarak doğrulayın.
-7. Bir engele yavaşça yaklaşın ve durma mesafesini ölçün.
-8. Yavaş hareket sırasında kamera veya LiDAR bağlantısını kesin ve robotun durduğunu doğrulayın.
-9. Odometri karakterizasyonunu yapın ve `odom_correction`'ı güncelleyin.
-10. Haritayı oluşturun, Marvelmind'ı hizalayın, konumlandırın ve navigasyonu düşük hızda test edin.
+4. `ros2 topic info -v /cmd_vel` ile tek yayıncının `cmd_vel_gate` olduğunu doğrulayın.
+5. Robot kaldırılmış veya açık alandayken kısa tuş basışlarıyla hareket yönlerini doğrulayın.
+6. Tuşu bırakın ve robotun 0,5 s içinde durduğunu doğrulayın.
+7. Donanımsal acil durdurmayı yazılımdan bağımsız olarak doğrulayın.
+8. Bir engele yavaşça yaklaşın ve durma mesafesini ölçün.
+9. Yavaş hareket sırasında kamera veya LiDAR bağlantısını kesin ve robotun durduğunu doğrulayın.
+10. Odometri karakterizasyonunu yapın ve `odom_correction`'ı güncelleyin.
+11. Haritayı oluşturun, Marvelmind'ı hizalayın, konumlandırın ve navigasyonu düşük hızda test edin.
 
 **Loglar ve servis**
 

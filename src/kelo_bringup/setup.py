@@ -49,6 +49,7 @@ setup(
             'odom_test = kelo_bringup.odom_test:main',
             'parking_view = kelo_bringup.parking_view:main',
             'robot_check = kelo_bringup.robot_check:main',
+            'robot_discover = kelo_bringup.robot_discover:main',
             'status_node = kelo_bringup.status_node:main',
             'surround_view = kelo_bringup.surround_view:main',
             'waypoint_tool = kelo_bringup.waypoint_tool:main',
