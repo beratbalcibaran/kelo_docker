@@ -1,6 +1,7 @@
 #!/bin/bash
 source /opt/ros/jazzy/setup.bash
-source /ros2_ws/install/setup.bash
+# in the image; the native install (sim_e2e_test.sh E2E_NATIVE=1) has sourced its workspace already
+[ -f /ros2_ws/install/setup.bash ] && source /ros2_ws/install/setup.bash
 set -u
 set -m
 

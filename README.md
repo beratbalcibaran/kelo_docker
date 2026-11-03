@@ -918,6 +918,7 @@ Test interfaces: `/sim/ground_truth`, `/sim/contacts`, `/sim/obstacles` and
 ./scripts/test_all.sh --unit-only     # unit tests only (~5 s)
 ./scripts/sim_e2e_test.sh A B         # selected end-to-end phases
 E2E_NAME=kelo-e2e-2 E2E_DOMAIN=78 IMG=kelo-slam:dev ./scripts/sim_e2e_test.sh B   # beside a running GUI
+E2E_NATIVE=1 ./scripts/sim_e2e_test.sh       # without Docker, on the native install (workspace KELO_WS, default ../ws)
 ```
 
 **Unit tests (pytest)** cover configuration consistency (footprint, speed limits, zones, blind zone,
