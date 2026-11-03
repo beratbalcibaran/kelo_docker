@@ -918,6 +918,7 @@ Test arayüzleri: `/sim/ground_truth`, `/sim/contacts`, `/sim/obstacles` ve
 ./scripts/test_all.sh --unit-only     # yalnızca birim testleri (~5 s)
 ./scripts/sim_e2e_test.sh A B         # seçili uçtan uca aşamalar
 E2E_NAME=kelo-e2e-2 E2E_DOMAIN=78 IMG=kelo-slam:dev ./scripts/sim_e2e_test.sh B   # çalışan GUI'nin yanında
+E2E_NATIVE=1 ./scripts/sim_e2e_test.sh       # Docker'sız, yerel kurulumda (çalışma alanı KELO_WS, varsayılan ../ws)
 ```
 
 **Birim testleri (pytest)** yapılandırma tutarlılığını (footprint, hız sınırları, bölgeler, kör bölge,

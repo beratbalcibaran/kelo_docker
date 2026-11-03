@@ -10,8 +10,29 @@ DOMAIN="${E2E_DOMAIN:-77}"
 FAIL=0
 RESULTS=()
 R='source /opt/ros/jazzy/setup.bash; source /ros2_ws/install/setup.bash;'
+# E2E_NATIVE=1: the same phases without Docker, on the native install (workspace KELO_WS, default ../ws
+# next to the repo); the stack runs as a process group on the host, isolated by its ROS domain
+NATIVE="${E2E_NATIVE:-0}"
+DATA=/data
+if [ "$NATIVE" = 1 ]; then
+  WS="${KELO_WS:-$(cd "$ROOT/.." && pwd)/ws}"
+  [ -f "$WS/install/setup.bash" ] || { echo "[e2e] native: no workspace at $WS (set KELO_WS)"; exit 2; }
+  R="source /opt/ros/jazzy/setup.bash; source $WS/install/setup.bash;"
+  DATA="$WORK/data"
+  DOMAIN="${E2E_DOMAIN:-79}"
+  export ROS_DOMAIN_ID=$DOMAIN KELO_DATA_DIR="$DATA" RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+         CYCLONEDDS_URI="file://$ROOT/docker/cyclonedds.xml"
+  unset DISPLAY
+  STACK_PID=""
+fi
 
+if [ "$NATIVE" = 1 ]; then
+run() { bash -c "$R $*"; }
+runi() { bash -c "$R $*"; }
+else
 run() { docker exec "$NAME" bash -c "$R $*"; }
+runi() { docker exec -i "$NAME" bash -c "$R $*"; }
+fi
 record() { echo "$1"; RESULTS+=("$1"); [[ "$1" == FAIL* ]] && FAIL=1; return 0; }
 check() {
   if eval "$2" >"$WORK/last.txt" 2>&1; then record "OK   $1"
@@ -19,31 +40,66 @@ check() {
 }
 e2e() {
   local name="$1"; shift
-  if docker exec "$NAME" bash -c "$R timeout 300 ros2 run kelo_bringup kelo_e2e $*" >"$WORK/last.txt" 2>&1
+  if run "timeout 300 ros2 run kelo_bringup kelo_e2e $*" >"$WORK/last.txt" 2>&1
   then record "OK   $name"; else record "FAIL $name"; fi
   grep '\[e2e\]' "$WORK/last.txt" | sed 's/^/     /'
 }
+if [ "$NATIVE" = 1 ]; then
+kill_stack() {
+  [ -n "$STACK_PID" ] || return 0
+  # like 'docker stop -t 30': TERM to run-stack.sh only (it shuts the launch down in order, so the bag
+  # recorder can close its file); whatever is left of the session after 30 s is killed. The session
+  # (setsid), not the process group: run-stack.sh runs the launch in its own group (set -m).
+  kill -TERM "$STACK_PID" 2>/dev/null
+  for _ in $(seq 1 300); do pgrep -s "$STACK_PID" >/dev/null || break; sleep 0.1; done
+  if pgrep -s "$STACK_PID" >/dev/null; then
+    echo "[e2e] stack did not stop within 30 s, killing: $(pgrep -s "$STACK_PID" -l | awk '{print $2}' | sort -u | tr '\n' ' ')"
+    pkill -KILL -s "$STACK_PID"
+  fi
+  STACK_PID=""
+}
+# the same as /run-stack.sh in the image: "start <mode> [-e VAR=value ...]"
+start() {
+  local mode="$1"; shift
+  kill_stack
+  local envs=(KELO_SOURCE=sim KELO_MODE="$mode" KELO_MAP="$DATA/maps/current.yaml")
+  while [ $# -gt 0 ]; do if [ "$1" = -e ]; then envs+=("$2"); shift 2; else shift; fi; done
+  : >"$WORK/stack.log"
+  # a background job of a script starts with SIGINT ignored, and ros2 launch would then never shut down
+  env --default-signal=INT,QUIT "${envs[@]}" setsid bash -c "$R exec bash $ROOT/docker/run-stack.sh" >"$WORK/stack.log" 2>&1 &
+  STACK_PID=$!
+}
+start_cmd() { kill_stack; : >"$WORK/stack.log"; env --default-signal=INT,QUIT setsid bash -c "$R exec $*" >"$WORK/stack.log" 2>&1 & STACK_PID=$!; }
+stop() { kill_stack; cp "$WORK/stack.log" "$WORK/$1.log" 2>/dev/null; }
+wait_log() { local end=$((SECONDS + $2)); until grep -q "$1" "$WORK/stack.log" 2>/dev/null; do
+  [ $SECONDS -gt $end ] && return 1; sleep 2; done; }
+else
 start() {
   local mode="$1"; shift
   docker rm -f "$NAME" >/dev/null 2>&1
   docker run -d --name "$NAME" --network bridge -e ROS_DOMAIN_ID=$DOMAIN -e KELO_SOURCE=sim \
     -e KELO_MODE="$mode" "$@" -v "$WORK/data":/data "$IMG" /run-stack.sh >/dev/null || exit 1
 }
+start_cmd() { docker rm -f "$NAME" >/dev/null 2>&1
+  docker run -d --name "$NAME" --network bridge -e ROS_DOMAIN_ID=$DOMAIN "$IMG" bash -c "$R $*" >/dev/null; }
 stop() { docker logs "$NAME" >"$WORK/$1.log" 2>&1; docker stop -t 20 "$NAME" >/dev/null 2>&1
          docker rm -f "$NAME" >/dev/null 2>&1; }
 wait_log() { local end=$((SECONDS + $2)); until docker logs "$NAME" 2>&1 | grep -q "$1"; do
   [ $SECONDS -gt $end ] && return 1; sleep 2; done; }
+fi
 tf() { run "timeout 12 ros2 run tf2_ros tf2_echo $1 $2 2>&1 | grep -q Translation"; }
 hz() { run "timeout 8 ros2 topic hz $1 2>/dev/null | grep -q average"; }
 skip() { record "SKIP $1 (marvelmind: false)"; }
 
-MM=$(docker run --rm -v "$WORK/data":/data "$IMG" bash -c "$R python3 -c \
-  'from kelo_bringup.common import load_hardware; print(int(bool(load_hardware()[\"sensors\"][\"marvelmind\"])))'")
+MMPY='from kelo_bringup.common import load_hardware; print(int(bool(load_hardware()["sensors"]["marvelmind"])))'
+if [ "$NATIVE" = 1 ]; then MM=$(bash -c "$R python3 -c '$MMPY'")
+else MM=$(docker run --rm -v "$WORK/data":/data "$IMG" bash -c "$R python3 -c '$MMPY'"); fi
 [ "$MM" = 1 ] || MM=0
 echo "[e2e] marvelmind: $([ $MM = 1 ] && echo true || echo false)"
 
-echo "[e2e] working directory: $WORK"
-trap 'docker rm -f "$NAME" >/dev/null 2>&1' EXIT
+echo "[e2e] working directory: $WORK ($([ "$NATIVE" = 1 ] && echo "native, $WS" || echo "docker, $IMG"), ROS domain $DOMAIN)"
+if [ "$NATIVE" = 1 ]; then trap 'kill_stack; bash -c "$R ros2 daemon stop" >/dev/null 2>&1' EXIT
+else trap 'docker rm -f "$NAME" >/dev/null 2>&1' EXIT; fi
 
 if [[ " $PHASES " == *" A "* ]]; then
   echo "=== A: mapping (source:=sim, faulty odometry, all sensors)"
@@ -51,6 +107,8 @@ if [[ " $PHASES " == *" A "* ]]; then
   wait_log "All requested topics are subscribed" 90 || true
   sleep 5
   check "gate node running"                "run ros2 node list | grep -q cmd_vel_gate"
+  check "robot_discover refuses next to a stack" \
+        "run ros2 run kelo_bringup robot_discover --domains $DOMAIN --time 1 | grep -q \"stack is running\""
   check "TF odom->base_link (odom_filter)" "tf odom base_link"
   check "TF base_link->laser"              "tf base_link laser"
   check "TF base_link->camera optical"    "tf base_link camera_depth_optical_frame"
@@ -74,7 +132,7 @@ if [[ " $PHASES " == *" A "* ]]; then
   check "save_map" "run ros2 run kelo_bringup save_map e2e"
   if [ $MM = 1 ]; then
     check "Marvelmind alignment (mm_calibrate)" \
-      "run 'ros2 run kelo_bringup mm_calibrate \$(ls -t /data/mm_samples_*.csv | head -1)'"
+      "run 'ros2 run kelo_bringup mm_calibrate \$(ls -t $DATA/mm_samples_*.csv | head -1)'"
   else skip "Marvelmind alignment (mm_calibrate)"; fi
   stop A
   check "bag recording closed cleanly (metadata.yaml)" "ls $WORK/data/bags/map_sim_*/metadata.yaml"
@@ -133,10 +191,10 @@ if [[ " $PHASES " == *" C "* ]]; then
     record "FAIL replay: phase A bag/map missing"
   else
     check "replay map ~ live map (F1 >= 0.85)" \
-      "OUT=$WORK/replay $ROOT/scripts/replay_regression.sh $BAG $LIVE --min-f1 0.85"
+      "OUT=$WORK/replay REPLAY_NATIVE=$NATIVE $ROOT/scripts/replay_regression.sh $BAG $LIVE --min-f1 0.85"
     sed 's/^/     /' "$WORK/replay/compare.txt" 2>/dev/null
     check "live map ~ reference (test/data, F1 >= 0.80)" \
-      "docker run --rm -v $WORK/data:/data -v $ROOT/src/kelo_bringup/test/data:/ref:ro $IMG bash -c \"$R ros2 run kelo_bringup map_compare /data/maps/$(basename "$LIVE") /ref/sim_reference.yaml --min-f1 0.80\""
+      "$([ "$NATIVE" = 1 ] && echo "bash -c \"$R ros2 run kelo_bringup map_compare $LIVE $ROOT/src/kelo_bringup/test/data/sim_reference.yaml --min-f1 0.80\"" || echo "docker run --rm -v $WORK/data:/data -v $ROOT/src/kelo_bringup/test/data:/ref:ro $IMG bash -c \"$R ros2 run kelo_bringup map_compare /data/maps/$(basename "$LIVE") /ref/sim_reference.yaml --min-f1 0.80\"")"
     sed 's/^/     /' "$WORK/last.txt"
   fi
 fi
@@ -147,13 +205,12 @@ if [[ " $PHASES " == *" D "* ]]; then
   sleep 15
   e2e "faulty odometry + odom_filter correction" odom
   check "calibration is REFUSED while the stack (gate) runs" \
-    "echo CALIBRATE | docker exec -i $NAME bash -c \"$R ros2 run kelo_bringup odom_test calibrate-rotate --rate 1.5 --measured-turns 3\" 2>&1 | grep -q REFUSED"
+    "echo CALIBRATE | runi ros2 run kelo_bringup odom_test calibrate-rotate --rate 1.5 --measured-turns 3 2>&1 | grep -q REFUSED"
   stop D1
-  docker run -d --name "$NAME" --network bridge -e ROS_DOMAIN_ID=$DOMAIN "$IMG" bash -c \
-    "$R ros2 run kelo_bringup sim_robot" >/dev/null
+  start_cmd ros2 run kelo_bringup sim_robot
   sleep 6
   check "1.5 rad/s, 3 turns: k ~ 8.6 (5% ramp allowance)" \
-    "echo CALIBRATE | docker exec -i $NAME bash -c \"$R ros2 run kelo_bringup odom_test calibrate-rotate --rate 1.5 --turns 3 --measured-turns 3\" 2>&1 | grep -oE 'k = real/odom = [0-9.]+' | awk '{v=\$NF; print v; exit !(v > 8.17 && v < 9.03)}'"
+    "echo CALIBRATE | runi ros2 run kelo_bringup odom_test calibrate-rotate --rate 1.5 --turns 3 --measured-turns 3 2>&1 | grep -oE 'k = real/odom = [0-9.]+' | awk '{v=\$NF; print v; exit !(v > 8.17 && v < 9.03)}'"
   sed 's/^/     k = /' "$WORK/last.txt"
   check "gate limit UNCHANGED (safety.yaml max_wz: 0.80)" \
     "grep -qE '^ +max_wz: 0.80' $ROOT/src/kelo_bringup/config/safety.yaml"

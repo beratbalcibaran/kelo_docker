@@ -23,6 +23,33 @@ DUR=$(awk '/^  duration:/{f=1} f&&/nanoseconds:/{print int($2/1e9); exit}' "$BAG
 DUR="${DUR:-600}"
 echo "[replay] bag=$BAG (~${DUR} s) ref=$REF odom_source=$ODOM -> $OUT"
 
+R='source /opt/ros/jazzy/setup.bash; source /ros2_ws/install/setup.bash;'
+if [ "${REPLAY_NATIVE:-0}" = 1 ]; then
+  # without Docker, on the native install (workspace KELO_WS, default ../ws next to the repo)
+  ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+  WS="${KELO_WS:-$(cd "$ROOT/.." && pwd)/ws}"
+  R="source /opt/ros/jazzy/setup.bash; source $WS/install/setup.bash;"
+  export ROS_DOMAIN_ID=78 KELO_DATA_DIR="$OUT" RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+         CYCLONEDDS_URI="file://$ROOT/docker/cyclonedds.xml"
+  unset DISPLAY
+  env --default-signal=INT,QUIT setsid bash -c "$R exec ros2 launch kelo_bringup bringup.launch.py source:=replay mode:=mapping bag:=$BAG \
+    odom_source:=$ODOM record:=false" >"$OUT/replay.log" 2>&1 &
+  PID=$!
+  cleanup() { kill -INT -- -$PID 2>/dev/null; sleep 5; kill -KILL -- -$PID 2>/dev/null; }
+  trap cleanup EXIT
+  END=$((SECONDS + DUR + 120))
+  until grep -q REPLAY_FINISHED "$OUT/replay.log"; do
+    [ $SECONDS -gt $END ] && { echo "[replay] FAIL: timeout (bag did not finish)"; exit 1; }
+    kill -0 $PID 2>/dev/null || { echo "[replay] FAIL: launch stopped"; exit 1; }
+    sleep 5
+  done
+  sleep 5
+  bash -c "$R ros2 run kelo_bringup save_map replay" || { echo "[replay] FAIL: save_map"; exit 1; }
+  bash -c "$R ros2 run kelo_bringup map_compare $OUT/maps/current.yaml $REF_DIR/$REF_NAME --min-f1 $MIN_F1" \
+    | tee "$OUT/compare.txt"
+  exit "${PIPESTATUS[0]}"
+fi
+
 docker rm -f "$NAME" >/dev/null 2>&1
 docker run -d --name "$NAME" --network bridge -e ROS_DOMAIN_ID=78 -e KELO_DATA_DIR=/data \
   -v "$BAG":/bag:ro -v "$REF_DIR":/ref:ro -v "$OUT":/data "$IMG" bash -c "
