@@ -155,6 +155,7 @@ Programs in `src/kelo_bringup/kelo_bringup/`:
 | `status_node.py` | Reports the overall state and holds the localization state |
 | `localize.py` | Finds the robot's position on the map (GUI: Localize) |
 | `robot_check.py` | First-connection check of the robot interface (topics, types, rates, TF ownership, clock offset; does not move the robot) |
+| `robot_discover.py` | Finds the robot driver (searches ROS_DOMAIN_IDs 0-10; velocity topic and type, odometry, who owns odom -> base_link, USB sensors) and proposes the hardware.yaml settings; the panel runs it when the robot Ethernet comes up (does not move the robot) |
 | `loc_monitor.py`, `scan_match.py` | Checks the localization against the map (scan fit), reports `LOST`, saves and restores the last pose |
 | `send_goal.py` | Sends a navigation goal (GUI: Send Goal) |
 | `waypoint_tool.py` | Stores named positions and drives between them |
@@ -945,20 +946,22 @@ Inside the container, individual scenarios run with `kelo_e2e <scenario>`: `odom
 **First connection checklist**
 
 1. Resolve the [open items](#open-items) and enter measurements in `hardware.yaml`.
-2. Start in sensor mode (`KELO_MODE=sensors`) and verify `/scan`, depth, Marvelmind, `/odom` and the TF tree.
+2. Connect the robot with the KELO stack off: the panel looks for the driver when the Ethernet comes up (or
+   **Find robot** / `ros2 run kelo_bringup robot_discover [--apply]`) and writes what it finds after you confirm.
+3. Start in sensor mode (`KELO_MODE=sensors`) and verify `/scan`, depth, Marvelmind, `/odom` and the TF tree.
    `ros2 run kelo_bringup robot_check` does this automatically without moving the robot: `/odom` rate,
    frames and clock offset (chrony), who publishes `odom → base_link` (must match `odom_mode`), the
    `/cmd_vel` type of the driver's subscriber and that no other node publishes on it, LiDAR, depth
    camera, Marvelmind and the map. Run it once with the KELO stack off (robot driver only) to see the
    driver's own transforms; exit code 1 on any `FAIL`.
-3. Confirm with `ros2 topic info -v /cmd_vel` that `cmd_vel_gate` is the only publisher.
-4. With the robot raised or in an open area, verify motion directions with short key presses.
-5. Release the key and confirm the robot stops within 0.5 s.
-6. Verify the hardware emergency stop independently of the software.
-7. Approach an obstacle slowly and measure the stopping clearance.
-8. Disconnect the camera or LiDAR while moving slowly and confirm the robot stops.
-9. Perform odometry characterisation and update `odom_correction`.
-10. Create the map, align Marvelmind, localize and test navigation at low speed.
+4. Confirm with `ros2 topic info -v /cmd_vel` that `cmd_vel_gate` is the only publisher.
+5. With the robot raised or in an open area, verify motion directions with short key presses.
+6. Release the key and confirm the robot stops within 0.5 s.
+7. Verify the hardware emergency stop independently of the software.
+8. Approach an obstacle slowly and measure the stopping clearance.
+9. Disconnect the camera or LiDAR while moving slowly and confirm the robot stops.
+10. Perform odometry characterisation and update `odom_correction`.
+11. Create the map, align Marvelmind, localize and test navigation at low speed.
 
 **Logs and service**
 

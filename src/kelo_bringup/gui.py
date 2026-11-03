@@ -1,3 +1,4 @@
+import json
 import os
 import queue
 import signal
@@ -30,6 +31,10 @@ FEATURES = (
 )
 
 SOURCES = ("sim", "hardware", "replay")
+# robot Ethernet: when it comes up the panel pins DDS to it and looks for the robot driver
+ROBOT_IFACE = os.environ.get("KELO_DDS_IFACE", "enP8p1s0")
+DDS_PIN = '<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="{}"/></Interfaces></General></Domain></CycloneDDS>'
+
 DRIVE_LINEAR = 0.30
 DRIVE_ANGULAR = 0.80
 VY_MAX = 0.30  # velocity_smoother max_velocity[1] in nav2_params.yaml
@@ -50,6 +55,9 @@ class KeloGUI:
         self.recording = False
 
         self.window_procs = {}
+        self.iface_up = None
+        self.discovering = False
+        self.proposal = []
         # log lines and UI updates from the worker threads; only the Tk thread touches the widgets
         self.ui_queue = queue.Queue()
         self._build_widgets()
@@ -57,6 +65,7 @@ class KeloGUI:
         self._refresh_status()
         self._drive_tick()
         self._window_watchdog()
+        self._watch_iface()
 
     def _build_widgets(self):
         top = ttk.Frame(self.root, padding=10)
@@ -82,6 +91,16 @@ class KeloGUI:
                      state="readonly").pack(side="left", padx=4)
         ttk.Label(opts, text="bag (replay)").pack(side="left", padx=(8, 0))
         ttk.Entry(opts, textvariable=self.bag_path, width=26).pack(side="left", padx=4)
+
+        robot = ttk.LabelFrame(top, text=f"Robot (driver discovery; starts by itself when {ROBOT_IFACE} comes up)",
+                               padding=8)
+        robot.pack(fill="x", pady=4)
+        self.find_btn = ttk.Button(robot, text="Find robot", command=self.find_robot)
+        self.find_btn.pack(side="left", padx=4)
+        self.apply_btn = ttk.Button(robot, text="Apply settings", command=self.apply_proposal, state="disabled")
+        self.apply_btn.pack(side="left", padx=4)
+        self.robot_var = tk.StringVar(value="not searched yet")
+        ttk.Label(robot, textvariable=self.robot_var, foreground="#555").pack(side="left", padx=10)
 
         feats = ttk.LabelFrame(top, text="Features (saved in /data/hardware.yaml, applied at the next start)",
                                padding=8)
@@ -273,6 +292,129 @@ class KeloGUI:
             self.start_navigation()
         else:
             self.start_mapping()
+
+    # ---- robot discovery -------------------------------------------------------------------------
+    @staticmethod
+    def _iface_is_up():
+        try:
+            with open(f"/sys/class/net/{ROBOT_IFACE}/operstate", encoding="ascii") as f:
+                return f.read().strip() == "up"
+        except OSError:
+            return False
+
+    def _watch_iface(self):
+        up = self._iface_is_up()
+        if up != self.iface_up:
+            first = self.iface_up is None
+            self.iface_up = up
+            if up:
+                self._on_iface_up(first)
+            elif not first:
+                self._log(f"[GUI] Robot Ethernet {ROBOT_IFACE} went down (cable unplugged?).\n")
+                self.robot_var.set(f"{ROBOT_IFACE} down")
+        self.root.after(2000, self._watch_iface)
+
+    def _on_iface_up(self, at_start):
+        uri = os.environ.get("CYCLONEDDS_URI", "")
+        if "NetworkInterface" not in uri:
+            # the panel was started without the cable: DDS of the processes started from now on uses it
+            os.environ["CYCLONEDDS_URI"] = (uri + "," if uri else "") + DDS_PIN.format(ROBOT_IFACE)
+            self._log(f"[GUI] DDS pinned to {ROBOT_IFACE} for the stacks started from now on.\n")
+            if self.ros_node is not None:
+                self._log("[GUI] Restart the panel so its own driving keys use it too.\n")
+        if self._running("mapping") or self._running("navigation"):
+            return
+        if self.source.get() == "sim":
+            self.source.set("hardware")
+            self._log("[GUI] Sensor source set to 'hardware'.\n")
+        self._log(f"[GUI] Robot Ethernet {ROBOT_IFACE} is up: looking for the robot driver.\n")
+        self.root.after(3000 if not at_start else 500, self.find_robot)
+
+    def find_robot(self):
+        if self.discovering:
+            return
+        if self._running("mapping") or self._running("navigation"):
+            messagebox.showinfo("Find robot", "Stop mapping / navigation first: discovery needs the robot\n"
+                                "driver alone (the KELO stack's own topics would be in the way).")
+            return
+        self.discovering = True
+        self.find_btn.config(state="disabled")
+        self.apply_btn.config(state="disabled")
+        self.robot_var.set("searching (about 10 s)...")
+        threading.Thread(target=self._discover_worker, daemon=True).start()
+
+    def _discover_worker(self):
+        result = None
+        try:
+            proc = subprocess.run(["ros2", "run", PACKAGE, "robot_discover", "--json"],
+                                  capture_output=True, text=True, timeout=90)
+            for line in proc.stdout.splitlines():
+                if line.startswith("JSON "):
+                    result = json.loads(line[5:])
+                elif line.startswith("[robot_discover]"):
+                    self._log(line + "\n")
+            if result is None:
+                self._log(f"[GUI] Discovery gave no result:\n{proc.stderr[-2000:]}\n")
+        except Exception as e:
+            self._log(f"[GUI] Discovery failed: {e}\n")
+        self.ui_queue.put(lambda: self._discover_done(result))
+
+    def _discover_done(self, result):
+        self.discovering = False
+        self.find_btn.config(state="normal")
+        if result is None:
+            self.robot_var.set("discovery failed (see log)")
+            return
+        fails = [t for lv, t in result["notes"] if lv == "FAIL"]
+        warns = [t for lv, t in result["notes"] if lv == "WARN"]
+        self.proposal = [(tuple(p), v) for p, v in result["settings"]]
+        if not result["found"]:
+            self.robot_var.set("robot NOT found: " + (fails[0] if fails else "see log"))
+            return
+        state = f"robot found, {len(warns)} warning(s)"
+        if self.proposal:
+            self.apply_btn.config(state="normal")
+            self.robot_var.set(state + f"; {len(self.proposal)} setting(s) to apply")
+            self.apply_proposal()
+        else:
+            self.robot_var.set(state + "; settings already match")
+
+    def apply_proposal(self):
+        if not self.proposal:
+            return
+        text = "\n".join(f"  {'.'.join(p)}: {v}" for p, v in self.proposal)
+        if not messagebox.askyesno("Robot found", "Discovery proposes these settings for this robot:\n\n"
+                                   f"{text}\n\nWrite them now? (hardware.yaml; nothing moves the robot)"):
+            return
+        for path, value in self.proposal:
+            try:
+                if path[0] == "env":
+                    self._set_env(path[1], str(value))
+                else:
+                    self._save_override(path, value)
+                self._log(f"[GUI] {'.'.join(path)} = {value} applied.\n")
+            except Exception as e:
+                self._log(f"[GUI] {'.'.join(path)} could not be applied: {e}\n")
+        self.proposal = []
+        self.apply_btn.config(state="disabled")
+        self.robot_var.set("robot found; settings applied (used at the next start)")
+
+    def _set_env(self, key, value):
+        os.environ[key] = value
+        env_file = os.environ.get("KELO_ENV_FILE")
+        if env_file:
+            lines = []
+            if os.path.isfile(env_file):
+                with open(env_file, encoding="utf-8") as f:
+                    lines = [ln for ln in f.read().splitlines() if not ln.startswith(key + "=")]
+            lines.append(f"{key}={value}")
+            with open(env_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+            self._log(f"[GUI] {key}={value} saved in {env_file}.\n")
+        else:
+            self._log(f"[GUI] {key}={value} used for this panel session; add it to .env to keep it.\n")
+        if self.ros_node is not None:
+            self._log("[GUI] Restart the panel so its own driving keys use it too.\n")
 
     def _refresh_status(self):
         running = [n for n, p in self.procs.items() if p.poll() is None]
