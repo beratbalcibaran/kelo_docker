@@ -1,0 +1,9 @@
+# Local settings of this robot, merged over the packaged hardware.yaml.
+# Copy before starting the stack by hand: cp data/hardware.example.yaml data/hardware.yaml
+
+robot:
+  # The driver in robot/ publishes odom -> base_link itself (publish_tf: true).
+  odom_mode: driver
+
+navigation:
+  max_speed: 0.23
