@@ -605,6 +605,19 @@ robot:
 The panel proposes this with **Find robot** / `robot_discover` when the robot Ethernet comes up and writes
 it after you confirm.
 
+**Started by hand.** Both files have a ready example, with the values above:
+
+```bash
+cp .env.example .env
+cp data/hardware.example.yaml data/hardware.yaml
+```
+
+**On another Jetson.** Set `KELO_DDS_IFACE` in `.env` to its port towards the robot (`ip -br link`) and give
+that port a free address on `192.168.1.0/24`. If its ssh key for the robot computer is set under an alias in
+`~/.ssh/config`, use it with `KELO_HOST=<alias> ./scripts/robot.sh ...`. Nothing else has to be copied: the
+Dockerfiles download the detection models, the detector builds its TensorRT engine at first start, and maps
+are made on the robot.
+
 ### 4. Set up the robot computer
 
 All from the Jetson, with the KELO stack stopped (`sudo systemctl stop kelo`).

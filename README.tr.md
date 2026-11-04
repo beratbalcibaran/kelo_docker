@@ -598,6 +598,19 @@ robot:
 
 Panel bunu robot Ethernet'i gelince **Find robot** / `robot_discover` ile önerir ve onayınızla yazar.
 
+**Elle başlatma.** İki dosyanın da yukarıdaki değerlerle hazır bir örneği vardır:
+
+```bash
+cp .env.example .env
+cp data/hardware.example.yaml data/hardware.yaml
+```
+
+**Başka bir Jetson'da.** `.env` içindeki `KELO_DDS_IFACE` değerini robota giden porta göre ayarlayın
+(`ip -br link`) ve o porta `192.168.1.0/24` içinde boş bir adres verin. Robot bilgisayarı için ssh anahtarı
+`~/.ssh/config` içinde bir takma adla tanımlıysa `KELO_HOST=<takma ad> ./scripts/robot.sh ...` kullanın.
+Başka bir şey kopyalamak gerekmez: algılama modellerini Dockerfile'lar indirir, algılayıcı TensorRT motorunu
+ilk başlatmada kendisi oluşturur, haritalar ise robotta yapılır.
+
 ### 4. Robot bilgisayarını kurun
 
 Hepsi Jetson'dan çalışır. KELO stack bu sırada kapalı olsun (`sudo systemctl stop kelo`).
