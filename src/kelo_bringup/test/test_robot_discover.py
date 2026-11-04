@@ -1,7 +1,7 @@
 import yaml
 
 from kelo_bringup.common import config_path
-from kelo_bringup.robot_discover import FAIL, WARN, parse_domains, propose
+from kelo_bringup.robot_discover import DEFAULT_DOMAINS, FAIL, WARN, parse_domains, propose
 
 TW = 'geometry_msgs/msg/Twist'
 TWS = 'geometry_msgs/msg/TwistStamped'
@@ -87,3 +87,5 @@ def test_missing_devices_warn():
 
 def test_parse_domains():
     assert parse_domains('0-3,7,2') == [0, 1, 2, 3, 7]
+    # the robot computer's container uses 42 (robot/docker/docker-compose.yml)
+    assert parse_domains('0-10,42') == DEFAULT_DOMAINS

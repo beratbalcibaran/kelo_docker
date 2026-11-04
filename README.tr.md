@@ -155,7 +155,7 @@ kelo_docker/
 | `status_node.py` | Genel durumu raporlar ve konumlandırma durumunu tutar |
 | `localize.py` | Robotun haritadaki konumunu bulur (GUI: Localize) |
 | `robot_check.py` | Robota ilk bağlantı kontrolü (topic'ler, tipler, frekanslar, TF sahipliği, saat farkı; robotu hareket ettirmez) |
-| `robot_discover.py` | Robot sürücüsünü bulur (ROS_DOMAIN_ID 0-10 arar; hız topic'i ve tipi, odometri, `odom → base_link` sahibi, USB sensörler) ve `hardware.yaml` ayarlarını önerir; panel robot Ethernet'i açılınca kendisi çalıştırır (robotu hareket ettirmez) |
+| `robot_discover.py` | Robot sürücüsünü bulur (ROS_DOMAIN_ID 0-10 ve 42 arar; hız topic'i ve tipi, odometri, `odom → base_link` sahibi, USB sensörler) ve `hardware.yaml` ayarlarını önerir; panel robot Ethernet'i açılınca kendisi çalıştırır (robotu hareket ettirmez) |
 | `loc_monitor.py`, `scan_match.py` | Konumlandırmayı haritaya göre denetler (tarama uyumu), `LOST` bildirir, son konumu kaydeder ve geri yükler |
 | `send_goal.py` | Navigasyon hedefi gönderir (GUI: Send Goal) |
 | `waypoint_tool.py` | İsimli konumları kaydeder ve aralarında sürer |
@@ -994,8 +994,10 @@ Container içinde tekil senaryolar `kelo_e2e <senaryo>` ile çalıştırılır: 
 **İlk bağlantı kontrol listesi**
 
 1. [Açık konuları](#açık-konular) netleştirin ve ölçümleri `hardware.yaml`'a girin.
-2. KELO stack kapalıyken robotu bağlayın: panel Ethernet'i görünce sürücüyü arar (ya da **Find robot** /
-   `ros2 run kelo_bringup robot_discover [--apply]`) ve bulduğu ayarları onayınızla yazar.
+2. KELO stack kapalıyken robotu bağlayın ve sürücüsünü Jetson'dan başlatın
+   ([robot bilgisayarı](#robot-bilgisayarı-robot): `./scripts/robot.sh deploy`, `up`, `time`, `start`). Panel
+   Ethernet'i görünce sürücüyü arar (ya da **Find robot** / `ros2 run kelo_bringup robot_discover [--apply]`)
+   ve bulduğu ayarları onayınızla yazar.
 3. Sensör modunda (`KELO_MODE=sensors`) başlatın; `/scan`, derinlik, Marvelmind, `/odom` ve TF ağacını doğrulayın.
    `ros2 run kelo_bringup robot_check` bunu robotu hareket ettirmeden otomatik yapar: `/odom` frekansı,
    frame'leri ve saat farkı (chrony), `odom → base_link`'i kimin yayınladığı (`odom_mode` ile uyumlu
@@ -1037,12 +1039,11 @@ saklanır ve `current.yaml` en yenisini gösterir. Geri dönmek için:
 
 ## Açık konular
 
-Robot ekibiyle netleştirilecekler:
+`robot/` içindeki sürücüyle yanıtlananlar (robotta `robot_discover` / `robot_check` ile doğrulanacak):
 
-- `/cmd_vel` topic adı ve mesaj tipi (`Twist` veya `TwistStamped`).
-- `/odom` frame'i ve frekansı, `ROS_DOMAIN_ID`.
-- Sürücünün `odom → base_link` dönüşümünün kapatılıp kapatılamayacağı (`odom_mode: corrected` için
-  gereklidir; aksi halde yaw düzeltmesi olmadan `odom_mode: driver` kullanılır).
+- `/cmd_vel` tipi `Twist`; `/odom` frame'leri `odom` / `base_link`, 20 Hz; `ROS_DOMAIN_ID` 42.
+- Sürücü `odom → base_link` yayınlar (`publish_tf: true`), bu yüzden `odom_mode: driver`.
+  `odom_mode: corrected` için sürücüyü `publish_tf:=false` ile başlatın.
 
 Robot üzerinde doğrulanacaklar:
 

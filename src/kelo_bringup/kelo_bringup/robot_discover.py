@@ -10,7 +10,7 @@ and checks that the LiDAR, the RealSense and Marvelmind are plugged into this co
 
   ros2 run kelo_bringup robot_discover            # report and proposal
   ros2 run kelo_bringup robot_discover --apply    # also write the proposal to /data/hardware.yaml
-  ros2 run kelo_bringup robot_discover --domains 0-20 --time 5
+  ros2 run kelo_bringup robot_discover --domains 0-20 --time 5   # default: 0-10,42
 
 exit code: 0 robot found, 1 not found or the KELO stack is running
 """
@@ -30,7 +30,8 @@ TWIST_TYPES = {'geometry_msgs/msg/Twist': 'Twist', 'geometry_msgs/msg/TwistStamp
 ODOM_TYPE = 'nav_msgs/msg/Odometry'
 MIN_ODOM_HZ = 10.0
 MAX_CLOCK_OFFSET_S = 0.2
-DEFAULT_DOMAINS = list(range(0, 11))
+# 42: the robot computer's container (robot/docker/docker-compose.yml)
+DEFAULT_DOMAINS = list(range(0, 11)) + [42]
 # nodes of the KELO stack and its tools: never taken for the robot driver
 OUR_NODES = set(OUR_CMD_PUBLISHERS) | set(OUR_CMD_WATCHERS) | set(OUR_ODOM_TF) | {
     'kelo_robot_discover', 'kelo_gui_teleop', 'collision_monitor_teleop', 'collision_monitor',
@@ -346,7 +347,7 @@ def iface_state():
 def main():
     ap = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument('--time', type=float, default=4.0, help='seconds to listen on the robot domain')
-    ap.add_argument('--domains', default=f'{DEFAULT_DOMAINS[0]}-{DEFAULT_DOMAINS[-1]}',
+    ap.add_argument('--domains', default='0-10,42',
                     help='ROS_DOMAIN_IDs to search, e.g. 0-10 or 0,5,42 (the current one is always searched)')
     ap.add_argument('--apply', action='store_true', help='write the proposed settings to /data/hardware.yaml')
     ap.add_argument('--json', action='store_true', help='also print the result as one JSON line (for the panel)')
