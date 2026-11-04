@@ -100,6 +100,7 @@ kelo_docker/
 ├── docker-compose.yml          start profiles (gui, sim, sim-nav, replay, production, mapping, ...)
 ├── docker/                     scripts that run inside the container
 ├── scripts/                    tests and Jetson installation, run on the host computer
+├── robot/                      robot computer: platform driver and teleop container (ROS 2 Humble)
 ├── systemd/kelo.service        starts the robot software automatically at boot (Jetson)
 ├── data/                       maps and recordings, mounted into the container as /data
 └── src/kelo_bringup/           the ROS 2 package (all of the robot software)
@@ -119,6 +120,7 @@ kelo_docker/
 | `scripts/camera_layer_eval.sh` | Two-layer map evaluation in the simulator (maps, coverage, navigation goals) |
 | `docs/task1/` | Two-layer map results from the simulator (tables and side-by-side maps) |
 | `scripts/install_jetson.sh` | Installs the project on the Jetson (`/opt/kelo`, udev, systemd) |
+| `scripts/robot.sh` | From the Jetson: copies `robot/` to the robot computer, starts and stops its driver and joystick |
 | `data/maps/` | Saved maps (local, not in the repository); `current.yaml` points to the map used for navigation |
 | `data/mm_samples_*.csv` | Marvelmind alignment samples recorded during mapping (local) |
 | `data/bags/` | Sensor recordings made during mapping (not in the repository) |
@@ -483,9 +485,56 @@ part only on the robot.
 
 DDS middleware is Cyclone DDS (`docker/cyclonedds.xml`). The hardware profiles (`production`, `mapping`,
 `gui-hardware`) bind DDS to `KELO_DDS_IFACE` (default `enP8p1s0`); if that interface is down they log a
-warning and fall back to automatic selection. The Jetson uses the static IP `192.168.1.10/24` on the robot
+warning and fall back to automatic selection. The Jetson uses the static IP `192.168.1.105/24` on the robot
 Ethernet and serves time to the robot with chrony (`allow 192.168.1.0/24`, `local stratum 10`). Serial device paths are configured in
 `hardware.yaml → serial` (see `ls /dev/serial/by-id/`).
+
+### Robot computer (`robot/`)
+
+The stack talks to the robot through a second container on the robot computer, with the platform driver
+and the teleop (ROS 2 Humble, image `kelo_ros2:humble`, already on that computer). `robot/` holds its
+files and `scripts/robot.sh` controls it from the Jetson over ssh:
+
+```bash
+ssh-copy-id kelo@192.168.1.102   # once
+./scripts/robot.sh deploy        # copy robot/ to ~/kelo_robot on the robot computer
+./scripts/robot.sh up            # start the container; the first time it also builds the driver
+./scripts/robot.sh time          # set the robot computer's clock from the Jetson
+./scripts/robot.sh start         # start the driver
+./scripts/robot.sh status
+./scripts/robot.sh stop
+```
+
+Without arguments the script lists all its commands (`joy`, `log`, `build`, `reset`, `down`, ...). Only one
+driver may run at a time.
+
+For hand-started stacks, `docker compose` reads `.env` in the repository folder, not `/etc/kelo/kelo.env`:
+
+```bash
+ROS_DOMAIN_ID=42
+KELO_DDS_IFACE=enP8p1s0
+```
+
+and `data/hardware.yaml` holds `robot: {odom_mode: driver}`. On the robot network the Jetson is
+`192.168.1.105`. Tools in a running stack need the container's entrypoint, for ROS and for the DDS interface:
+
+```bash
+docker exec -it kelo-production /entrypoint.sh ros2 run kelo_bringup robot_check
+```
+
+**Joystick or stack, never both.** The joystick (`robot.sh joy`) and `cmd_vel_gate` both write `/cmd_vel`, also
+when idle. `robot.sh joy` is refused while the gate publishes; stop the joystick before starting the stack.
+
+The driver has three parameters, set as launch arguments (`robot.sh restart fix_odom_rotation:=false`):
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `fix_odom_rotation` | `true` | Rigid-body odometry. `false` is the original calculation: with both drive wheels on one side of `base_link` it reads the yaw rate 5 times too small and adds a false lateral speed of 0.233 m per radian |
+| `cmd_vel_timeout_s` | `0.5` | Zero velocity after this silence on `/cmd_vel` while moving, for a crashed Jetson or an unplugged cable; `0` turns it off |
+| `publish_tf` | `true` | `false` when another node owns `odom -> base_link` (`odom_source:=lidar`, `odom_mode: corrected`) |
+
+The calculations are tested without ROS: see `robot/src/kelo_tulip_ros2/test/test_driver_logic.cpp`. Not
+tested on the robot yet.
 
 ## Commissioning procedure
 
@@ -992,7 +1041,7 @@ suffix and `current.yaml` points to the latest. To revert:
 To be confirmed with the robot team:
 
 - `/cmd_vel` topic name and message type (`Twist` or `TwistStamped`).
-- `/odom` frame and rate, driver-side command timeout, `ROS_DOMAIN_ID`.
+- `/odom` frame and rate, `ROS_DOMAIN_ID`.
 - Whether the driver's `odom → base_link` transform can be disabled (required by
   `odom_mode: corrected`; otherwise use `odom_mode: driver` without yaw correction).
 
