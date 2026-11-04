@@ -516,8 +516,10 @@ KELO_DDS_IFACE=enP8p1s0
 docker exec -it kelo-production /entrypoint.sh ros2 run kelo_bringup robot_check
 ```
 
-**Ya joystick ya yığın, ikisi birden asla.** Joystick (`robot.sh joy`) ve `cmd_vel_gate` boştayken bile `/cmd_vel`
-yazar. Gate yayın yaparken `robot.sh joy` reddedilir; yığını başlatmadan önce joystick'i durdurun.
+**Yığın açıkken yalnızca `robot.sh joy safe`.** Doğrudan joystick (`robot.sh joy`) ve `cmd_vel_gate` boştayken bile
+`/cmd_vel` yazar; bu yüzden başka biri yayın yaparken `robot.sh joy` reddedilir. `robot.sh joy safe` ise `/cmd_vel_teleop`
+yazar ve paneldeki tuşlar gibi çarpışma monitöründen ve gate'ten geçer. Yığını başlatmadan önce doğrudan joystick'i
+durdurun: yığın onu göremez ve başlamayı reddetmez.
 
 Sürücünün launch argümanı olarak verilen üç parametresi vardır (`robot.sh restart fix_odom_rotation:=false`):
 
@@ -649,14 +651,18 @@ ssh-copy-id kelo@192.168.1.102   # bir kez; şifresiz ssh gerekir
 Acil durdurma elinizin altında, robot kaldırılmış veya açık alanda. Ardından
 [İlk bağlantı kontrol listesi](#i̇şletim-ve-bakım) adım 5–11 ve [Devreye alma prosedürü](#devreye-alma-prosedürü).
 
-- **Ya joystick ya stack.** Joystick (`robot.sh joy`) güvenlik zincirini atlar ve %100'de 1,5 m/s gider;
-  stack çalışırken reddedilir. Stack'i başlatmadan önce `robot.sh joy stop`.
+- **Ya doğrudan joystick ya stack.** Doğrudan joystick (`robot.sh joy`) güvenlik zincirini atlar ve %100'de
+  1,5 m/s gider; stack çalışırken reddedilir. Stack'i başlatmadan önce `robot.sh joy stop`. Stack açıkken
+  güvenlik zincirinden geçen `robot.sh joy safe` kullanın.
+- **Robotun önü.** `base_link` +x sensörlere, yani pasif tekerleklerin tarafına bakar. Bu yüzden
+  `robot/src/kelo_tulip_ros2/config/platform_driver.yaml` içinde tahrik tekerlekleri x < 0'dadır.
 - Sürücü `/cmd_vel` 0,5 s sessiz kalırsa durur; `cmd_vel_gate` 20 Hz yayınladığı için normalde tetiklenmez.
 
 ### Bilinen riskler (henüz robotta denenmedi)
 
-- Robot bilgisayarı ROS 2 Humble, Jetson ROS 2 Jazzy çalıştırır. Aynı Cyclone DDS ve standart mesajlarla
-  (`Twist`, `Odometry`, `TF`) birlikte çalışması beklenir, ama robotta doğrulanmadı: `robot_check` ilk testtir.
+- Robot bilgisayarı ROS 2 Humble, Jetson ROS 2 Jazzy çalıştırır. Aralarında veri geçer (`Twist`, `Odometry`,
+  `TF`, robotta denendi), ama düğüm adları geçmez: her taraf diğerinin düğümlerini `_NODE_NAME_UNKNOWN_` gösterir.
+  Bu yüzden sürücü çalışırken bile **Find robot** "robot NOT found" der; güvenilecek test `robot_check`'tir.
 - Yeni sürücüyle odometri yeniden ölçülmelidir ([Odometri karakterizasyonu](#2-odometri-karakterizasyonu)).
   `odom_mode: corrected` ancak yeni ölçülen bir tabloyla ve sürücü `publish_tf:=false` ile kullanılabilir.
 

@@ -10,7 +10,9 @@
 #   robot.sh start [args]      start the driver; launch arguments are passed on, e.g. fix_odom_rotation:=false
 #   robot.sh stop              stop joystick and driver (the container stays up)
 #   robot.sh restart [args]    stop, then start
-#   robot.sh joy [stop]        joystick (LB deadman, A speed level, RB stop). Refused while the stack runs
+#   robot.sh joy [stop]        joystick straight to the driver (LB deadman, A speed level, RB stop).
+#                              Refused if anything else publishes /cmd_vel, such as the stack
+#   robot.sh joy safe          joystick with the stack on, through its collision monitor and velocity gate
 #   robot.sh log [driver|joy]  last lines of the output
 #   robot.sh build             colcon build in the container (after deploy; then restart)
 #   robot.sh reset             reset the wheels' error flags
@@ -26,7 +28,7 @@ SSH=(ssh -o ConnectTimeout=4 -o BatchMode=yes "$KELO_HOST")
 
 case "${1:-}" in
   deploy|time|status|up|down|start|stop|restart|joy|log|build|reset) ;;
-  *) sed -n '5,16p' "$0" | sed 's/^# //'; exit 2 ;;
+  *) sed -n '5,18p' "$0" | sed 's/^# //'; exit 2 ;;
 esac
 
 if [ "$1" = time ]; then
@@ -126,19 +128,36 @@ driver_stop() {
   echo "[robot] driver off"
 }
 
+# publishers or subscribers of a topic, by count: Humble does not see the node names of the Jazzy stack
+topic_count() { inc "$ROS; timeout 10 ros2 topic info $1 --no-daemon 2> /dev/null" | sed -n "s/^$2 count: //p"; }
+
 joy_start() {
+  local mode=${1:-direct} args=""
   ensure_up
   ls /dev/input/js* > /dev/null 2>&1 || { echo "[robot] no joypad on the robot computer (/dev/input/js*)"; exit 1; }
   running '[p]latform_driver_node' || echo "[robot] note: driver off, the joystick moves nothing (robot.sh start)"
-  # both write /cmd_vel, also when idle: they would cancel each other out
-  if inc "$ROS; timeout 8 ros2 topic info /cmd_vel --verbose 2> /dev/null" | grep -q 'cmd_vel_gate'; then
-    echo "[robot] REFUSED: cmd_vel_gate is publishing /cmd_vel. Stop the stack on the Jetson first"; exit 1
+  if running '[t]eleop_joystick'; then
+    echo "[robot] joystick already on: robot.sh joy stop first"; exit 1
+  fi
+  if [ "$mode" = safe ]; then
+    args="--ros-args -r /cmd_vel:=/cmd_vel_teleop"
+    [ "$(topic_count /cmd_vel_teleop Subscription)" -gt 0 ] 2> /dev/null \
+      || echo "[robot] note: stack off, the joystick moves nothing (nobody reads /cmd_vel_teleop)"
+  else
+    # both write /cmd_vel, also when idle: they would cancel each other out
+    if [ "$(topic_count /cmd_vel Publisher)" -gt 0 ] 2> /dev/null; then
+      echo "[robot] REFUSED: something else publishes /cmd_vel. Stop the stack, or use robot.sh joy safe"; exit 1
+    fi
   fi
   running '[j]oy_node' || docker exec -d "$C" bash -c "$ROS; exec ros2 run joy joy_node > /tmp/kelo_joy.out 2>&1"
-  running '[t]eleop_joystick' || docker exec -d "$C" bash -c "$ROS; exec ros2 run kelo_teleop teleop_joystick > /tmp/kelo_teleop.out 2>&1"
+  docker exec -d "$C" bash -c "$ROS; exec ros2 run kelo_teleop teleop_joystick $args > /tmp/kelo_teleop.out 2>&1"
   sleep 3
   if running '[j]oy_node' && running '[t]eleop_joystick'; then
-    echo "[robot] joystick on: hold LB to move, A speed level (starts at 25%), RB stop. Stop it before starting the stack"
+    if [ "$mode" = safe ]; then
+      echo "[robot] joystick on ($mode): hold LB to move, A speed level (starts at 25%), RB stop. Limits and collision monitor of the stack apply"
+    else
+      echo "[robot] joystick on: hold LB to move, A speed level (starts at 25%), RB stop. Stop it before starting the stack"
+    fi
   else
     echo "[robot] ERROR: joystick did not start"; inc "tail -5 /tmp/kelo_joy.out /tmp/kelo_teleop.out" || true; exit 1
   fi
@@ -169,7 +188,12 @@ case "$cmd" in
   start)   driver_start "$@" ;;
   stop)    if container_up; then joy_stop; driver_stop; else echo "[robot] container off"; fi ;;
   restart) if container_up; then joy_stop; driver_stop; fi; driver_start "$@" ;;
-  joy)     if [ "${1:-}" = stop ]; then joy_stop; else joy_start; fi ;;
+  joy)     case "${1:-}" in
+             stop) joy_stop ;;
+             safe) joy_start safe ;;
+             "")   joy_start ;;
+             *)    echo "[robot] joy: use stop, safe or nothing"; exit 2 ;;
+           esac ;;
   log)     case "${1:-driver}" in
              joy) inc "tail -15 /tmp/kelo_joy.out /tmp/kelo_teleop.out 2> /dev/null" || echo "[robot] no joystick log" ;;
              *)   inc "tail -20 /tmp/kelo_driver.out 2> /dev/null" || echo "[robot] no driver log" ;;
