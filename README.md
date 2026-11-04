@@ -471,7 +471,7 @@ part only on the robot.
 
 DDS middleware is Cyclone DDS (`docker/cyclonedds.xml`). The hardware profiles (`production`, `mapping`,
 `gui-hardware`) bind DDS to `KELO_DDS_IFACE` (default `enP8p1s0`); if that interface is down they log a
-warning and fall back to automatic selection. The Jetson uses the static IP `192.168.1.10/24` on the robot
+warning and fall back to automatic selection. The Jetson uses the static IP `192.168.1.105/24` on the robot
 Ethernet and serves time to the robot with chrony (`allow 192.168.1.0/24`, `local stratum 10`). Serial device paths are configured in
 `hardware.yaml → serial` (see `ls /dev/serial/by-id/`).
 
@@ -502,7 +502,7 @@ KELO_DDS_IFACE=enP8p1s0
 ```
 
 and `data/hardware.yaml` holds `robot: {odom_mode: driver}`. On the robot network the Jetson is
-`192.168.1.101`. Tools in a running stack need the container's entrypoint, for ROS and for the DDS interface:
+`192.168.1.105`. Tools in a running stack need the container's entrypoint, for ROS and for the DDS interface:
 
 ```bash
 docker exec -it kelo-production /entrypoint.sh ros2 run kelo_bringup robot_check

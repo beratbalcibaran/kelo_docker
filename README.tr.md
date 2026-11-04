@@ -465,7 +465,7 @@ robotta test edilebilir.
 
 DDS ara katmanı Cyclone DDS'tir (`docker/cyclonedds.xml`). Donanım profilleri (`production`, `mapping`,
 `gui-hardware`) DDS'i `KELO_DDS_IFACE` arayüzüne (varsayılan `enP8p1s0`) bağlar; arayüz kapalıysa
-logda uyarı yazar ve otomatik seçime döner. Jetson robot Ethernet'inde `192.168.1.10/24` sabit IP
+logda uyarı yazar ve otomatik seçime döner. Jetson robot Ethernet'inde `192.168.1.105/24` sabit IP
 kullanır ve chrony ile robota saat sunar (`allow 192.168.1.0/24`, `local stratum 10`). Seri cihaz yolları
 `hardware.yaml → serial` altında yapılandırılır (bkz. `ls /dev/serial/by-id/`).
 
@@ -496,7 +496,7 @@ KELO_DDS_IFACE=enP8p1s0
 ```
 
 `data/hardware.yaml` içinde ise `robot: {odom_mode: driver}` bulunur. Robot ağında Jetson'un adresi
-`192.168.1.101`'dir. Çalışan yığındaki araçlar, ROS ve DDS arayüzü için container'ın entrypoint'ine ihtiyaç duyar:
+`192.168.1.105`'dir. Çalışan yığındaki araçlar, ROS ve DDS arayüzü için container'ın entrypoint'ine ihtiyaç duyar:
 
 ```bash
 docker exec -it kelo-production /entrypoint.sh ros2 run kelo_bringup robot_check
