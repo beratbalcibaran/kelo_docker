@@ -656,6 +656,10 @@ Acil durdurma elinizin altında, robot kaldırılmış veya açık alanda. Ardı
   güvenlik zincirinden geçen `robot.sh joy safe` kullanın.
 - **Robotun önü.** `base_link` +x sensörlere, yani pasif tekerleklerin tarafına bakar. Bu yüzden
   `robot/src/kelo_tulip_ros2/config/platform_driver.yaml` içinde tahrik tekerlekleri x < 0'dadır.
+- **Engeller arasında sıkışma.** Paneldeki **Obstacle stop** düğmesi elle sürüş (tuşlar, `robot.sh joy safe`, web
+  görünümü) için çarpışma monitörünü kapatır; en fazla 0,15 m/s ve 0,5 rad/s (`safety.yaml` içinde `stop_off_*`).
+  Navigasyon kendi monitörünü korur, ama joystick yayın yaparken süremez. Panel 2 s sessiz kalırsa ve stack
+  durduğunda durdurma kendiliğinden geri gelir. Eliniz acil durdurmada olsun.
 - Sürücü `/cmd_vel` 0,5 s sessiz kalırsa durur; `cmd_vel_gate` 20 Hz yayınladığı için normalde tetiklenmez.
 
 ### Bilinen riskler (henüz robotta denenmedi)

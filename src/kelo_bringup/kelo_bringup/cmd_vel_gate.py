@@ -7,7 +7,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from std_msgs.msg import Bool, String
 
-from kelo_bringup.logic import select_command
+from kelo_bringup.logic import limit_command, obstacle_stop_is_off, select_command
 
 
 class CmdVelGate(Node):
@@ -28,6 +28,12 @@ class CmdVelGate(Node):
         d('max_vy', 0.35)
         d('max_wz', 0.9)
         d('publish_zero_when_idle', True)
+        d('teleop_raw_topic', '/cmd_vel_teleop')
+        d('stop_off_topic', '/kelo/obstacle_stop_off')
+        d('stop_off_timeout_s', 2.0)
+        d('stop_off_max_vx', 0.15)
+        d('stop_off_max_vy', 0.15)
+        d('stop_off_max_wz', 0.5)
         g = lambda n: self.get_parameter(n).value
 
         self.out_type = str(g('output_type'))
@@ -38,10 +44,16 @@ class CmdVelGate(Node):
         self.stop_timeout = float(g('stop_timeout_s'))
         self.limits = (float(g('max_vx')), float(g('max_vy')), float(g('max_wz')))
         self.zero_idle = bool(g('publish_zero_when_idle'))
+        self.stop_off_timeout = float(g('stop_off_timeout_s'))
+        self.stop_off_limits = (float(g('stop_off_max_vx')), float(g('stop_off_max_vy')),
+                                float(g('stop_off_max_wz')))
 
         self.teleop = None
+        self.teleop_raw = None
         self.nav = None
         self.stop = None
+        self.stop_off = None
+        self.was_off = False
         self.state = None
 
         msg_cls = TwistStamped if self.out_type == 'TwistStamped' else Twist
@@ -53,6 +65,8 @@ class CmdVelGate(Node):
         self.create_subscription(Twist, g('nav_topic'), self._nav_cb, 10)
         self.create_subscription(Twist, g('teleop_topic'), self._teleop_cb, 10)
         self.create_subscription(Bool, g('stop_topic'), self._stop_cb, 10)
+        self.create_subscription(Twist, g('teleop_raw_topic'), self._teleop_raw_cb, 10)
+        self.create_subscription(Bool, g('stop_off_topic'), self._stop_off_cb, 10)
         self.create_timer(1.0 / float(g('publish_rate_hz')), self._tick)
         self.get_logger().info(
             f"cmd_vel_gate: {g('nav_topic')} + {g('teleop_topic')} -> {g('output_topic')} "
@@ -70,6 +84,12 @@ class CmdVelGate(Node):
     def _stop_cb(self, m):
         self.stop = (self._now(), bool(m.data))
 
+    def _teleop_raw_cb(self, m):
+        self.teleop_raw = (self._now(), m.linear.x, m.linear.y, m.angular.z)
+
+    def _stop_off_cb(self, m):
+        self.stop_off = (self._now(), bool(m.data))
+
     def _publish(self, vx, vy, wz):
         if self.out_type == 'TwistStamped':
             msg = TwistStamped()
@@ -82,9 +102,20 @@ class CmdVelGate(Node):
         self.pub.publish(msg)
 
     def _tick(self):
+        now = self._now()
+        off = obstacle_stop_is_off(now, self.stop_off, self.stop_off_timeout)
+        if off != self.was_off:
+            self.was_off = off
+            if off:
+                self.get_logger().warn('obstacle stop OFF for manual driving')
+            else:
+                self.get_logger().info('obstacle stop back on')
+        teleop = limit_command(self.teleop_raw, *self.stop_off_limits) if off else self.teleop
         vx, vy, wz, state = select_command(
-            self._now(), self.teleop, self.nav, self.stop,
+            now, teleop, self.nav, self.stop,
             self.cmd_timeout, self.stop_timeout, *self.limits)
+        if off and state == 'TELEOP':
+            state = 'TELEOP_NO_STOP'
         if state != self.state:
             self.state = state
             self.state_pub.publish(String(data=state))

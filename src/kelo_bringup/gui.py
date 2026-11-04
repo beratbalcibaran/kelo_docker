@@ -53,6 +53,8 @@ class KeloGUI:
         self.pressed_keys = set()
         self.release_ticks = 0
         self.recording = False
+        self.stop_off = False
+        self.stop_off_pub = None
 
         self.window_procs = {}
         self.iface_up = None
@@ -61,9 +63,14 @@ class KeloGUI:
         # log lines and UI updates from the worker threads; only the Tk thread touches the widgets
         self.ui_queue = queue.Queue()
         self._build_widgets()
+        # tall enough for every section and the log, within the screen
+        self.root.update_idletasks()
+        height = min(self.root.winfo_reqheight(), self.root.winfo_screenheight() - 60)
+        self.root.geometry(f"860x{height}-0+0")
         self._drain_ui_queue()
         self._refresh_status()
         self._drive_tick()
+        self._stop_off_tick()
         self._window_watchdog()
         self._watch_iface()
 
@@ -161,6 +168,16 @@ class KeloGUI:
         ttk.Label(video, text="Phone/tablet: http://<robot>:8080 (user kelo, KELO_WEB_PASSWORD)",
                   foreground="#555").pack(side="left", padx=10)
 
+        manual = ttk.LabelFrame(top, text="Manual driving (keys, joystick safe)", padding=8)
+        manual.pack(fill="x", pady=6)
+        self.stop_btn = tk.Button(manual, text="Obstacle stop: ON", width=20, bg="#2e7d32", fg="white",
+                                  activebackground="#2e7d32", activeforeground="white",
+                                  command=self.toggle_obstacle_stop)
+        self.stop_btn.pack(side="left", padx=4)
+        self.stop_info = ttk.Label(manual, text="Stuck between obstacles? Turn it off to drive out slowly.",
+                                   foreground="#555")
+        self.stop_info.pack(side="left", padx=10)
+
         self.drive_info = ttk.Label(
             top, text="Driving: WASD or arrow keys while this window has focus (works in every mode, speed limited).",
             foreground="#555")
@@ -168,7 +185,7 @@ class KeloGUI:
 
         log_frame = ttk.LabelFrame(self.root, text="Live Log", padding=6)
         log_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        self.log_box = scrolledtext.ScrolledText(log_frame, state="disabled", wrap="word", height=22)
+        self.log_box = scrolledtext.ScrolledText(log_frame, state="disabled", wrap="word", height=14)
         self.log_box.pack(fill="both", expand=True)
 
         self.root.bind("<KeyPress>", self._on_key_press)
@@ -419,6 +436,8 @@ class KeloGUI:
     def _refresh_status(self):
         running = [n for n, p in self.procs.items() if p.poll() is None]
         self.status_var.set("State: Running -> " + ", ".join(running) if running else "State: Stopped")
+        if self.stop_off and not running:
+            self._set_stop_off(False)   # a new stack always starts with the obstacle stop on
         self.root.after(1000, self._refresh_status)
 
     def _launch_args(self, mode):
@@ -692,6 +711,47 @@ class KeloGUI:
         except Exception as e:
             self._log(f"[GUI] Drive publisher could not be started: {e}\n")
             return False
+
+    def toggle_obstacle_stop(self):
+        if not self.stop_off:
+            if not any(p.poll() is None for p in self.procs.values()):
+                self._log("[GUI] Start the stack first: the obstacle stop only exists with the stack on.\n")
+                return
+            if not messagebox.askyesno(
+                    "Turn the obstacle stop off?",
+                    "Manual driving will NOT stop for obstacles, at 0.15 m/s and 0.5 rad/s at most.\n"
+                    "Navigation keeps its own stop.\n\nKeep a hand on the emergency stop. Continue?"):
+                return
+        self._set_stop_off(not self.stop_off)
+
+    def _set_stop_off(self, off):
+        self.stop_off = off
+        if off:
+            self.stop_btn.config(text="Obstacle stop: OFF", bg="#c62828", activebackground="#c62828")
+            self.stop_info.config(text="NO STOP FOR OBSTACLES in manual driving. Turn it back on when out.",
+                                  foreground="#c62828")
+            self._log("[GUI] Obstacle stop OFF for manual driving.\n")
+        else:
+            self.stop_btn.config(text="Obstacle stop: ON", bg="#2e7d32", activebackground="#2e7d32")
+            self.stop_info.config(text="Stuck between obstacles? Turn it off to drive out slowly.",
+                                  foreground="#555")
+            self._log("[GUI] Obstacle stop on.\n")
+        self._publish_stop_off()
+
+    def _publish_stop_off(self):
+        if self.stop_off_pub is None:
+            if not self._ensure_drive_pub():
+                return
+            from std_msgs.msg import Bool
+            self._Bool = Bool
+            self.stop_off_pub = self.ros_node.create_publisher(Bool, "/kelo/obstacle_stop_off", 10)
+        self.stop_off_pub.publish(self._Bool(data=self.stop_off))
+
+    def _stop_off_tick(self):
+        # repeated: cmd_vel_gate turns the stop back on by itself if this goes silent
+        if self.stop_off:
+            self._publish_stop_off()
+        self.root.after(1000, self._stop_off_tick)
 
     DRIVE_KEYS = {"w", "a", "s", "d", "up", "down", "left", "right"}
 
