@@ -1,0 +1,30 @@
+# KELO ROBILE platform driver parameters (ROS 2)
+#
+# Values copied from ~/noetic/src/kelo_tulip/config/example.yaml on the robot computer: the wheel
+# geometry of this robot. Do not change wheel0/wheel1 without recalibrating the robot.
+# fix_odom_rotation, publish_tf and cmd_vel_timeout_s are set in launch/platform_driver.launch.py.
+
+platform_driver:
+  ros__parameters:
+    num_wheels: 2
+    device: eno1
+
+    # vlin_max: 1.2
+    # va_max: 1.1
+    # vlin_acc_max: 0.4
+    # vlin_dec_max: 1.0
+    # va_acc_max: 0.5
+    # va_dec_max: 1.0
+    # pivot_vel_damping_gain: 0.9
+
+    wheel0:
+      ethercat_number: 3
+      x: 0.233
+      y: 0.1165
+      a: 4.71
+
+    wheel1:
+      ethercat_number: 5
+      x: 0.233
+      y: -0.1165
+      a: 4.71
