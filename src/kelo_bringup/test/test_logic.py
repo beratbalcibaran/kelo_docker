@@ -3,8 +3,9 @@ import math
 import numpy as np
 import pytest
 
-from kelo_bringup.logic import (Debounce, apply_se2, clamp, kabsch_2d, path_length,
-                                select_command, wrap, yaw_from_quat, quat_from_yaw)
+from kelo_bringup.logic import (Debounce, apply_se2, clamp, kabsch_2d, limit_command,
+                                obstacle_stop_is_off, path_length, select_command, wrap,
+                                yaw_from_quat, quat_from_yaw)
 from kelo_bringup.mm_calibrate import calibrate
 
 LIM = dict(cmd_timeout=0.5, stop_timeout=1.0, max_vx=0.3, max_vy=0.3, max_wz=0.8)
@@ -107,6 +108,19 @@ def test_select_command_watchdog_and_stale_stop():
     assert select_command(now, None, old, None, **LIM) == (0.0, 0.0, 0.0, 'IDLE')
     assert select_command(now, None, (9.9, 0.2, 0, 0), (8.0, True), **LIM)[3] == 'NAV'
     assert select_command(now, None, (9.9, 0.2, 0, 0), (9.9, False), **LIM)[3] == 'NAV'
+
+
+def test_obstacle_stop_off_needs_repeating():
+    assert not obstacle_stop_is_off(10.0, None, 2.0)
+    assert not obstacle_stop_is_off(10.0, (9.9, False), 2.0)
+    assert obstacle_stop_is_off(10.0, (9.9, True), 2.0)
+    assert not obstacle_stop_is_off(10.0, (7.0, True), 2.0)
+
+
+def test_limit_command():
+    assert limit_command(None, 0.15, 0.15, 0.5) is None
+    assert limit_command((9.9, 0.3, -0.3, 0.8), 0.15, 0.15, 0.5) == (9.9, 0.15, -0.15, 0.5)
+    assert limit_command((9.9, 0.1, 0.0, -0.2), 0.15, 0.15, 0.5) == (9.9, 0.1, 0.0, -0.2)
 
 
 def test_sim_person_point_ahead():

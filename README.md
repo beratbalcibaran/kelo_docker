@@ -663,6 +663,10 @@ Emergency stop within reach, robot lifted or in open space. Then steps 5–11 of
   the stack. With the stack on use `robot.sh joy safe`, which goes through the safety chain.
 - **Front of the robot.** `base_link` +x points to the sensors, on the passive wheels' side. The drive wheels
   are therefore at x < 0 in `robot/src/kelo_tulip_ros2/config/platform_driver.yaml`.
+- **Stuck between obstacles.** The panel button **Obstacle stop** turns the collision monitor off for manual
+  driving (keys, `robot.sh joy safe`, web view), at 0.15 m/s and 0.5 rad/s at most (`stop_off_*` in
+  `safety.yaml`). Navigation keeps its own monitor, but cannot drive while the joystick publishes. The stop comes
+  back by itself if the panel goes silent for 2 s, and when the stack stops. Keep a hand on the emergency stop.
 - The driver stops when `/cmd_vel` is silent for 0.5 s; `cmd_vel_gate` publishes at 20 Hz, so normally
   this does not trigger.
 

@@ -85,6 +85,18 @@ def select_command(now, teleop, nav, stop, cmd_timeout, stop_timeout,
     return 0.0, 0.0, 0.0, 'IDLE'
 
 
+def obstacle_stop_is_off(now, stop_off, timeout):
+    """The operator turned the obstacle stop off for manual driving: stop_off = (stamp, bool), and it
+    must keep being repeated, so that the stop comes back by itself if the panel goes away."""
+    return stop_off is not None and stop_off[1] and (now - stop_off[0]) <= timeout
+
+
+def limit_command(cmd, max_vx, max_vy, max_wz):
+    if cmd is None:
+        return None
+    return cmd[0], clamp(cmd[1], max_vx), clamp(cmd[2], max_vy), clamp(cmd[3], max_wz)
+
+
 def table_value(x, xs, ys):
     return float(np.interp(abs(float(x)), xs, ys))
 

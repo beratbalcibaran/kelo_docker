@@ -13,6 +13,14 @@ cmd_vel_gate:
     max_vy: 0.30
     max_wz: 0.80
     publish_zero_when_idle: true
+    # panel button "Obstacle stop": while off, manual driving skips the collision monitor at these
+    # lower limits. Navigation keeps its collision monitor. The panel repeats the message every second.
+    teleop_raw_topic: /cmd_vel_teleop
+    stop_off_topic: /kelo/obstacle_stop_off
+    stop_off_timeout_s: 2.0
+    stop_off_max_vx: 0.15
+    stop_off_max_vy: 0.15
+    stop_off_max_wz: 0.50
 
 collision_monitor_teleop:
   ros__parameters:
