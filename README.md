@@ -157,7 +157,7 @@ Programs in `src/kelo_bringup/kelo_bringup/`:
 | `status_node.py` | Reports the overall state and holds the localization state |
 | `localize.py` | Finds the robot's position on the map (GUI: Localize) |
 | `robot_check.py` | First-connection check of the robot interface (topics, types, rates, TF ownership, clock offset; does not move the robot) |
-| `robot_discover.py` | Finds the robot driver (searches ROS_DOMAIN_IDs 0-10; velocity topic and type, odometry, who owns odom -> base_link, USB sensors) and proposes the hardware.yaml settings; the panel runs it when the robot Ethernet comes up (does not move the robot) |
+| `robot_discover.py` | Finds the robot driver (searches ROS_DOMAIN_IDs 0-10 and 42; velocity topic and type, odometry, who owns odom -> base_link, USB sensors) and proposes the hardware.yaml settings; the panel runs it when the robot Ethernet comes up (does not move the robot) |
 | `loc_monitor.py`, `scan_match.py` | Checks the localization against the map (scan fit), reports `LOST`, saves and restores the last pose |
 | `send_goal.py` | Sends a navigation goal (GUI: Send Goal) |
 | `waypoint_tool.py` | Stores named positions and drives between them |
@@ -996,8 +996,10 @@ Inside the container, individual scenarios run with `kelo_e2e <scenario>`: `odom
 **First connection checklist**
 
 1. Resolve the [open items](#open-items) and enter measurements in `hardware.yaml`.
-2. Connect the robot with the KELO stack off: the panel looks for the driver when the Ethernet comes up (or
-   **Find robot** / `ros2 run kelo_bringup robot_discover [--apply]`) and writes what it finds after you confirm.
+2. Connect the robot with the KELO stack off and start its driver from the Jetson
+   ([robot computer](#robot-computer-robot): `./scripts/robot.sh deploy`, `up`, `time`, `start`). The panel
+   looks for the driver when the Ethernet comes up (or **Find robot** /
+   `ros2 run kelo_bringup robot_discover [--apply]`) and writes what it finds after you confirm.
 3. Start in sensor mode (`KELO_MODE=sensors`) and verify `/scan`, depth, Marvelmind, `/odom` and the TF tree.
    `ros2 run kelo_bringup robot_check` does this automatically without moving the robot: `/odom` rate,
    frames and clock offset (chrony), who publishes `odom → base_link` (must match `odom_mode`), the
@@ -1038,12 +1040,11 @@ suffix and `current.yaml` points to the latest. To revert:
 
 ## Open items
 
-To be confirmed with the robot team:
+Answered by the driver in `robot/` (to be confirmed on the robot with `robot_discover` / `robot_check`):
 
-- `/cmd_vel` topic name and message type (`Twist` or `TwistStamped`).
-- `/odom` frame and rate, `ROS_DOMAIN_ID`.
-- Whether the driver's `odom → base_link` transform can be disabled (required by
-  `odom_mode: corrected`; otherwise use `odom_mode: driver` without yaw correction).
+- `/cmd_vel` is `Twist`; `/odom` has frames `odom` / `base_link` at 20 Hz; `ROS_DOMAIN_ID` 42.
+- The driver publishes `odom → base_link` (`publish_tf: true`), so `odom_mode: driver`. For
+  `odom_mode: corrected` start it with `publish_tf:=false`.
 
 To be verified on the robot:
 
