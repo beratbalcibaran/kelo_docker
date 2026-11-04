@@ -523,8 +523,10 @@ and `data/hardware.yaml` holds `robot: {odom_mode: driver}`. On the robot networ
 docker exec -it kelo-production /entrypoint.sh ros2 run kelo_bringup robot_check
 ```
 
-**Joystick or stack, never both.** The joystick (`robot.sh joy`) and `cmd_vel_gate` both write `/cmd_vel`, also
-when idle. `robot.sh joy` is refused while the gate publishes; stop the joystick before starting the stack.
+**With the stack on, only `robot.sh joy safe`.** The direct joystick (`robot.sh joy`) and `cmd_vel_gate` both write
+`/cmd_vel`, also when idle, so `robot.sh joy` is refused while anything else publishes it. `robot.sh joy safe` writes
+`/cmd_vel_teleop` instead and goes through the collision monitor and the gate, like the keys in the panel. Stop the
+direct joystick before starting the stack: the stack cannot see it and does not refuse to start.
 
 The driver has three parameters, set as launch arguments (`robot.sh restart fix_odom_rotation:=false`):
 
@@ -656,16 +658,20 @@ ssh-copy-id kelo@192.168.1.102   # once; ssh without password is required
 Emergency stop within reach, robot lifted or in open space. Then steps 5–11 of the
 [first connection checklist](#operations-and-maintenance) and the [Commissioning procedure](#commissioning-procedure).
 
-- **Joystick or stack, never both.** The joystick (`robot.sh joy`) bypasses the safety chain and drives
-  1.5 m/s at 100 %; it is refused while the stack runs. Run `robot.sh joy stop` before starting the stack.
+- **Direct joystick or stack, never both.** The direct joystick (`robot.sh joy`) bypasses the safety chain
+  and drives 1.5 m/s at 100 %; it is refused while the stack runs. Run `robot.sh joy stop` before starting
+  the stack. With the stack on use `robot.sh joy safe`, which goes through the safety chain.
+- **Front of the robot.** `base_link` +x points to the sensors, on the passive wheels' side. The drive wheels
+  are therefore at x < 0 in `robot/src/kelo_tulip_ros2/config/platform_driver.yaml`.
 - The driver stops when `/cmd_vel` is silent for 0.5 s; `cmd_vel_gate` publishes at 20 Hz, so normally
   this does not trigger.
 
 ### Known risks (not tested on the robot yet)
 
-- The robot computer runs ROS 2 Humble, the Jetson ROS 2 Jazzy. With the same Cyclone DDS and standard
-  messages (`Twist`, `Odometry`, `TF`) they are expected to work together, but this is not verified on
-  the robot: `robot_check` is the first test.
+- The robot computer runs ROS 2 Humble, the Jetson ROS 2 Jazzy. Data passes between them (`Twist`, `Odometry`,
+  `TF`, checked on the robot), but node names do not: each side shows the other's nodes as
+  `_NODE_NAME_UNKNOWN_`. So **Find robot** says "robot NOT found" even with the driver running; `robot_check`
+  is the test to trust.
 - Odometry must be measured again with the new driver ([Odometry characterisation](#2-odometry-characterisation)).
   `odom_mode: corrected` is only usable with a newly measured table and the driver started with
   `publish_tf:=false`.

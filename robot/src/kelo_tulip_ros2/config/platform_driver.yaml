@@ -17,14 +17,16 @@ platform_driver:
     # va_dec_max: 1.0
     # pivot_vel_damping_gain: 0.9
 
+    # base_link has +x towards the sensors (LiDAR and camera), on the passive wheels' side, so the
+    # drive wheels are at x < 0. With the sensors on the other side, use x: 0.233, y: +-0.1165, a: 4.71.
     wheel0:
       ethercat_number: 3
-      x: 0.233
-      y: 0.1165
-      a: 4.71
+      x: -0.233
+      y: -0.1165
+      a: 1.5684
 
     wheel1:
       ethercat_number: 5
-      x: 0.233
-      y: -0.1165
-      a: 4.71
+      x: -0.233
+      y: 0.1165
+      a: 1.5684
