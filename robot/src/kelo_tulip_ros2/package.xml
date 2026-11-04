@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematron="http://download.ros.org/schema/package_format3.xsd"?>
+<package format="3">
+  <name>kelo_tulip_ros2</name>
+  <version>0.1.0</version>
+  <description>
+    ROS 2 (Humble) port of the KELO ROBILE platform driver (kelo_tulip). It keeps the EtherCAT/SOEM
+    core classes of the ROS 1 original (KELO Robotics GmbH) unchanged and rewrites only the ROS layer
+    as an rclcpp node.
+  </description>
+  <maintainer email="kelo@example.com">KELO Team</maintainer>
+  <license>LGPL-2.1-or-later OR BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

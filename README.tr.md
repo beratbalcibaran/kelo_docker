@@ -98,6 +98,7 @@ kelo_docker/
 ├── docker-compose.yml          başlatma profilleri (gui, sim, sim-nav, replay, production, mapping, ...)
 ├── docker/                     container içinde çalışan scriptler
 ├── scripts/                    testler ve Jetson kurulumu, ana bilgisayarda çalışır
+├── robot/                      robot bilgisayarı: platform sürücüsü ve teleop container'ı (ROS 2 Humble)
 ├── systemd/kelo.service        robot yazılımını açılışta otomatik başlatır (Jetson)
 ├── data/                       haritalar ve kayıtlar, container'a /data olarak bağlanır
 └── src/kelo_bringup/           ROS 2 paketi (robot yazılımının tamamı)
@@ -117,6 +118,7 @@ kelo_docker/
 | `scripts/camera_layer_eval.sh` | Simülatörde iki katmanlı harita değerlendirmesi (haritalar, kapsama, navigasyon hedefleri) |
 | `docs/task1/` | Simülatörde iki katmanlı harita sonuçları (tablolar ve yan yana haritalar) |
 | `scripts/install_jetson.sh` | Projeyi Jetson'a kurar (`/opt/kelo`, udev, systemd) |
+| `scripts/robot.sh` | Jetson'dan: `robot/` klasörünü robot bilgisayarına kopyalar, sürücüsünü ve joystick'ini başlatır ve durdurur |
 | `data/maps/` | Kayıtlı haritalar (yerel, depoda yok); `current.yaml` navigasyonda kullanılan haritayı gösterir |
 | `data/mm_samples_*.csv` | Haritalama sırasında kaydedilen Marvelmind hizalama örnekleri (yerel) |
 | `data/bags/` | Haritalama sırasında yapılan sensör kayıtları (depoda yok) |
@@ -466,6 +468,53 @@ DDS ara katmanı Cyclone DDS'tir (`docker/cyclonedds.xml`). Donanım profilleri 
 logda uyarı yazar ve otomatik seçime döner. Jetson robot Ethernet'inde `192.168.1.10/24` sabit IP
 kullanır ve chrony ile robota saat sunar (`allow 192.168.1.0/24`, `local stratum 10`). Seri cihaz yolları
 `hardware.yaml → serial` altında yapılandırılır (bkz. `ls /dev/serial/by-id/`).
+
+### Robot bilgisayarı (`robot/`)
+
+Yığın, robotla robot bilgisayarındaki ikinci bir container üzerinden konuşur: platform sürücüsü ve teleop
+(ROS 2 Humble, `kelo_ros2:humble` imajı, o bilgisayarda zaten var). Dosyaları `robot/` içindedir;
+`scripts/robot.sh` onu Jetson'dan ssh ile yönetir:
+
+```bash
+ssh-copy-id kelo@192.168.1.102   # bir kez
+./scripts/robot.sh deploy        # robot/ klasörünü robot bilgisayarında ~/kelo_robot içine kopyalar
+./scripts/robot.sh up            # container'ı başlatır; ilk seferde sürücüyü de derler
+./scripts/robot.sh time          # robot bilgisayarının saatini Jetson'dan ayarlar
+./scripts/robot.sh start         # sürücüyü başlatır
+./scripts/robot.sh status
+./scripts/robot.sh stop
+```
+
+Argümansız çalıştırıldığında script tüm komutlarını listeler (`joy`, `log`, `build`, `reset`, `down`, ...). Aynı
+anda yalnızca bir sürücü çalışabilir.
+
+Elle başlatılan yığında `docker compose`, `/etc/kelo/kelo.env` dosyasını değil depo klasöründeki `.env` dosyasını okur:
+
+```bash
+ROS_DOMAIN_ID=42
+KELO_DDS_IFACE=enP8p1s0
+```
+
+`data/hardware.yaml` içinde ise `robot: {odom_mode: driver}` bulunur. Robot ağında Jetson'un adresi
+`192.168.1.101`'dir. Çalışan yığındaki araçlar, ROS ve DDS arayüzü için container'ın entrypoint'ine ihtiyaç duyar:
+
+```bash
+docker exec -it kelo-production /entrypoint.sh ros2 run kelo_bringup robot_check
+```
+
+**Ya joystick ya yığın, ikisi birden asla.** Joystick (`robot.sh joy`) ve `cmd_vel_gate` boştayken bile `/cmd_vel`
+yazar. Gate yayın yaparken `robot.sh joy` reddedilir; yığını başlatmadan önce joystick'i durdurun.
+
+Sürücünün launch argümanı olarak verilen üç parametresi vardır (`robot.sh restart fix_odom_rotation:=false`):
+
+| Argüman | Varsayılan | Anlamı |
+|---|---|---|
+| `fix_odom_rotation` | `true` | Rijit cisim odometrisi. `false` özgün hesaptır: iki tahrik tekerleği `base_link`'in aynı tarafındayken dönüş hızını 5 kat küçük okur ve radyan başına 0,233 m sahte yanal hız ekler |
+| `cmd_vel_timeout_s` | `0.5` | Hareket halindeyken `/cmd_vel` bu süre sessiz kalırsa sıfır hız (Jetson kilitlenmesi, çıkan kablo); `0` kapatır |
+| `publish_tf` | `true` | `odom -> base_link` başka bir düğümdeyse `false` (`odom_source:=lidar`, `odom_mode: corrected`) |
+
+Hesaplar ROS olmadan test edilir: bkz. `robot/src/kelo_tulip_ros2/test/test_driver_logic.cpp`. Henüz robotta
+denenmedi.
 
 ## Devreye alma prosedürü
 
@@ -975,7 +1024,7 @@ saklanır ve `current.yaml` en yenisini gösterir. Geri dönmek için:
 Robot ekibiyle netleştirilecekler:
 
 - `/cmd_vel` topic adı ve mesaj tipi (`Twist` veya `TwistStamped`).
-- `/odom` frame'i ve frekansı, sürücü tarafı komut zaman aşımı, `ROS_DOMAIN_ID`.
+- `/odom` frame'i ve frekansı, `ROS_DOMAIN_ID`.
 - Sürücünün `odom → base_link` dönüşümünün kapatılıp kapatılamayacağı (`odom_mode: corrected` için
   gereklidir; aksi halde yaw düzeltmesi olmadan `odom_mode: driver` kullanılır).
 

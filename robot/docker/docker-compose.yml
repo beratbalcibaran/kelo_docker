@@ -1,0 +1,32 @@
+# KELO ROBILE robot computer: the container with the platform driver and the teleop.
+# Normally driven from the Jetson with scripts/robot.sh. By hand, from this folder on the robot computer:
+#   docker compose up -d
+#   docker compose exec kelo_robot bash
+#   docker compose down
+#
+# network_mode host + privileged: the driver opens the EtherCAT interface (eno1) with a raw socket.
+# Only one driver at a time: stop any other container running platform_driver first.
+
+name: kelo_robot
+
+services:
+  kelo_robot:
+    image: kelo_ros2:humble
+    container_name: kelo_robot
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - RCUTILS_COLORIZED_OUTPUT=1
+      # DDS on the cable to the Jetson. Not eno1: that one is EtherCAT only, with no IP stack.
+      - CYCLONEDDS_URI=<CycloneDDS><Domain><General><NetworkInterfaceAddress>${KELO_ROBOT_DDS_IFACE:-enx000ec69541de}</NetworkInterfaceAddress></General></Domain></CycloneDDS>
+    volumes:
+      - ../src:/root/kelo_ws/src
+      - /dev:/dev
+    command: sleep infinity
