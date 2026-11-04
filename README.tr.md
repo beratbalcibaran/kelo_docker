@@ -30,15 +30,16 @@ Yığın, robotun düşük seviyeli sürücüsünü değiştirmez. Robotla aray�
 5. [Hızlı başlangıç](#hızlı-başlangıç)
 6. [Yapılandırma](#yapılandırma)
 7. [Jetson kurulumu](#jetson-kurulumu)
-8. [Devreye alma prosedürü](#devreye-alma-prosedürü)
-9. [Sensör arabası ile haritalama](#sensör-arabası-ile-haritalama)
-10. [Kayıt ve yeniden oynatma](#kayıt-ve-yeniden-oynatma)
-11. [Güvenlik sistemi](#güvenlik-sistemi)
-12. [Simülatör](#simülatör)
-13. [Test](#test)
-14. [İşletim ve bakım](#i̇şletim-ve-bakım)
-15. [Açık konular](#açık-konular)
-16. [Bilinen kısıtlar](#bilinen-kısıtlar)
+8. [Sıfırdan kurulum (Jetson ve robot)](#sıfırdan-kurulum-jetson-ve-robot)
+9. [Devreye alma prosedürü](#devreye-alma-prosedürü)
+10. [Sensör arabası ile haritalama](#sensör-arabası-ile-haritalama)
+11. [Kayıt ve yeniden oynatma](#kayıt-ve-yeniden-oynatma)
+12. [Güvenlik sistemi](#güvenlik-sistemi)
+13. [Simülatör](#simülatör)
+14. [Test](#test)
+15. [İşletim ve bakım](#i̇şletim-ve-bakım)
+16. [Açık konular](#açık-konular)
+17. [Bilinen kısıtlar](#bilinen-kısıtlar)
 
 ## Başlarken
 
@@ -528,6 +529,123 @@ Sürücünün launch argümanı olarak verilen üç parametresi vardır (`robot.
 
 Hesaplar ROS olmadan test edilir: bkz. `robot/src/kelo_tulip_ros2/test/test_driver_logic.cpp`. Henüz robotta
 denenmedi.
+
+## Sıfırdan kurulum (Jetson ve robot)
+
+Boş bir Jetson'dan robotu ilk kez sürmeye kadar tüm adımlar sırasıyla. Yalnızca simülatör için
+[Başlarken](#başlarken) yeterlidir. Ayrıntılar [Jetson kurulumu](#jetson-kurulumu) ve
+[Robot bilgisayarı](#robot-bilgisayarı-robot) bölümlerindedir.
+
+| Bilgisayar | Adres | Görev |
+|---|---|---|
+| Jetson | `192.168.1.105/24`, arayüz `enP8p1s0` | KELO stack (ROS 2 Jazzy, `kelo-slam` imajı) |
+| Robot bilgisayarı | `kelo@192.168.1.102`, DDS arayüzü `enx000ec69541de` | Platform sürücüsü ve joystick (ROS 2 Humble, `kelo_robot` container'ı) |
+
+İkisi de Cyclone DDS ve `ROS_DOMAIN_ID=42` kullanır. `eno1` robot bilgisayarında yalnızca EtherCAT içindir
+(IP yok).
+
+### 1. Jetson'u hazırlayın
+
+1. JetPack (Docker ve Docker Compose eklentisi dahil) kurulu olsun: `docker compose version`.
+2. Kullanıcıya Docker yetkisi verin: `sudo usermod -aG docker $USER`, sonra oturumu kapatıp açın.
+3. Robot Ethernet'ine (`enP8p1s0`) sabit IP verin: `192.168.1.105/24`.
+4. Robot bilgisayarına kablolu bağlanın ve deneyin: `ping 192.168.1.102`.
+
+### 2. Projeyi indirin ve kurun
+
+```bash
+git clone https://github.com/beratbalcibaran/kelo_docker.git
+cd kelo_docker
+sudo ./scripts/install_jetson.sh --enable-service
+```
+
+Betik projeyi `/opt/kelo` dizinine kopyalar, imajı derler (15–30 dk), udev kurallarını yükler ve `kelo`
+servisini açılışta başlayacak şekilde kaydeder. Servis veri klasörü olarak `/opt/kelo/data` kullanır.
+
+### 3. Ayarları robota göre yapın
+
+**`ROS_DOMAIN_ID`.** Betik `/etc/kelo/kelo.env` dosyasını yalnızca yoksa ve `ROS_DOMAIN_ID=0` ile yazar.
+Robot 42 kullanır; dosyayı düzeltin, aksi halde stack robotu hiç görmez:
+
+```bash
+sudo tee /etc/kelo/kelo.env <<'ENV'
+ROS_DOMAIN_ID=42
+KELO_DDS_IFACE=enP8p1s0
+KELO_DATA=/opt/kelo/data
+ENV
+```
+
+Stack'i elle (`docker compose ...`) depo klasöründen başlatıyorsanız aynı değerler o klasördeki `.env`
+dosyasına da girilmelidir (`ROS_DOMAIN_ID=42`, `KELO_DDS_IFACE=enP8p1s0`; isteğe bağlı
+`KELO_VNC_PASSWORD`, `KELO_WEB_PASSWORD`).
+
+**`odom_mode: driver`.** Paketteki `hardware.yaml` varsayılanı `odom_mode: corrected`'dır. Bu robot
+sürücüsüyle birlikte yanlıştır:
+
+- Sürücü `odom → base_link`'i kendisi yayınlar (`publish_tf: true`); `corrected` modunda `odom_filter`
+  da yayınlar, TF ağacında iki sahip olur.
+- `odom_correction` tablosu (`yaw_k` ≈ 5,3–8,6) eski sürücünün 5 kat küçük okuduğu dönüş hızı için
+  ölçülmüştür. Yeni sürücü (`fix_odom_rotation: true`) doğru okur; tablo dönüşü yaklaşık 5 kat büyük
+  gösterir.
+
+Bu yüzden veri klasörüne bir üst katman yazın (servis için `/opt/kelo/data/hardware.yaml`, elle başlatmada
+depodaki `data/hardware.yaml`):
+
+```yaml
+robot:
+  odom_mode: driver
+```
+
+Panel bunu robot Ethernet'i gelince **Find robot** / `robot_discover` ile önerir ve onayınızla yazar.
+
+### 4. Robot bilgisayarını kurun
+
+Hepsi Jetson'dan çalışır. KELO stack bu sırada kapalı olsun (`sudo systemctl stop kelo`).
+
+```bash
+ssh-copy-id kelo@192.168.1.102   # bir kez; şifresiz ssh gerekir
+./scripts/robot.sh deploy        # robot/ -> robot bilgisayarında ~/kelo_robot
+./scripts/robot.sh up            # container'ı başlatır; ilk seferde sürücüyü derler (birkaç dakika)
+./scripts/robot.sh time          # saati Jetson'dan ayarlar (robot bilgisayarının sudo şifresini sorar)
+./scripts/robot.sh start         # sürücü; logda "initialized" ve fix_odom_rotation=true görünmeli
+./scripts/robot.sh status
+```
+
+- Acil durdurma bırakılmış ve tekerleklerde güç olmalı; yoksa `start` "EtherCAT does not start" der.
+- Robot bilgisayarında USB Ethernet adaptörünün adı farklıysa (`ip a`) DDS bağlanamaz. Adı verin:
+  robot bilgisayarında `~/kelo_robot/docker/.env` içine `KELO_ROBOT_DDS_IFACE=<ad>`, sonra
+  `./scripts/robot.sh down` ve `up`.
+- `robot/` her değiştiğinde: `deploy`, `build`, `restart`.
+- `robot.sh time` saati bir kez ayarlar (robot bilgisayarında chrony yok); her açılıştan sonra tekrarlayın.
+
+### 5. Robotu hareket ettirmeden kontrol edin
+
+1. Sürücü açık, stack kapalı: `docker compose run --rm production ros2 run kelo_bringup robot_check`
+   ya da panelde **Find robot**. Sürücünün kendi TF'ini ve topic'lerini görür.
+2. Stack'i sensör modunda başlatın: `KELO_MODE=sensors docker compose --profile production up`.
+3. Çalışan stack'te:
+   ```bash
+   docker exec -it kelo-production /entrypoint.sh ros2 run kelo_bringup robot_check
+   docker exec -it kelo-production /entrypoint.sh ros2 topic info -v /cmd_vel   # tek yayıncı: cmd_vel_gate
+   ```
+   Herhangi bir `FAIL` varsa devam etmeyin. Beklenen: `/odom` ~20 Hz, frame'ler `odom`/`base_link`,
+   `odom → base_link` sahibi sürücü (`odom_mode: driver`), `/cmd_vel` tipi `Twist`, saat farkı küçük.
+
+### 6. İlk hareket
+
+Acil durdurma elinizin altında, robot kaldırılmış veya açık alanda. Ardından
+[İlk bağlantı kontrol listesi](#i̇şletim-ve-bakım) adım 5–11 ve [Devreye alma prosedürü](#devreye-alma-prosedürü).
+
+- **Ya joystick ya stack.** Joystick (`robot.sh joy`) güvenlik zincirini atlar ve %100'de 1,5 m/s gider;
+  stack çalışırken reddedilir. Stack'i başlatmadan önce `robot.sh joy stop`.
+- Sürücü `/cmd_vel` 0,5 s sessiz kalırsa durur; `cmd_vel_gate` 20 Hz yayınladığı için normalde tetiklenmez.
+
+### Bilinen riskler (henüz robotta denenmedi)
+
+- Robot bilgisayarı ROS 2 Humble, Jetson ROS 2 Jazzy çalıştırır. Aynı Cyclone DDS ve standart mesajlarla
+  (`Twist`, `Odometry`, `TF`) birlikte çalışması beklenir, ama robotta doğrulanmadı: `robot_check` ilk testtir.
+- Yeni sürücüyle odometri yeniden ölçülmelidir ([Odometri karakterizasyonu](#2-odometri-karakterizasyonu)).
+  `odom_mode: corrected` ancak yeni ölçülen bir tabloyla ve sürücü `publish_tf:=false` ile kullanılabilir.
 
 ## Devreye alma prosedürü
 

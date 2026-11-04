@@ -30,15 +30,16 @@ The stack does not modify the robot's low-level driver. The interface to the rob
 5. [Quick start](#quick-start)
 6. [Configuration](#configuration)
 7. [Installation on the Jetson](#installation-on-the-jetson)
-8. [Commissioning procedure](#commissioning-procedure)
-9. [Mapping with a sensor cart](#mapping-with-a-sensor-cart)
-10. [Recording and replay](#recording-and-replay)
-11. [Safety system](#safety-system)
-12. [Simulator](#simulator)
-13. [Testing](#testing)
-14. [Operations and maintenance](#operations-and-maintenance)
-15. [Open items](#open-items)
-16. [Known limitations](#known-limitations)
+8. [Installation from scratch (Jetson and robot)](#installation-from-scratch-jetson-and-robot)
+9. [Commissioning procedure](#commissioning-procedure)
+10. [Mapping with a sensor cart](#mapping-with-a-sensor-cart)
+11. [Recording and replay](#recording-and-replay)
+12. [Safety system](#safety-system)
+13. [Simulator](#simulator)
+14. [Testing](#testing)
+15. [Operations and maintenance](#operations-and-maintenance)
+16. [Open items](#open-items)
+17. [Known limitations](#known-limitations)
 
 ## Getting started
 
@@ -535,6 +536,126 @@ The driver has three parameters, set as launch arguments (`robot.sh restart fix_
 
 The calculations are tested without ROS: see `robot/src/kelo_tulip_ros2/test/test_driver_logic.cpp`. Not
 tested on the robot yet.
+
+## Installation from scratch (Jetson and robot)
+
+Every step in order, from an empty Jetson to the first drive of the robot. For the simulator only,
+[Getting started](#getting-started) is enough. Details are in [Installation on the Jetson](#installation-on-the-jetson)
+and [Robot computer](#robot-computer-robot).
+
+| Computer | Address | Role |
+|---|---|---|
+| Jetson | `192.168.1.105/24`, interface `enP8p1s0` | KELO stack (ROS 2 Jazzy, `kelo-slam` image) |
+| Robot computer | `kelo@192.168.1.102`, DDS interface `enx000ec69541de` | Platform driver and joystick (ROS 2 Humble, `kelo_robot` container) |
+
+Both use Cyclone DDS and `ROS_DOMAIN_ID=42`. On the robot computer `eno1` is EtherCAT only (no IP).
+
+### 1. Prepare the Jetson
+
+1. JetPack with Docker and the Docker Compose plugin: `docker compose version`.
+2. Docker rights for the user: `sudo usermod -aG docker $USER`, then log out and in again.
+3. Static IP on the robot Ethernet (`enP8p1s0`): `192.168.1.105/24`.
+4. Connect the cable to the robot computer and check: `ping 192.168.1.102`.
+
+### 2. Download and install
+
+```bash
+git clone https://github.com/beratbalcibaran/kelo_docker.git
+cd kelo_docker
+sudo ./scripts/install_jetson.sh --enable-service
+```
+
+The script copies the project to `/opt/kelo`, builds the image (15–30 min), installs the udev rules and
+registers the `kelo` service to start at boot. The service uses `/opt/kelo/data` as its data folder.
+
+### 3. Settings for the robot
+
+**`ROS_DOMAIN_ID`.** The script writes `/etc/kelo/kelo.env` only if it does not exist, and with
+`ROS_DOMAIN_ID=0`. The robot uses 42; fix the file, otherwise the stack never sees the robot:
+
+```bash
+sudo tee /etc/kelo/kelo.env <<'ENV'
+ROS_DOMAIN_ID=42
+KELO_DDS_IFACE=enP8p1s0
+KELO_DATA=/opt/kelo/data
+ENV
+```
+
+When the stack is started by hand (`docker compose ...`) from the repository folder, the same values go
+into `.env` in that folder (`ROS_DOMAIN_ID=42`, `KELO_DDS_IFACE=enP8p1s0`; optional `KELO_VNC_PASSWORD`,
+`KELO_WEB_PASSWORD`).
+
+**`odom_mode: driver`.** The packaged `hardware.yaml` defaults to `odom_mode: corrected`. With this
+robot driver that is wrong:
+
+- The driver publishes `odom → base_link` itself (`publish_tf: true`); in `corrected` mode `odom_filter`
+  publishes it too, so the TF tree has two owners.
+- The `odom_correction` table (`yaw_k` ≈ 5.3–8.6) was measured for the old driver, which read the yaw
+  rate 5 times too small. The new driver (`fix_odom_rotation: true`) reads it correctly; the table would
+  make turns look about 5 times too large.
+
+So write an overlay in the data folder (`/opt/kelo/data/hardware.yaml` for the service, `data/hardware.yaml`
+in the repository when started by hand):
+
+```yaml
+robot:
+  odom_mode: driver
+```
+
+The panel proposes this with **Find robot** / `robot_discover` when the robot Ethernet comes up and writes
+it after you confirm.
+
+### 4. Set up the robot computer
+
+All from the Jetson, with the KELO stack stopped (`sudo systemctl stop kelo`).
+
+```bash
+ssh-copy-id kelo@192.168.1.102   # once; ssh without password is required
+./scripts/robot.sh deploy        # robot/ -> ~/kelo_robot on the robot computer
+./scripts/robot.sh up            # starts the container; the first time it also builds the driver (minutes)
+./scripts/robot.sh time          # sets the clock from the Jetson (asks for the robot computer's sudo password)
+./scripts/robot.sh start         # driver; the log must show "initialized" and fix_odom_rotation=true
+./scripts/robot.sh status
+```
+
+- Emergency stop released and wheels powered; otherwise `start` reports "EtherCAT does not start".
+- If the USB Ethernet adapter on the robot computer has another name (`ip a`), DDS cannot connect. Give
+  the name in `~/kelo_robot/docker/.env` on the robot computer: `KELO_ROBOT_DDS_IFACE=<name>`, then
+  `./scripts/robot.sh down` and `up`.
+- After every change in `robot/`: `deploy`, `build`, `restart`.
+- `robot.sh time` sets the clock once (no chrony on the robot computer); repeat it after every boot.
+
+### 5. Check without moving the robot
+
+1. Driver on, stack off: `docker compose run --rm production ros2 run kelo_bringup robot_check`
+   or **Find robot** in the panel. This sees the driver's own TF and topics.
+2. Start the stack in sensor mode: `KELO_MODE=sensors docker compose --profile production up`.
+3. In the running stack:
+   ```bash
+   docker exec -it kelo-production /entrypoint.sh ros2 run kelo_bringup robot_check
+   docker exec -it kelo-production /entrypoint.sh ros2 topic info -v /cmd_vel   # one publisher: cmd_vel_gate
+   ```
+   Do not continue on any `FAIL`. Expected: `/odom` ~20 Hz, frames `odom`/`base_link`, `odom → base_link`
+   owned by the driver (`odom_mode: driver`), `/cmd_vel` type `Twist`, small clock offset.
+
+### 6. First motion
+
+Emergency stop within reach, robot lifted or in open space. Then steps 5–11 of the
+[first connection checklist](#operations-and-maintenance) and the [Commissioning procedure](#commissioning-procedure).
+
+- **Joystick or stack, never both.** The joystick (`robot.sh joy`) bypasses the safety chain and drives
+  1.5 m/s at 100 %; it is refused while the stack runs. Run `robot.sh joy stop` before starting the stack.
+- The driver stops when `/cmd_vel` is silent for 0.5 s; `cmd_vel_gate` publishes at 20 Hz, so normally
+  this does not trigger.
+
+### Known risks (not tested on the robot yet)
+
+- The robot computer runs ROS 2 Humble, the Jetson ROS 2 Jazzy. With the same Cyclone DDS and standard
+  messages (`Twist`, `Odometry`, `TF`) they are expected to work together, but this is not verified on
+  the robot: `robot_check` is the first test.
+- Odometry must be measured again with the new driver ([Odometry characterisation](#2-odometry-characterisation)).
+  `odom_mode: corrected` is only usable with a newly measured table and the driver started with
+  `publish_tf:=false`.
 
 ## Commissioning procedure
 
