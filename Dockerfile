@@ -32,7 +32,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
       ros-jazzy-teleop-twist-keyboard \
       ros-jazzy-rosidl-default-generators \
       ros-jazzy-launch-xml \
-      python3-yaml python3-tk python3-numpy python3-pytest python3-psutil \
+      python3-yaml python3-tk python3-numpy python3-pytest \
       python3-colcon-common-extensions \
       git build-essential ca-certificates curl \
       xvfb x11vnc openbox novnc websockify \
@@ -70,6 +70,9 @@ ARG YOLOX_SHA256=427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f
 RUN mkdir -p /opt/kelo/models \
  && curl -fsSL -o /opt/kelo/models/yolox_tiny.onnx "${YOLOX_URL}" \
  && echo "${YOLOX_SHA256}  /opt/kelo/models/yolox_tiny.onnx" | sha256sum -c -
+
+RUN apt-get update && apt-get install -y --no-install-recommends python3-psutil \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY src/kelo_bt_nodes /ros2_ws/src/kelo_bt_nodes
 RUN cd /ros2_ws \
