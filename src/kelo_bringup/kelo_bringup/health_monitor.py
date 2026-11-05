@@ -1,9 +1,3 @@
-"""health_monitor: which nodes of the stack are up, Nav2 nodes back to active after a restart, Jetson load.
-
-/kelo/health (std_msgs/String, JSON, latched, 1 Hz):
-  {"summary": "...", "nodes": {name: [status, restarts]}, "load": {...}, "load_text": "...", "warn": "..."}
-status: ok / down / waiting (not started yet) / inactive (lifecycle node not active).
-"""
 import json
 import sys
 import time
@@ -19,7 +13,7 @@ from kelo_bringup import health as hl
 
 try:
     import psutil
-except ImportError:          # load is optional, node states are not
+except ImportError:
     psutil = None
 
 
@@ -28,7 +22,7 @@ class HealthMonitor(Node):
         super().__init__('health_monitor')
         d = self.declare_parameter
         d('expected_nodes', [''])
-        d('reactivate_nodes', [''])      # lifecycle nodes without a bonded lifecycle manager
+        d('reactivate_nodes', [''])
         d('reactivate_after_s', 3.0)
         d('period_s', 1.0)
         d('state_period_s', 2.0)
@@ -37,10 +31,10 @@ class HealthMonitor(Node):
         self.reactivate = {n for n in g('reactivate_nodes') if n}
         self.after = float(g('reactivate_after_s'))
         self.state_period = float(g('state_period_s'))
-        self.lifecycle = {}        # name -> (GetState client, ChangeState client) once known
+        self.lifecycle = {}
         self.non_lifecycle = set()
         self.states = {}
-        self.busy = {}             # name -> start time of a get_state / activation in flight
+        self.busy = {}
         self.first_seen = {}
         self.last_state_t = 0.0
         self.last_warn = ''
@@ -54,7 +48,6 @@ class HealthMonitor(Node):
         self.get_logger().info(f'watching {len(self.tracker.expected)} nodes; Nav2 nodes activated again '
                                f'after a restart: {", ".join(sorted(self.reactivate)) or "none"}')
 
-    # --- nodes -------------------------------------------------------------------------------------
 
     def _graph(self):
         return {name: ns for name, ns in self.get_node_names_and_namespaces()}
@@ -72,7 +65,6 @@ class HealthMonitor(Node):
             self.lifecycle[name] = (self.create_client(GetState, full + '/get_state'),
                                     self.create_client(ChangeState, full + '/change_state'))
         elif services and now - self.first_seen[name] > 5.0:
-            # a starting lifecycle node shows its parameter services before its lifecycle services
             self.non_lifecycle.add(name)
 
     def _ask_states(self, graph):
@@ -125,10 +117,8 @@ class HealthMonitor(Node):
         else:
             step(Transition.TRANSITION_ACTIVATE)
 
-    # --- load --------------------------------------------------------------------------------------
 
     def _load(self):
-        """Jetson load and the process id of every ROS node process ({name: pid})."""
         load, pids = {'gpu': hl.read_gpu(self.gpu_file)}, {}
         if psutil is None:
             return load, pids
@@ -153,7 +143,7 @@ class HealthMonitor(Node):
                 label = hl.process_label(proc.name(), cmd)
                 if any('__node:=' in a for a in cmd):
                     pids[label] = pid
-                cpu = proc.cpu_percent(None)  # the first call only primes the counter
+                cpu = proc.cpu_percent(None)
                 if not first:
                     samples.append((label, cpu))
             except psutil.Error:
@@ -163,18 +153,17 @@ class HealthMonitor(Node):
         load['top'] = hl.top_processes(samples)
         return load, pids
 
-    # --- tick --------------------------------------------------------------------------------------
 
     def _safe_tick(self):
         try:
             self._tick()
-        except Exception as exc:     # a bad tick must not stop the watching
+        except Exception as exc:
             self.get_logger().error(f'health tick failed: {exc!r}')
 
     def _tick(self):
         now = time.monotonic()
         for name, t in list(self.busy.items()):
-            if now - t > 3.0:           # the node died while answering (a killed server keeps its endpoint)
+            if now - t > 3.0:
                 del self.busy[name]
         graph = self._graph()
         load, pids = self._load()
@@ -184,8 +173,6 @@ class HealthMonitor(Node):
         if now - self.last_state_t >= self.state_period:
             self.last_state_t = now
             self._ask_states(graph)
-        # a node with a process here is up while its process runs (the graph keeps a killed node for
-        # seconds); other nodes (another container) by the graph
         present = {n for n in self.tracker.expected
                    if n in pids or (n in graph and self.tracker.pid[n] is None)}
         statuses, changes, restarted = self.tracker.step(now, present, self.states, pids)

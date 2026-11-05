@@ -30,9 +30,7 @@ TWIST_TYPES = {'geometry_msgs/msg/Twist': 'Twist', 'geometry_msgs/msg/TwistStamp
 ODOM_TYPE = 'nav_msgs/msg/Odometry'
 MIN_ODOM_HZ = 10.0
 MAX_CLOCK_OFFSET_S = 0.2
-# 42: the robot computer's container (robot/docker/docker-compose.yml)
 DEFAULT_DOMAINS = list(range(0, 11)) + [42]
-# nodes of the KELO stack and its tools: never taken for the robot driver
 OUR_NODES = set(OUR_CMD_PUBLISHERS) | set(OUR_CMD_WATCHERS) | set(OUR_ODOM_TF) | {
     'kelo_robot_discover', 'kelo_gui_teleop', 'collision_monitor_teleop', 'collision_monitor',
     'velocity_smoother', 'controller_server', 'bt_navigator', 'status_node'}
@@ -40,7 +38,6 @@ REALSENSE_USB_VENDOR = '8086'
 
 
 def is_ours(node):
-    # a KELO robot driver may well be called kelo_*: only our own exact node names count
     return node in OUR_NODES or node.startswith(('_ros2cli', 'kelo_robot_discover'))
 
 
@@ -65,13 +62,6 @@ def _name_score(topic, want, word):
 
 
 def propose(hw, obs):
-    """Proposed settings and report from one domain's observation.
-
-    obs = {'domain': int, 'current_domain': int, 'nodes': [names],
-           'topics': {name: {'pubs': [[node, type]], 'subs': [[node, type]]}},
-           'odom': {topic: {'hz', 'frame', 'child', 'offset'}}, 'tf_pairs': [[parent, child]],
-           'devices': {'lidar': bool|None, 'camera': bool|None, 'marvelmind': bool|None}}
-    returns {'found': bool, 'settings': [[[key, ...], value]], 'notes': [[level, text]]}"""
     notes, settings = [], []
     fr, tp = hw['frames'], hw['topics']
     if 'cmd_vel_gate' in obs['nodes']:
@@ -89,7 +79,6 @@ def propose(hw, obs):
         notes.append([WARN, f"the robot is on ROS_DOMAIN_ID {obs['domain']}, this computer uses "
                             f"{obs['current_domain']}: set ROS_DOMAIN_ID={obs['domain']} (.env)"])
 
-    # velocity command: a Twist topic that a foreign node subscribes to
     cmd = []
     for name, t in obs['topics'].items():
         for node, typ in t['subs']:
@@ -115,7 +104,6 @@ def propose(hw, obs):
             notes.append([WARN, f"{name} already has publishers: {', '.join(pubs)} (only cmd_vel_gate may "
                                 'command the robot: stop them)'])
 
-    # odometry: an Odometry topic published by a foreign node
     odom = []
     for name, t in obs['topics'].items():
         if any(typ == ODOM_TYPE and not is_ours(n) for n, typ in t['pubs']):
@@ -149,14 +137,12 @@ def propose(hw, obs):
         if len(odom) > 1:
             notes.append([WARN, f"other odometry topics: {', '.join(n for _, n in odom[1:])} (took {name})"])
 
-    # who owns odom -> base_link
     pairs = {tuple(p) for p in obs['tf_pairs']}
     base_pair = odom_frames or (fr['odom'], fr['base'])
     fixed = (obs.get('driver_params') or {}).get('fix_odom_rotation')
     if base_pair in pairs:
         mode = 'driver'
     else:
-        # the driver's own rotation fix (fix_odom_rotation) and odom_filter's yaw table must not both act
         mode = 'relay' if fixed else 'corrected'
     if odom:
         notes.append([OK, f'{base_pair[0]} -> {base_pair[1]} TF '
@@ -175,7 +161,6 @@ def propose(hw, obs):
         notes.append([WARN, f"the driver also publishes TF {', '.join(clash)}: it clashes with the KELO robot "
                             'description (switch it off in the driver)'])
 
-    # sensors on this computer
     want = sensors(hw)
     for key, label in (('lidar', 'LiDAR'), ('camera', 'RealSense'), ('marvelmind', 'Marvelmind')):
         seen = obs['devices'].get(key)
@@ -235,10 +220,7 @@ def save_override(path, value):
     os.replace(tmp, file)
 
 
-# ---- ROS side --------------------------------------------------------------------------------------
-
 class _Domain:
-    """One participant on one ROS_DOMAIN_ID (own context, so several domains are watched at once)."""
 
     def __init__(self, domain):
         import rclpy
@@ -276,7 +258,6 @@ def _graph(d):
 
 
 def observe(d, seconds):
-    """Topic graph of the domain, then a few seconds of odometry and TF."""
     from nav_msgs.msg import Odometry
     from rclpy.qos import QoSDurabilityPolicy, QoSProfile, qos_profile_sensor_data
     from tf2_msgs.msg import TFMessage
@@ -311,7 +292,7 @@ def observe(d, seconds):
         hz = (len(ts) - 1) / (ts[-1] - ts[0]) if len(ts) > 1 and ts[-1] > ts[0] else 0.0
         odom[name] = {'hz': hz, 'frame': s['frame'], 'child': s['child'],
                       'offset': statistics.median(s['off']) if s['off'] else None}
-    nodes, topics = _graph(d)   # again: late discoveries
+    nodes, topics = _graph(d)
     drivers = sorted({nd for name, t in topics.items() for nd, typ in t['pubs']
                       if typ == ODOM_TYPE and not is_ours(nd)})
     return {'domain': d.domain, 'nodes': nodes, 'topics': topics, 'odom': odom,
@@ -319,8 +300,6 @@ def observe(d, seconds):
 
 
 def driver_params(d, nodes, names=('fix_odom_rotation', 'publish_tf'), timeout=2.0):
-    """Parameters of the odometry publisher (the robot driver), read over its parameter service; works
-    across ROS 2 distributions (Humble driver, Jazzy stack). {} when nothing answers."""
     from rcl_interfaces.srv import GetParameters
     out = {}
     for name in nodes:
@@ -338,7 +317,7 @@ def driver_params(d, nodes, names=('fix_odom_rotation', 'publish_tf'), timeout=2
             if res is None:
                 continue
             for key, val in zip(names, res.values):
-                if val.type == 1:          # PARAMETER_BOOL
+                if val.type == 1:
                     out[key] = bool(val.bool_value)
             if out:
                 return out
@@ -366,7 +345,7 @@ def discover(hw, domains, seconds, discovery_s=3.0, log=print):
         if stack:
             pick = stack[0]
         elif hit:
-            pick = hit[0][0]   # the current domain first, then the lowest
+            pick = hit[0][0]
             if len(hit) > 1:
                 log(f"[robot_discover] nodes on several domains: {', '.join(str(p.domain) for p, _ in hit)}; "
                     f'using {pick.domain}')

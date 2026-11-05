@@ -6,19 +6,6 @@ OCCUPIED, FREE, UNKNOWN = 100, 0, -1
 
 
 class CameraGrid:
-    """Log-odds voxel columns (x, y, height band) on the lidar map grid.
-
-    A column is occupied when any voxel in it is occupied, so a table top stays an obstacle
-    even though the floor under it is seen free. Clearing rays lower the voxels they cross,
-    which erases people walking by once the area is seen free again.
-
-    Each voxel remembers the highest point that hit it. A ray that crosses the voxel above that
-    height (plus graze_margin) is no evidence against the object and does not lower it: rays that
-    graze the top of a low object on their way to the floor behind it cross its voxel in every frame,
-    while the top itself is hit by only a few pixels, so such objects used to end up free and the
-    robot drove into them. A ray through the object's height (after a person has left) still clears.
-    The first hit of a voxel also drops the free evidence it had, which came from rays of unknown height.
-    """
 
     def __init__(self, z_min=0.06, z_max=1.20, dz=0.10, l_hit=0.85, l_miss=-0.40,
                  l_min=-2.0, l_max=3.5, occ_l=1.5, free_l=-0.4, graze_margin=0.0):
@@ -39,7 +26,6 @@ class CameraGrid:
         return self.res is not None and self.width > 0 and self.height > 0
 
     def align(self, res, ox, oy, width, height):
-        """Follow the lidar map: same resolution and origin, keeping cells already seen."""
         res, width, height = float(res), int(width), int(height)
         new = np.zeros((height, width, self.nz), dtype=np.float32)
         top = np.full((height, width, self.nz), -np.inf, dtype=np.float32)
@@ -56,7 +42,6 @@ class CameraGrid:
         self.log, self.top = new, top
 
     def _voxels(self, pts):
-        """Flat voxel index and height of every point inside the grid (not unique)."""
         pts = np.asarray(pts, dtype=float).reshape(-1, 3)
         col = np.floor((pts[:, 0] - self.origin[0]) / self.res).astype(np.int64)
         row = np.floor((pts[:, 1] - self.origin[1]) / self.res).astype(np.int64)
@@ -73,7 +58,6 @@ class CameraGrid:
         vec = e - o
         length = np.linalg.norm(vec, axis=1)
         step = 0.5 * min(self.res, self.dz)
-        # stop one cell short of the end point: that voxel is the surface that was hit
         usable = np.maximum(length - self.res, 0.0)
         n = int(np.ceil(usable.max() / step)) if len(usable) else 0
         if n == 0:
@@ -85,14 +69,11 @@ class CameraGrid:
         return pts[keep]
 
     def integrate(self, origin, hits, clear_ends):
-        """Add one camera frame (all points in the map frame)."""
         if not self.ready:
             return 0, 0
         flat, top = self.log.reshape(-1), self.top.reshape(-1)
         hit_idx, hit_z = self._voxels(hits)
         hit = np.unique(hit_idx)
-        # free evidence gathered before the first hit came from rays of unknown height (possibly
-        # grazing the top that is only now seen): it must not outweigh the object
         first = hit[np.isneginf(top[hit])]
         flat[first] = np.maximum(flat[first], 0.0)
         np.maximum.at(top, hit_idx, hit_z.astype(np.float32))
@@ -100,7 +81,6 @@ class CameraGrid:
         crossed, inv = np.unique(ray_idx, return_inverse=True)
         lowest = np.full(len(crossed), np.inf)
         np.minimum.at(lowest, inv, ray_z)
-        # free evidence only where a ray passed at or below the highest point seen in the voxel
         seen_top = top[crossed]
         through = np.isneginf(seen_top) | (lowest <= seen_top + self.graze)
         miss = np.setdiff1d(crossed[through], hit, assume_unique=True)
@@ -111,7 +91,6 @@ class CameraGrid:
         return len(hit), len(miss)
 
     def occupancy(self):
-        """2D grid in OccupancyGrid order (row 0 = origin y): 100 occupied, 0 free, -1 unknown."""
         out = np.full((self.height, self.width), UNKNOWN, dtype=np.int8)
         if not self.ready:
             return out
@@ -123,7 +102,6 @@ class CameraGrid:
 
 
 def fit_to(grid, src_origin, res, dst_origin, dst_w, dst_h):
-    """Crop or pad a 2D grid (row 0 = origin y) to another origin and size, unknown outside."""
     out = np.full((int(dst_h), int(dst_w)), UNKNOWN, dtype=grid.dtype)
     dc = int(round((src_origin[0] - dst_origin[0]) / res))
     dr = int(round((src_origin[1] - dst_origin[1]) / res))
@@ -136,7 +114,6 @@ def fit_to(grid, src_origin, res, dst_origin, dst_w, dst_h):
 
 
 def write_map(stem, grid, res, origin):
-    """Save like nav2 map_saver (trinary): <stem>.pgm + <stem>.yaml, image top row = max y."""
     pix = np.full(grid.shape, 205, dtype=np.uint8)
     pix[grid == FREE] = 254
     pix[grid == OCCUPIED] = 0

@@ -1,27 +1,3 @@
-"""Surround view like a Tesla's driving screen: the robot seen from behind and above, drawn in 3D with
-what is around it (/surround_view/image, shown in the KELO Surround window of camera_view).
-
-- the map walls (/map) as light blocks and a floor grid fixed to the map, so the floor moves under
-  the robot;
-- the live LiDAR scan as glowing points (red when close) and the camera obstacle cloud;
-- the objects of the objects node: people as standing figures, other things as boxes, with their
-  distance and an arrow when they move;
-- park assist: around the footprint, the nearest obstacle in each direction as a coloured arc with
-  its distance in cm (LiDAR + camera; behind the LiDAR's field of view the map walls are used and the
-  arc is drawn dashed: that side has no live sensor);
-- the guide lines of the commanded velocity and, while Nav2 drives to a goal, the plan as a blue road
-  with flowing arrows and a pin on the goal;
-- obstacles the sensors no longer see (obstacle memory of the objects node, e.g. behind the robot
-  where the LiDAR does not look) as grey dots that fade with the time since they were seen; park
-  assist uses them (dashed) in the blind directions;
-- people: their personal space as a ring and where they walk in the next 3 s as footsteps;
-- a status bar: speed, nearest obstacle, distance to the goal, and the people-aware navigation
-  (WAITING FOR PERSON, speed limited near people).
-Double click on the floor in the view (camera_view, web_view) sends the robot there; right click
-cancels the goal. `view:=top` looks straight down instead. Rendered only while someone watches.
-
-    ros2 run kelo_bringup surround_view --ros-args -p view:=chase
-"""
 import math
 
 import cv2
@@ -60,7 +36,6 @@ def assist_color(d):
 
 
 class Camera:
-    """Pinhole camera looking from `eye` at `target` (base frame, z up)."""
 
     def __init__(self, eye, target, width, height, fov_deg):
         self.eye = np.asarray(eye, dtype=float)
@@ -70,12 +45,11 @@ class Camera:
         r = np.cross(f, up)
         r /= np.linalg.norm(r)
         u = np.cross(r, f)
-        self.rot = np.stack([r, -u, f])  # rows: image x, image y (down), depth
+        self.rot = np.stack([r, -u, f])
         self.w, self.h = width, height
         self.f = (width / 2.0) / math.tan(math.radians(fov_deg) / 2.0)
 
     def project(self, pts):
-        """N x 3 points -> pixels (N x 2 float), depth (N) and a mask of the points in front."""
         c = (np.asarray(pts, dtype=float).reshape(-1, 3) - self.eye) @ self.rot.T
         ok = c[:, 2] > 0.1
         z = np.where(ok, c[:, 2], 1.0)
@@ -83,17 +57,14 @@ class Camera:
         return uv, c[:, 2], ok & (np.abs(uv) < 1e5).all(axis=1)
 
     def ray(self, u, v):
-        """Direction (base frame) of the ray through pixel (u, v)."""
         d = self.rot.T @ np.array([(u - self.w / 2.0) / self.f, (v - self.h / 2.0) / self.f, 1.0])
         return d / np.linalg.norm(d)
 
     def scale_at(self, depth):
-        """Pixels per metre at a depth."""
         return self.f / max(depth, 0.1)
 
 
 def box_faces(cx, cy, sx, sy, z0, z1, yaw=0.0):
-    """Top and four side faces of a box (each 4 x 3 points) with outward normals."""
     c, s = math.cos(yaw), math.sin(yaw)
     hx, hy = sx / 2.0, sy / 2.0
     corners = [(hx, hy), (-hx, hy), (-hx, -hy), (hx, -hy)]
@@ -108,7 +79,6 @@ def box_faces(cx, cy, sx, sy, z0, z1, yaw=0.0):
 
 
 class Painter:
-    """Polygons collected from the whole scene, drawn far to near (painter's algorithm)."""
 
     def __init__(self, cam):
         self.cam = cam
@@ -117,15 +87,13 @@ class Painter:
     def face(self, pts, color, edge=None, normal=None, alpha=1.0):
         pts = np.asarray(pts, dtype=float)
         if normal is not None and np.dot(normal, self.cam.eye - pts.mean(axis=0)) <= 0.0:
-            return  # facing away
+            return
         uv, z, ok = self.cam.project(pts)
         if not ok.all():
             return
         self.items.append((float(z.mean()), 'poly', np.round(uv).astype(np.int32), color, edge, alpha))
 
     def faces(self, pts, color, normal=None):
-        """Many faces of one colour at once (M x K x 3 points, one normal for all): the same rules as
-        face(), computed with numpy instead of one call per face (the map walls are thousands)."""
         pts = np.asarray(pts, dtype=float)
         if len(pts) == 0:
             return
@@ -146,7 +114,6 @@ class Painter:
             self.face(f, tuple(int(v) for v in np.clip(shade, 0, 255)), edge, n, alpha)
 
     def prism(self, x, y, r, z0, z1, top, side, n=10):
-        """Upright n-sided prism (a round shape: body or head of a figure)."""
         a = np.linspace(0.0, 2.0 * math.pi, n, endpoint=False)
         ring = np.stack([x + r * np.cos(a), y + r * np.sin(a)], axis=1)
         self.face([(px, py, z1) for px, py in ring], tuple(int(v) for v in np.clip(top, 0, 255)))
@@ -256,7 +223,6 @@ class SurroundView(Node):
         return Camera((-3.4, 0.0, 2.6), (1.6, 0.0, 0.0), self.w, self.h, 62.0)
 
     def _map(self, msg):
-        """Occupied cells on a 0.1 m grid, as map-frame cell centres with their free neighbours."""
         info = msg.info
         grid = np.asarray(msg.data, dtype=np.int16).reshape(info.height, info.width)
         occ = (grid >= 50).astype(np.uint8)
@@ -271,7 +237,6 @@ class SurroundView(Node):
         c, s = math.cos(oyaw), math.sin(oyaw)
         xy = np.stack([o.position.x + c * lx - s * ly, o.position.y + s * lx + c * ly], axis=1)
         pad = np.pad(occ, 1)
-        # neighbours along +x, -x, +y, -y in the grid: a side face is drawn only towards a free cell
         free = np.stack([pad[i + 1, j + 2] == 0, pad[i + 1, j] == 0, pad[i + 2, j + 1] == 0,
                          pad[i, j + 1] == 0], axis=1)
         self.walls = (msg.header.frame_id or self.fr['map'], xy, free, res, oyaw)
@@ -314,7 +279,7 @@ class SurroundView(Node):
 
     def _tick(self):
         if self.pub.get_subscription_count() == 0:
-            return  # nobody watches: no rendering
+            return
         now = self._now()
         cam = self._camera()
         img = self.bg.copy()
@@ -351,7 +316,6 @@ class SurroundView(Node):
         self.pub.publish(header, img)
 
     def _grid(self, img, cam, map_pose):
-        """1 m floor grid fixed to the map (to odom without a map), so it slides when the robot moves."""
         pose = map_pose or self.inputs.pose_in(self.fr['odom'])
         if pose is None:
             return
@@ -361,7 +325,6 @@ class SurroundView(Node):
         for k in range(int(2 * r) + 2):
             ends += [((x0 + k, pose[1] - r), (x0 + k, pose[1] + r)), ((pose[0] - r, y0 + k), (pose[0] + r, y0 + k))]
         a, b = np.array([e[0] for e in ends], dtype=float), np.array([e[1] for e in ends], dtype=float)
-        # all grid lines in one projection (12 points each); the part of a line inside the radius is one run
         seg = scene.to_base(np.linspace(a, b, 12, axis=1).reshape(-1, 2), pose)
         uv, _, ok = cam.project(np.column_stack([seg, np.zeros(len(seg))]))
         good = (ok & (np.hypot(seg[:, 0], seg[:, 1]) <= r)).reshape(len(ends), 12)
@@ -370,8 +333,6 @@ class SurroundView(Node):
             cv2.line(img, tuple(q[li, i]), tuple(q[li, i + 1]), GRID, 1, cv2.LINE_AA)
 
     def _walls_near(self, pose):
-        """Occupied map cells within the radius in the base frame, with their free sides turned into
-        the base frame (+x, -x, +y, -y of the map grid -> outward normals)."""
         if pose is None or self.walls is None:
             return None
         _, xy, free, res, oyaw = self.walls
@@ -387,10 +348,9 @@ class SurroundView(Node):
         normals = [np.array([c, s, 0.0]), np.array([-c, -s, 0.0]), np.array([-s, c, 0.0]), np.array([s, -c, 0.0])]
         h = res / 2.0
         off = np.array([(c * dx - s * dy, s * dx + c * dy) for dx, dy in ((h, h), (-h, h), (-h, -h), (h, -h))])
-        corners = xy[:, None, :] + off[None, :, :]  # N x 4 x 2
+        corners = xy[:, None, :] + off[None, :, :]
         top = tuple(int(v) for v in WALL_TOP)
         painter.faces(np.concatenate([corners, np.full(corners.shape[:2] + (1,), self.wall_h)], axis=2), top)
-        # sides: +x between corners 3,0; -x 1,2; +y 0,1; -y 2,3; only towards a free cell
         for side, (i0, i1) in enumerate(((3, 0), (1, 2), (0, 1), (2, 3))):
             a, b = corners[free[:, side], i0], corners[free[:, side], i1]
             z0, z1 = np.zeros((len(a), 1)), np.full((len(a), 1), self.wall_h)
@@ -400,8 +360,6 @@ class SurroundView(Node):
             painter.faces(quads, tuple(int(v) for v in shade), n)
 
     def _robot(self, painter):
-        """KELO: dark chassis on four wheels, white body on top, a light strip at the front and the
-        camera head on the front edge."""
         l, w, hb = self.half_l, self.half_w, self.body_h
         for sx in (1, -1):
             for sy in (1, -1):
@@ -416,7 +374,6 @@ class SurroundView(Node):
             if label == 'person':
                 r = max(0.15, min(max(sx, sy) / 2.0, 0.3))
                 hgt = max(sz, 1.4)
-                # legs, torso and head as round prisms (an upright figure, like a game avatar)
                 painter.prism(x, y, r * 0.55, 0.0, hgt * 0.48, PERSON * 0.7, PERSON * 0.62)
                 painter.prism(x, y, r * 0.75, hgt * 0.48, hgt * 0.82, PERSON, PERSON * 0.85)
                 painter.prism(x, y, 0.11, hgt * 0.85, hgt, PERSON, PERSON * 0.9, n=12)
@@ -444,9 +401,6 @@ class SurroundView(Node):
             floor_line(img, cam, [wing_l, tip, wing_r], ARROW, 3, z=0.01)
 
     def _park_assist(self, img, cam, lidar, cloud, walls, memory=None):
-        """Coloured arcs around the footprint at the nearest obstacle of each direction. Directions
-        outside the LiDAR field of view fall back to the obstacle memory and the map walls (dashed:
-        not a live sensor)."""
         live = np.vstack([lidar[:, :2], cloud[:, :2]]) if len(lidar) + len(cloud) else np.zeros((0, 2))
         sectors = 24
         best, _ = scene.sector_distances(live, self.half_l, self.half_l, self.half_w, sectors, 1.2)
@@ -486,14 +440,12 @@ class SurroundView(Node):
         return nearest
 
     def _ring(self, angles, offset):
-        """Points at `offset` metres outside the footprint rectangle in the given directions."""
         l, w = self.half_l + offset, self.half_w + offset
         c, s = np.cos(angles), np.sin(angles)
         t = np.minimum(l / np.maximum(np.abs(c), 1e-9), w / np.maximum(np.abs(s), 1e-9))
         return np.stack([c * t, s * t], axis=1)
 
     def _people_ahead(self, img, cam, objects):
-        """Personal space ring and predicted footsteps (next 3 s) of every person, on the floor."""
         for _, label, _, x, y, _, _, _, vx, vy in objects:
             if label != 'person':
                 continue
@@ -514,7 +466,6 @@ class SurroundView(Node):
                 floor_poly(img, cam, foot, color, z=0.012)
 
     def _memory(self, img, cam, memory):
-        """Remembered obstacles, fading from light grey to the background over 30 s."""
         if len(memory) == 0:
             return
         p = np.column_stack([memory[:, :2], np.full(len(memory), 0.08)])
@@ -526,8 +477,6 @@ class SurroundView(Node):
                 cv2.circle(img, (u, v), 2, (g, g, g + 10), -1, cv2.LINE_AA)
 
     def _points(self, img, cam, lidar, cloud):
-        """LiDAR points as glowing dots a little above the floor; the camera cloud flattened onto the
-        floor and thinned out (a footprint of what the camera sees, not a wall of dots)."""
         cloud = cloud[::3]
         for pts, base_color, size, z in ((cloud, (90, 140, 190), 1, 0.02), (lidar, (90, 230, 255), 3, 0.15)):
             if len(pts) == 0:

@@ -1,17 +1,3 @@
-"""Mapping coverage: what the map already has and where to drive next (/coverage_view/image, shown in the
-KELO Surround window under 'Coverage', and in the web view).
-
-Top view of the map being built (slam_toolbox /map and the camera layer /map_camera):
-- green: free floor seen by the LiDAR and the camera (the camera layer has low obstacles there);
-- amber: free for the LiDAR only, the camera never looked there (low objects may be missing);
-- grey-blue: seen only from further than `near` metres (the LiDAR is less exact there, the camera does
-  not reach): drive closer;
-- orange: frontiers, where free floor meets unexplored space; the nearest one is marked as the next
-  target with its distance;
-- the robot's track and pose.
-The status lines give the mapped area, the camera coverage, the share seen only from far and the
-frontiers. Display only. Rendered only while someone watches.
-"""
 import math
 
 import cv2
@@ -40,7 +26,6 @@ def grid_of(msg):
 
 
 def cell_centres(info):
-    """World x, y of every cell of a grid (rows x cols each)."""
     o = info.origin
     yaw = yaw_from_quat(o.orientation.x, o.orientation.y, o.orientation.z, o.orientation.w)
     j, i = np.meshgrid(np.arange(info.width), np.arange(info.height))
@@ -50,7 +35,6 @@ def cell_centres(info):
 
 
 def to_cells(x, y, info):
-    """World points -> (row, col) int arrays and a mask of those inside the grid."""
     o = info.origin
     yaw = yaw_from_quat(o.orientation.x, o.orientation.y, o.orientation.z, o.orientation.w)
     c, s = math.cos(yaw), math.sin(yaw)
@@ -61,7 +45,6 @@ def to_cells(x, y, info):
 
 
 def resample(src, src_info, dst_info):
-    """Values of grid `src` at the cell centres of another grid (-1 outside)."""
     x, y = cell_centres(dst_info)
     i, j, ok = to_cells(x, y, src_info)
     out = np.full((dst_info.height, dst_info.width), -1, np.int8)
@@ -70,8 +53,6 @@ def resample(src, src_info, dst_info):
 
 
 def frontiers(grid, min_cells=6):
-    """Free cells (0..49) next to unknown cells (-1), grouped: [(row, col centroid, cell count)] and the
-    mask of all frontier cells of groups with at least `min_cells` cells."""
     free = (grid >= 0) & (grid < 50)
     unknown = grid < 0
     pad = np.pad(unknown, 1)
@@ -87,8 +68,6 @@ def frontiers(grid, min_cells=6):
 
 
 def next_target(fronts, x, y, pose, min_cells):
-    """(distance, row, col) of the frontier to explore next: the nearest one with at least
-    `min_cells` cells (a small gap near the robot is not worth the drive), else the nearest."""
     def dist(r, c):
         return math.hypot(x[int(r), int(c)] - pose[0], y[int(r), int(c)] - pose[1])
     big = [(dist(r, c), r, c) for r, c, n in fronts if n >= min_cells]
@@ -96,8 +75,6 @@ def next_target(fronts, x, y, pose, min_cells):
 
 
 def coverage(grid, camera, track_cells, res, near=3.0):
-    """Classes of the free cells: (both, lidar_only, far) masks, from the LiDAR grid, the camera grid
-    resampled onto it (or None) and the robot track as (row, col) cells."""
     free = (grid >= 0) & (grid < 50)
     seen_cam = camera >= 0 if camera is not None else np.zeros(grid.shape, bool)
     far = np.zeros(grid.shape, bool)
@@ -150,7 +127,6 @@ class CoverageView(Node):
         return t.x, t.y, yaw_from_quat(q.x, q.y, q.z, q.w)
 
     def _follow(self):
-        """Robot track in the map frame, a point every 0.1 m."""
         p = self._pose()
         if p is not None and (not self.track or math.hypot(p[0] - self.track[-1][0], p[1] - self.track[-1][1]) > 0.1):
             self.track.append((p[0], p[1]))
@@ -198,7 +174,6 @@ class CoverageView(Node):
         self.pub.publish(header, out)
 
     def _fit(self, img, grid):
-        """Known part of the map scaled into the output (map +y up), and cell -> pixel."""
         known = np.argwhere(grid >= 0)
         top = 70
         if len(known) == 0:
@@ -240,7 +215,6 @@ class CoverageView(Node):
                  + (f' - next {target[0]:.1f} m' if target else '') if n_front else 'no frontiers: the area is closed')
         cv2.putText(img, line1, (14, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, WHITE, 1, cv2.LINE_AA)
         cv2.putText(img, line2, (14, 52), cv2.FONT_HERSHEY_SIMPLEX, 0.6, FRONTIER if n_front else BOTH, 2, cv2.LINE_AA)
-        # legend in the bottom bar, below the map
         cv2.rectangle(img, (0, self.h - 30), (self.w, self.h), (15, 16, 20), -1)
         x = 14
         for color, name in ((BOTH, 'LiDAR + camera'), (LIDAR_ONLY, 'LiDAR only'), (FAR, 'only from far'),

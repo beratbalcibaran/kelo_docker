@@ -72,7 +72,6 @@ def main():
             last[0] = time.time()
             log(f'Remaining distance: {fb.feedback.distance_remaining:.2f} m')
 
-    # nav_watch remembers the goal (sent again after a relocalization): latched, before the goal
     from rclpy.qos import DurabilityPolicy, QoSProfile
     goal_pub = node.create_publisher(PoseStamped, '/kelo/nav_goal',
                                      QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))

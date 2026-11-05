@@ -1,11 +1,3 @@
-// SkipPathStart: the path without its first `distance` metres (measured along the path). Used before
-// IsPathValid on the path ahead of the robot: IsPathValid also rejects inscribed cells, and a robot that
-// stands close to a wall (or got there passing a person) sits in such cells. Then every new path was
-// invalid from its first pose and the robot never left. What is closer than `distance` is the
-// collision monitor's (stop zone 0.76 m from the centre).
-//
-//   <SkipPathStart input_path="{path_ahead}" output_path="{path_ahead}" distance="0.4"/>
-
 #include <cmath>
 #include <string>
 
@@ -49,7 +41,7 @@ public:
     }
     nav_msgs::msg::Path out;
     out.header = path.header;
-    // a path shorter than `distance` keeps its last pose: IsPathValid needs at least one
+
     if (!path.poses.empty()) {
       out.poses.assign(path.poses.begin() + first, path.poses.end());
     }
@@ -58,7 +50,7 @@ public:
   }
 };
 
-}  // namespace kelo_bt_nodes
+}
 
 BT_REGISTER_NODES(factory)
 {

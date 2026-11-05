@@ -12,7 +12,7 @@ def grid_with(cells, w=100, h=40, res=0.05):
     return Grid(res, 0.0, 0.0, w, h, data)
 
 
-PATH = [(0.5 + 0.05 * i, 1.0) for i in range(80)]   # 0.5 -> 4.45 m along y = 1
+PATH = [(0.5 + 0.05 * i, 1.0) for i in range(80)]
 
 
 def test_obstacle_on_the_path_ahead_is_found():
@@ -24,8 +24,8 @@ def test_obstacle_on_the_path_ahead_is_found():
 
 def test_robot_cells_goal_end_and_far_cells_are_ignored():
     g = grid_with([(0.62, 1.01, 100), (3.2, 1.01, 100), (4.3, 1.01, 100)])
-    assert first_blocked(PATH, (0.5, 1.0), g) is None             # 0.12 m: the robot's own cells; 2.7 m: too far
-    assert first_blocked(PATH, (3.0, 1.0), g) is None             # 3.2: robot cells; 4.3: in the last 0.5 m
+    assert first_blocked(PATH, (0.5, 1.0), g) is None
+    assert first_blocked(PATH, (3.0, 1.0), g) is None
     assert first_blocked(PATH, (2.0, 1.0), g)[0] == pytest.approx(1.2, abs=0.06)
 
 
@@ -64,7 +64,6 @@ def test_wait_reason_priority():
     assert 'no path' in wait_reason(ready, False, '', None, 0, None, 0)
     assert 'recovering' in wait_reason(ready, False, '', None, 0, 1.0, 2)
     assert wait_reason(ready, False, '', None, 0, 1.0, 0) == ''
-    # driving around an obstacle after two recoveries: driving, not waiting
     assert wait_reason(ready, False, '', None, 0, 9.0, 2, progressing=True) == ''
     assert wait_reason((False, 'not localized (LOST)'), False, '', None, 0, 1.0, 0, progressing=True) == \
         'not localized (LOST)'
@@ -74,13 +73,12 @@ def test_stuck_timer():
     t = StuckTimer(60.0, 0.10)
     assert not t.step(0.0, 5.0, (0.0, 0.0))
     assert not t.step(30.0, 5.0, (0.0, 0.0))
-    assert not t.step(59.0, 4.95, (0.05, 0.0))      # 5 cm: not progress yet
+    assert not t.step(59.0, 4.95, (0.05, 0.0))
     assert t.step(60.5, 4.95, (0.05, 0.0))
     assert not t.progressing(60.5)
     t.reset(70.0)
     assert not t.step(70.0, 5.0, (0.0, 0.0))
     assert t.progressing(71.0)
-    # a detour: the remaining distance grows, but the robot drives
     for i in range(1, 20):
         assert not t.step(70.0 + 10 * i, 6.0, (0.2 * i, 0.0))
     t.pause(400.0)

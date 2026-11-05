@@ -6,23 +6,19 @@ import pytest
 from kelo_bringup.depth_noise import (Persistence, TiltEstimator, cell_support, depth_points, fit_floor,
                                       min_height_at, rot_xy, supported_pixels)
 
-# D435 depth 424 x 240, 87 x 58 deg; camera 0.68 m high, 10 deg down, 0.42 m in front of base_link
 W, H = 424, 240
 FX = (W / 2) / math.tan(math.radians(87.0) / 2)
 FY = (H / 2) / math.tan(math.radians(58.0) / 2)
 K = (FX, FY, W / 2, H / 2)
 T = np.array([0.42, 0.0, 0.68])
-OPT = np.array([[0.0, 0.0, 1.0], [-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]])  # optical -> camera_link
+OPT = np.array([[0.0, 0.0, 1.0], [-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]])
 
 
 def cam_rot(pitch, roll=0.0):
-    """camera_link -> base (pitch down positive, as the URDF rpy) times optical -> camera_link."""
     return rot_xy(roll, pitch) @ OPT
 
 
 def render_floor(pitch, roll=0.0, boxes=()):
-    """Depth image (m) of a flat floor seen by a camera with the given true tilt, with boxes
-    (x0, x1, y0, y1, height) standing on it."""
     v, u = np.mgrid[0:H, 0:W]
     rays = np.stack([(u - K[2]) / K[0], (v - K[3]) / K[1], np.ones_like(u, dtype=float)], axis=-1)
     dirs = rays @ cam_rot(pitch, roll).T
@@ -36,7 +32,7 @@ def render_floor(pitch, roll=0.0, boxes=()):
         hit = (tx > 0) & (p[..., 1] >= y0) & (p[..., 1] <= y1) & (p[..., 2] >= 0) & (p[..., 2] <= h)
         t_best = np.where(hit & (tx < t_best), tx, t_best)
     ok = np.isfinite(t_best)
-    depth[ok] = t_best[ok] * 1.0  # z of the optical frame equals the ray parameter (unit z ray)
+    depth[ok] = t_best[ok] * 1.0
     return depth.astype(np.float32)
 
 
@@ -48,8 +44,8 @@ def obstacles(depth, pitch_cfg, min_h=0.06, slope=0.0, denoise=True):
 
 def test_isolated_pixels_are_dropped_and_surfaces_kept():
     d = np.full((20, 20), 2.0, dtype=np.float32)
-    d[5, 5] = 0.8          # speckle in front of the surface
-    d[10, 10:12] = 1.2     # two-pixel flyer
+    d[5, 5] = 0.8
+    d[10, 10:12] = 1.2
     m = supported_pixels(d)
     assert not m[5, 5]
     assert not m[10, 10] and not m[10, 11]
@@ -72,14 +68,13 @@ def test_persistence_needs_two_of_three_frames():
     p = Persistence(3, 2, 0.05)
     a = np.array([[1.0, 0.0]])
     b = np.array([[2.0, 0.0]])
-    assert not p.step(a).any()          # first sight
-    assert p.step(a).all()              # second frame: kept
-    assert not p.step(b).any()          # a flicker elsewhere is not
+    assert not p.step(a).any()
+    assert p.step(a).all()
+    assert not p.step(b).any()
     assert not p.step(np.zeros((0, 2))).any()
 
 
 def test_wrong_pitch_floor_band_is_removed_by_rising_limit():
-    # the camera really looks 12 deg down, hardware.yaml says 10: the floor 2 m ahead rises by ~8 cm
     depth = render_floor(math.radians(12.0))
     assert len(obstacles(depth, math.radians(10.0), slope=0.0)) > 50
     assert len(obstacles(depth, math.radians(10.0), slope=0.0, denoise=True)) > 50
@@ -98,7 +93,7 @@ def test_speckles_on_the_floor_are_removed():
     rng = np.random.default_rng(1)
     depth = render_floor(math.radians(10.0))
     ys, xs = rng.integers(0, H, 60), rng.integers(0, W, 60)
-    depth[ys, xs] *= 0.7    # single pixels much closer than the floor around them
+    depth[ys, xs] *= 0.7
     raw = obstacles(depth, math.radians(10.0), slope=0.03, denoise=False)
     clean = obstacles(depth, math.radians(10.0), slope=0.03, denoise=True)
     assert len(raw) > 0
@@ -126,4 +121,4 @@ def test_tilt_estimator_waits_for_stable_frames():
     assert p == pytest.approx(0.035)
     est2 = TiltEstimator(need=3, min_inliers=10)
     for _ in range(5):
-        assert est2.add((0.0, 0.2, 0.0, 0.95, 500)) is None   # 11 deg: beyond the plausible range
+        assert est2.add((0.0, 0.2, 0.0, 0.95, 500)) is None

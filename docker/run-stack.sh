@@ -1,6 +1,5 @@
 #!/bin/bash
 source /opt/ros/jazzy/setup.bash
-# in the image; the native install (sim_e2e_test.sh E2E_NATIVE=1) has sourced its workspace already
 [ -f /ros2_ws/install/setup.bash ] && source /ros2_ws/install/setup.bash
 set -u
 set -m
@@ -26,9 +25,6 @@ cleanup() {
 }
 trap cleanup TERM INT
 
-# automatic start on the robot (KELO_AUTO=1, default): wait until the robot driver answers on the cable,
-# write its settings (topics, odom_mode, ROS_DOMAIN_ID) and only then start. Nothing on the robot computer
-# is changed: the driver must be running there.
 ROBOT_ENV="${KELO_ROBOT_ENV:-/data/robot.env}"
 load_robot_env() { [ -f "$ROBOT_ENV" ] && { set -a; . "$ROBOT_ENV"; set +a; echo "[kelo] robot settings: $(tr '\n' ' ' < "$ROBOT_ENV")"; }; }
 load_robot_env

@@ -1,20 +1,3 @@
-"""Driving video: the surround view and the colour parking camera side by side as an mp4 in
-/data/videos (demos, looking at what happened).
-
-    ros2 service call /video_recorder/start std_srvs/srv/Trigger     # start a recording
-    ros2 service call /video_recorder/stop std_srvs/srv/Trigger      # stop and close the file
-    ros2 service call /video_recorder/save_clip std_srvs/srv/Trigger # dashcam: save the last seconds
-
-The control panel (Record button) and the web view call these. With `dashcam_s` > 0 (hardware.yaml
-recording.dashcam_s) the last seconds are kept in memory all the time (JPEG frames), and save_clip
-writes them to a file, like a car's dashcam after an incident. Without a recording or the dashcam the
-node does not subscribe to the views, so they are not rendered for it.
-
-Frames are written at a fixed rate (`fps`): the newest image of each view is used, a view without
-images is a black panel. H.264 (plays in browsers and on phones) when OpenCV's FFmpeg has an encoder
-for it, else MPEG-4. A recording stops by itself after `max_minutes` or when less than `min_free_gb`
-is left on the disk. State on /video_recorder/state.
-"""
 import collections
 import os
 import shutil
@@ -37,8 +20,6 @@ FOURCCS = ('avc1', 'mp4v')
 
 
 def compose(frames, height, labels=None):
-    """Images (rgb8 arrays or None) scaled to `height` and put side by side; a missing one is a black
-    4:3 panel. Width and height are even (video encoders need it)."""
     panels = []
     for k, f in enumerate(frames):
         if f is None:
@@ -55,7 +36,6 @@ def compose(frames, height, labels=None):
 
 
 def open_writer(path, fps, size):
-    """cv2.VideoWriter for the first codec that works, and its fourcc."""
     for code in FOURCCS:
         w = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*code), float(fps), size)
         if w.isOpened():
@@ -65,7 +45,6 @@ def open_writer(path, fps, size):
 
 
 def write_clip(path, frames, fps):
-    """JPEG frames (list of bytes) -> mp4. Returns the fourcc used."""
     first = cv2.imdecode(np.frombuffer(frames[0], np.uint8), cv2.IMREAD_COLOR)
     w, code = open_writer(path, fps, (first.shape[1], first.shape[0]))
     try:
@@ -176,7 +155,6 @@ class VideoRecorder(Node):
         if shutil.disk_usage(self.out_dir).free < self.min_free:
             res.success, res.message = False, 'not enough free disk space'
             return res
-        # the file is opened with the first frame: its size comes from the views
         path = os.path.join(self.out_dir, time.strftime('kelo_%Y%m%d_%H%M%S.mp4'))
         self.pending, self.started = path, time.time()
         res.success, res.message = True, path
@@ -248,7 +226,7 @@ def main():
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    node.destroy_node()  # closes a running recording (the mp4 needs its index written)
+    node.destroy_node()
     if rclpy.ok():
         rclpy.shutdown()
 

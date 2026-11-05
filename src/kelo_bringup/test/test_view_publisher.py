@@ -35,7 +35,7 @@ def test_jpeg_only_while_subscribed(node):
     assert pub.raw.get_subscription_count() == 0 and pub.get_subscription_count() == 1
 
     rgb = np.zeros((48, 64, 3), np.uint8)
-    rgb[:, :32] = (255, 0, 0)  # left half red
+    rgb[:, :32] = (255, 0, 0)
     header = Header()
     header.frame_id = 'base_link'
     pub.publish(header, rgb)
@@ -44,7 +44,7 @@ def test_jpeg_only_while_subscribed(node):
     assert msg.format == 'jpeg' and msg.header.frame_id == 'base_link'
     bgr = cv2.imdecode(np.frombuffer(bytes(msg.data), np.uint8), cv2.IMREAD_COLOR)
     assert bgr.shape == (48, 64, 3)
-    assert bgr[24, 10, 2] > 200 and bgr[24, 10, 0] < 60   # still red on the left (RGB order kept)
+    assert bgr[24, 10, 2] > 200 and bgr[24, 10, 0] < 60
 
     node.create_subscription(Image, '/view_publisher_test/image', lambda m: got['raw'].append(m), 2)
     assert spin_until(node, lambda: pub.raw.get_subscription_count() == 1)

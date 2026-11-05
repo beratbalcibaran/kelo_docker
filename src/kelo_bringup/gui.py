@@ -12,15 +12,13 @@ import yaml
 
 try:
     from kelo_bringup.common import MAX_SPEED_RANGE
-except ImportError:  # workspace not sourced
+except ImportError:
     MAX_SPEED_RANGE = (0.05, 0.30)
 
 PACKAGE = "kelo_bringup"
 DATA_DIR = os.environ.get("KELO_DATA_DIR", "/data")
 MAP_YAML = os.path.join(DATA_DIR, "maps", "current.yaml")
-# settings changed in the panel are written here and merged over the packaged hardware.yaml
 OVERRIDE_YAML = os.path.join(DATA_DIR, "hardware.yaml")
-# (hardware.yaml key path, label): read by the stack at start, so a change applies at the next start
 FEATURES = (
     (("perception", "detector"), "Object names (YOLOX)"),
     (("camera", "color"), "Colour camera"),
@@ -32,17 +30,15 @@ FEATURES = (
     (("navigation", "auto_localize"), "Localize by itself at start"),
     (("navigation", "auto_relocalize"), "Re-localize by itself when LOST"),
 )
-# features that are off when hardware.yaml does not name them
 FEATURE_OFF_BY_DEFAULT = {("views", "depth")}
 
 SOURCES = ("sim", "hardware", "replay")
-# robot Ethernet: when it comes up the panel pins DDS to it and looks for the robot driver
 ROBOT_IFACE = os.environ.get("KELO_DDS_IFACE", "enP8p1s0")
 DDS_PIN = '<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="{}"/></Interfaces></General></Domain></CycloneDDS>'
 
 DRIVE_LINEAR = 0.30
 DRIVE_ANGULAR = 0.80
-VY_MAX = 0.30  # velocity_smoother max_velocity[1] in nav2_params.yaml
+VY_MAX = 0.30
 LOG_MAX_LINES = 5000
 
 
@@ -60,9 +56,9 @@ class KeloGUI:
         self.recording = False
         self.stop_off = False
         self.stop_off_pub = None
-        self.nav_status = None          # (time, text) from nav_watch (/kelo/nav_status)
+        self.nav_status = None
         self.nav_sub = None
-        self.health = None              # (time, dict) from health_monitor (/kelo/health)
+        self.health = None
         self.health_sub = None
         self.nodes_win = None
         self.auto_retry = None
@@ -71,10 +67,8 @@ class KeloGUI:
         self.iface_up = None
         self.discovering = False
         self.proposal = []
-        # log lines and UI updates from the worker threads; only the Tk thread touches the widgets
         self.ui_queue = queue.Queue()
         self._build_widgets()
-        # tall enough for every section and the log, within the screen
         self.root.update_idletasks()
         height = min(self.root.winfo_reqheight(), self.root.winfo_screenheight() - 60)
         self.root.geometry(f"860x{height}-0+0")
@@ -92,10 +86,8 @@ class KeloGUI:
         ttk.Label(top, text="KELO", font=("", 16, "bold")).pack(anchor="w")
         self.status_var = tk.StringVar(value="State: Stopped")
         ttk.Label(top, textvariable=self.status_var, font=("", 11)).pack(anchor="w", pady=(2, 0))
-        # nav_watch: READY / NOT READY: why / WAITING: why / DRIVING
         self.robot_state = tk.Label(top, text="Robot: -", font=("", 12, "bold"), anchor="w", fg="#555")
         self.robot_state.pack(anchor="w", fill="x", pady=(2, 0))
-        # health_monitor: crashed / restarted nodes and the Jetson load
         hrow = ttk.Frame(top)
         hrow.pack(anchor="w", fill="x", pady=(0, 8))
         self.health_state = tk.Label(hrow, text="Health: -", font=("", 10), anchor="w", fg="#555",
@@ -127,8 +119,6 @@ class KeloGUI:
         self.find_btn.pack(side="left", padx=4)
         self.apply_btn = ttk.Button(robot, text="Apply settings", command=self.apply_proposal, state="disabled")
         self.apply_btn.pack(side="left", padx=4)
-        # automatic: cable up -> find the robot -> apply its settings -> start navigation (map needed);
-        # nav_watch then localizes by itself and reports READY
         self.auto = tk.BooleanVar(value=os.environ.get("KELO_GUI_AUTO", "1") == "1")
         ttk.Checkbutton(robot, text="Automatic", variable=self.auto).pack(side="left", padx=4)
         self.robot_var = tk.StringVar(value="not searched yet")
@@ -218,7 +208,6 @@ class KeloGUI:
         self.root.focus_set()
 
     def _log(self, text):
-        """Safe from any thread: the text is shown by the Tk thread (_drain_ui_queue)."""
         self.ui_queue.put(text)
 
     def _drain_ui_queue(self):
@@ -236,7 +225,7 @@ class KeloGUI:
             self.log_box.configure(state="normal")
             self.log_box.insert("end", "".join(texts))
             lines = int(self.log_box.index("end-1c").split(".")[0])
-            if lines > LOG_MAX_LINES:  # the stacks log a lot: keep the panel fast over long runs
+            if lines > LOG_MAX_LINES:
                 self.log_box.delete("1.0", f"{lines - LOG_MAX_LINES + 1}.0")
             self.log_box.see("end")
             self.log_box.configure(state="disabled")
@@ -307,7 +296,6 @@ class KeloGUI:
         threading.Thread(target=self._apply_speed, args=(v,), daemon=True).start()
 
     def _apply_speed(self, v):
-        # same values as common.nav2_params writes at start: the controller plans at v, the smoother caps at v
         cmds = [["ros2", "param", "set", "/controller_server", "FollowPath.vx_max", str(v)],
                 ["ros2", "param", "set", "/velocity_smoother", "max_velocity", f"[{v}, {VY_MAX}, {DRIVE_ANGULAR}]"],
                 ["ros2", "param", "set", "/velocity_smoother", "min_velocity", f"[{-v}, {-VY_MAX}, {-DRIVE_ANGULAR}]"]]
@@ -335,7 +323,6 @@ class KeloGUI:
         else:
             self.start_mapping()
 
-    # ---- robot discovery -------------------------------------------------------------------------
     @staticmethod
     def _iface_is_up():
         try:
@@ -359,7 +346,6 @@ class KeloGUI:
     def _on_iface_up(self, at_start):
         uri = os.environ.get("CYCLONEDDS_URI", "")
         if "NetworkInterface" not in uri:
-            # the panel was started without the cable: DDS of the processes started from now on uses it
             os.environ["CYCLONEDDS_URI"] = (uri + "," if uri else "") + DDS_PIN.format(ROBOT_IFACE)
             self._log(f"[GUI] DDS pinned to {ROBOT_IFACE} for the stacks started from now on.\n")
             if self.ros_node is not None:
@@ -424,7 +410,6 @@ class KeloGUI:
         self._auto_start()
 
     def _auto_retry_later(self):
-        """Automatic: the cable is in but the driver is not running yet: look again every 10 s."""
         if not self.auto.get() or not self.iface_up or self.auto_retry is not None:
             return
         def again():
@@ -435,7 +420,6 @@ class KeloGUI:
         self._log("[GUI] Automatic: robot driver not found yet, looking again in 10 s.\n")
 
     def _auto_start(self):
-        """Automatic: start navigation on the saved map (nav_watch localizes by itself and says READY)."""
         if not self.auto.get() or self._running("mapping") or self._running("navigation"):
             return
         if not os.path.isfile(MAP_YAML):
@@ -490,11 +474,10 @@ class KeloGUI:
         self.status_var.set("State: Running -> " + ", ".join(running) if running else "State: Stopped")
         self._show_nav_status(bool(running))
         if self.stop_off and not running:
-            self._set_stop_off(False)   # a new stack always starts with the obstacle stop on
+            self._set_stop_off(False)
         self.root.after(1000, self._refresh_status)
 
     def _show_nav_status(self, running):
-        """Robot line from nav_watch: green READY/DRIVING, amber WAITING, red NOT READY."""
         if running and self.nav_sub is None and self._ensure_drive_pub():
             from rclpy.qos import DurabilityPolicy, QoSProfile
             from std_msgs.msg import String
@@ -529,8 +512,6 @@ class KeloGUI:
             pass
 
     def _show_health(self, running):
-        """Health line: green when every started node is up, red when one is down, amber when one was
-        restarted or the Jetson is near its limits; the load (CPU, GPU, RAM, temperature) after it."""
         if not running or self.health is None or time.time() - self.health[0] > 5.0:
             self.health_state.config(text="Health: -" if not running else "Health: starting...", fg="#555")
         else:
@@ -547,7 +528,6 @@ class KeloGUI:
             self._fill_nodes()
 
     def show_nodes(self):
-        """Window with every node of the stack: state and restarts."""
         if self.nodes_win is not None and self.nodes_win.winfo_exists():
             self.nodes_win.lift()
             return
@@ -630,7 +610,6 @@ class KeloGUI:
                                           f"map:={MAP_YAML}"] + args):
             return
         if self.source.get() == "sim" and self.sim_person.get():
-            # test helper: for every goal a person steps onto the path in front of the robot
             self._start("person", ["ros2", "run", PACKAGE, "sim_person"])
         self._log("[GUI] A start pose is needed: 'Set Initial Pose' (x, y, yaw) or 'Localize' "
                   "(Marvelmind position or global search + turn in place).\n")
@@ -720,14 +699,10 @@ class KeloGUI:
         if key == "rviz":
             from ament_index_python.packages import get_package_share_directory
             cfg = os.path.join(get_package_share_directory(PACKAGE), "rviz", "kelo.rviz")
-            # RViz and its helper (camera layer beside the map)
             return [["ros2", "run", "rviz2", "rviz2", "-d", cfg], ["ros2", "run", PACKAGE, "map_side_view"]]
-        # KELO Camera and KELO Surround windows; the views themselves run in the stack
         return [["ros2", "run", PACKAGE, "camera_view"]]
 
     def _window_watchdog(self):
-        """RViz and the camera windows follow their check boxes while a stack runs; a window that was
-        closed or crashed is reopened (the stack is not affected)."""
         stack_up = self._running("mapping") or self._running("navigation")
         for key, var in (("rviz", self.use_rviz), ("camera", self.use_camera_windows)):
             want = var.get() and stack_up
@@ -769,8 +744,6 @@ class KeloGUI:
     def _foreign_stack(self):
         if self._running("mapping") or self._running("navigation"):
             return False
-        # without the ros2 daemon (its cache still lists a stack stopped a moment ago), and only when the
-        # gate is still there after a few seconds: nodes of a stopped stack can linger briefly in discovery
         for attempt in range(3):
             if attempt:
                 time.sleep(1.0)
@@ -787,7 +760,6 @@ class KeloGUI:
         return name in self.procs and self.procs[name].poll() is None
 
     def _start(self, name, cmd):
-        """Start a process group; False when it was not started (already running, other stack, error)."""
         if name in self.procs and self.procs[name].poll() is None:
             self._log(f"[GUI] '{name}' is already running.\n")
             return False
@@ -890,7 +862,6 @@ class KeloGUI:
         self.stop_off_pub.publish(self._Bool(data=self.stop_off))
 
     def _stop_off_tick(self):
-        # repeated: cmd_vel_gate turns the stop back on by itself if this goes silent
         if self.stop_off:
             self._publish_stop_off()
         self.root.after(1000, self._stop_off_tick)
@@ -916,8 +887,6 @@ class KeloGUI:
             self.cmd_pub.publish(msg)
             self.release_ticks = 5
         elif self.cmd_pub is not None and self.release_ticks > 0:
-            # zero for 0.5 s after the keys are released, then silent: another driver (the web
-            # view joystick) can use the same topic
             self.cmd_pub.publish(self._Twist())
             self.release_ticks -= 1
         self.root.after(100, self._drive_tick)

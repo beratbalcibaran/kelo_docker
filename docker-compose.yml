@@ -81,7 +81,6 @@ services:
       KELO_DDS_IFACE: "${KELO_DDS_IFACE:-enP8p1s0}"
       KELO_ODOM_SOURCE: "${KELO_ODOM_SOURCE:-robot}"
 
-  # object detector on the Jetson GPU (TensorRT, YOLOX-s) for the objects node; see docker/detector/
   detector:
     profiles: ["detector"]
     image: kelo-detector:latest

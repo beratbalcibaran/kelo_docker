@@ -10,8 +10,6 @@ DOMAIN="${E2E_DOMAIN:-77}"
 FAIL=0
 RESULTS=()
 R='source /opt/ros/jazzy/setup.bash; source /ros2_ws/install/setup.bash;'
-# E2E_NATIVE=1: the same phases without Docker, on the native install (workspace KELO_WS, default ../ws
-# next to the repo); the stack runs as a process group on the host, isolated by its ROS domain
 NATIVE="${E2E_NATIVE:-0}"
 DATA=/data
 if [ "$NATIVE" = 1 ]; then
@@ -47,9 +45,6 @@ e2e() {
 if [ "$NATIVE" = 1 ]; then
 kill_stack() {
   [ -n "$STACK_PID" ] || return 0
-  # like 'docker stop -t 30': TERM to run-stack.sh only (it shuts the launch down in order, so the bag
-  # recorder can close its file); whatever is left of the session after 30 s is killed. The session
-  # (setsid), not the process group: run-stack.sh runs the launch in its own group (set -m).
   kill -TERM "$STACK_PID" 2>/dev/null
   for _ in $(seq 1 300); do pgrep -s "$STACK_PID" >/dev/null || break; sleep 0.1; done
   if pgrep -s "$STACK_PID" >/dev/null; then
@@ -58,14 +53,12 @@ kill_stack() {
   fi
   STACK_PID=""
 }
-# the same as /run-stack.sh in the image: "start <mode> [-e VAR=value ...]"
 start() {
   local mode="$1"; shift
   kill_stack
   local envs=(KELO_SOURCE=sim KELO_MODE="$mode" KELO_MAP="$DATA/maps/current.yaml")
   while [ $# -gt 0 ]; do if [ "$1" = -e ]; then envs+=("$2"); shift 2; else shift; fi; done
   : >"$WORK/stack.log"
-  # a background job of a script starts with SIGINT ignored, and ros2 launch would then never shut down
   env --default-signal=INT,QUIT "${envs[@]}" setsid bash -c "$R exec bash $ROOT/docker/run-stack.sh" >"$WORK/stack.log" 2>&1 &
   STACK_PID=$!
 }
@@ -172,7 +165,6 @@ if [[ " $PHASES " == *" B "* ]]; then
   e2e "robot carried away -> LOST, goal refused, Localize finds it again" kidnap
   stop B2
   echo "=== B3: navigation restarted where the robot stands -> last pose restored"
-  # the sim starts where the last saved pose says (map origin = sim start 1, 1, 0 of phase A)
   LP=$(LC_ALL=C awk '/^x:/{x=$2} /^y:/{y=$2} /^yaw_deg:/{a=$2} END{if (x != "") printf "sim_x0:=%.3f sim_y0:=%.3f sim_yaw0:=%.4f", x+1, y+1, a*3.14159265/180}' "$WORK/data/last_pose.yaml" 2>/dev/null)
   echo "[e2e] restart at the last saved pose: ${LP:-none saved}"
   start navigation -e KELO_EXTRA_ARGS="$LP"
@@ -185,7 +177,6 @@ fi
 if [[ " $PHASES " == *" C "* ]]; then
   echo "=== C: replay (A's bag) -> same stack -> map comparison"
   BAG=$(ls -d "$WORK"/data/bags/map_sim_* 2>/dev/null | head -1)
-  # the LiDAR map (save_map also writes <name>_camera.yaml, which sorts first)
   LIVE=$(ls "$WORK"/data/maps/e2e_*.yaml 2>/dev/null | grep -v '_camera\.yaml$' | head -1)
   if [ -z "$BAG" ] || [ -z "$LIVE" ]; then
     record "FAIL replay: phase A bag/map missing"

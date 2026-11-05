@@ -1,14 +1,3 @@
-"""Camera windows for the control panel: KELO Camera with the parking camera views (parking_view) side
-by side, colour on the left, depth on the right, at full resolution and scaled to the window; and
-KELO Surround below the control panel, with the 3D surround view (surround_view) or the mapping
-coverage (coverage_view), switched with the buttons on top.
-
-Double click on the floor in the colour, depth or surround image sends the robot there (Nav2 goal,
-navigation mode); right click cancels the goal. The click goes to the view node that drew the image
-(/kelo/view_click), which knows where that pixel is on the floor.
-
-    ros2 run kelo_bringup camera_view --ros-args -p geometry:=1470x470+0+785 -p surround_geometry:=760x590-0-0
-"""
 import threading
 import time
 import tkinter as tk
@@ -25,18 +14,15 @@ PANES = (('color', 'Colour camera', '/parking_view/color_image'),
 SURROUND = ('surround', 'Surround', '/surround_view/image')
 COVERAGE = ('coverage', 'Coverage', '/coverage_view/image')
 STALE_S = 2.0
-TICK_MS = 40  # window refresh; a pane is only redrawn when a new frame came in
+TICK_MS = 40
 
 
 def ppm(rgb):
-    """rgb8 array -> binary PPM bytes, which Tk's PhotoImage reads without extra libraries."""
     h, w = rgb.shape[:2]
     return b'P6 %d %d 255 ' % (w, h) + np.ascontiguousarray(rgb).tobytes()
 
 
 def to_image(x, y, label_size, shown_size, image_size):
-    """Pixel of the source image under a click at (x, y) in a label that shows the image scaled to
-    shown_size and centred, or None outside the image."""
     (lw, lh), (sw, sh), (iw, ih) = label_size, shown_size, image_size
     ox, oy = (lw - sw) / 2.0, (lh - sh) / 2.0
     u, v = (x - ox) * iw / float(sw), (y - oy) * ih / float(sh)
@@ -46,7 +32,6 @@ def to_image(x, y, label_size, shown_size, image_size):
 
 
 def fit(rgb, width, height):
-    """Scale to fit width x height, keeping the aspect ratio."""
     h, w = rgb.shape[:2]
     s = min(width / float(w), height / float(h))
     if s <= 0:
@@ -56,7 +41,6 @@ def fit(rgb, width, height):
 
 
 def panes():
-    """Colour only, unless the grey depth view is on (hardware.yaml views.depth)."""
     try:
         from kelo_bringup.common import load_hardware
         depth = bool((load_hardware().get('views') or {}).get('depth', False))
@@ -75,8 +59,6 @@ class CameraView(Node):
         self.surround_geometry = self.get_parameter('surround_geometry').value
         self.lock = threading.Lock()
         self.latest = {}
-        # JPEG form of the views (view_publisher): ~40 KB per frame instead of ~2 MB raw, which DDS
-        # delivers without dropping frames
         for key, _, topic in self.panes + (SURROUND, COVERAGE):
             self.create_subscription(CompressedImage, topic + '/compressed', lambda m, k=key: self._image(k, m), 2)
         self.click_pub = self.create_publisher(PointStamped, '/kelo/view_click', 10)
@@ -97,7 +79,6 @@ class CameraView(Node):
             self.latest[key] = (time.time(), rgb)
 
     def frame(self, key):
-        """(arrival time, rgb) of the latest fresh frame, or None."""
         with self.lock:
             item = self.latest.get(key)
         if item is None or time.time() - item[0] > STALE_S:
@@ -158,7 +139,7 @@ class Window:
         lower = self.lower.get()
         other = COVERAGE[0] if lower == SURROUND[0] else SURROUND[0]
         if self.node.frame(lower) is None and self.node.frame(other) is not None:
-            lower = other  # the selected view has no image (e.g. coverage outside mapping)
+            lower = other
         for key, src in [(k, k) for k, _, _ in self.node.panes] + [("lower", lower)]:
             label = self.labels[key]
             item = self.node.frame(src)
@@ -171,7 +152,7 @@ class Window:
             stamp, rgb = item
             size = (label.winfo_width(), label.winfo_height())
             if self.drawn.get(key) == (src, stamp, size):
-                continue  # nothing new for this pane
+                continue
             self.drawn[key] = (src, stamp, size)
             img = fit(rgb, label.winfo_width() - 4, label.winfo_height() - 4)
             photo = tk.PhotoImage(data=ppm(img), format='PPM')

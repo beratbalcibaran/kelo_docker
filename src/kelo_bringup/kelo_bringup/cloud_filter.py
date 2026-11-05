@@ -32,8 +32,6 @@ class CloudFilter(Node):
         d('depth_topic', '/camera/camera/depth/image_rect_raw')
         d('info_topic', '/camera/camera/depth/camera_info')
         d('output_topic', '/camera/points_filtered')
-        # the collision monitors: range and height limits only (no noise filter, no persistence delay);
-        # they keep no memory, so a noise point there is a short stop, never a square that stays
         d('safety_topic', '/camera/points_safety')
         d('safety_max_range', 2.5)
         d('clearing_topic', '/camera/points_clearing')
@@ -46,17 +44,11 @@ class CloudFilter(Node):
         d('max_range', 2.5)
         d('min_height', 0.06)
         d('max_height', 1.20)
-        # clearing of the camera's lower blind wedge where the LiDAR sees that the way is free
         d('blind_clearing', True)
         d('scan_topic', '/scan')
         d('front_x', 0.45)
-        # end points of the wedge rays: in the voxel row of the LiDAR plane (a ray does not clear its end
-        # voxel: that row and the ones below keep their marks) and in the top voxel row, above the
-        # marking limit (the rows below it are cleared)
         d('blind_clear_above_lidar', 0.02)
         d('blind_clear_top', 1.26)
-        # noise filter (depth_noise): isolated pixels, height limit rising with distance, points per cell,
-        # cells seen in k of the last n frames (odom frame)
         d('denoise', True)
         d('denoise_min_neighbors', 3)
         d('denoise_rel_tol', 0.05)
@@ -68,8 +60,6 @@ class CloudFilter(Node):
         d('persistence_frames', 3)
         d('persistence_min', 2)
         d('odom_frame', 'odom')
-        # camera tilt from the floor while the robot stands still (at every start); the result is applied
-        # at once and saved for the next start (applied before the new estimate is done)
         d('auto_tilt', True)
         d('tilt_file', '/data/camera_tilt.yaml')
         d('tilt_max_deg', 6.0)
@@ -133,7 +123,6 @@ class CloudFilter(Node):
         self.tilt_pub.publish(String(data=f'{source} roll {math.degrees(r):+.2f} deg pitch {math.degrees(p):+.2f} deg'))
 
     def _still(self):
-        """True when odom -> base did not move since the last call (robot standing)."""
         try:
             t = self.buf.lookup_transform(self.odom_frame, self.base, Time()).transform
         except TransformException:
@@ -175,7 +164,6 @@ class CloudFilter(Node):
                      s_ * pts[:, 0] + c * pts[:, 1] + t.translation.y]
 
     def obstacle_points(self, depth, stride, tf):
-        """Filtered obstacle points (base frame) of one depth image."""
         rot = self.corr @ tf[0]
         pts, dist = dn.depth_points(depth, self.k, stride, self.rng, rot, tf[1], denoise=self.denoise,
                                     **self.dn_kw)
@@ -197,10 +185,6 @@ class CloudFilter(Node):
         self.scan = msg
 
     def _blind_clearing(self, stamp, tf):
-        """Clearing end points in the camera's blind wedges (under and over the image, close to the robot),
-        above the LiDAR plane, where the scan passes freely (a recent scan only). Objects below the LiDAR
-        plane keep their voxels; a real object that reaches above it is marked again by the part the
-        camera sees. Over the image the wedge starts at the camera height, above the robot body."""
         s = self.scan
         if s is None or abs((Time.from_msg(stamp) - Time.from_msg(s.header.stamp)).nanoseconds) > 0.5e9:
             return np.zeros((0, 3))
@@ -208,7 +192,6 @@ class CloudFilter(Node):
         if laser is None:
             return np.zeros((0, 3))
         lrot, ltrans = laser
-        # lower wedge down to just above the LiDAR plane, upper wedge up to the obstacle height limit
         pts = np.concatenate([
             blind_wedge_points(self.k, *self.img_size, tf[0], tf[1], ltrans[2] + self.blind_above, self.front_x),
             blind_wedge_points(self.k, *self.img_size, tf[0], tf[1], self.blind_top, self.front_x)])
@@ -257,8 +240,6 @@ class CloudFilter(Node):
         pts = self.obstacle_points(depth, stride, tf)
         self.pub.publish(self._cloud(msg.header.stamp, pts))
         tf = (self.corr @ tf[0], tf[1])
-        # rays to surfaces beyond max_range clear up to max_range (pulled back, not dropped): a person
-        # walking in front of a far wall must not leave their trail in the voxel layer
         clear = clearing_rays(depth, self.k, stride * self.clear_stride, self.rng[0], self.rng[1],
                               tf[0], tf[1])
         clear = clear[clear[:, 2] <= self.hgt[1]]

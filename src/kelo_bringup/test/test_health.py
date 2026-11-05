@@ -23,13 +23,13 @@ def test_node_lifecycle_of_states():
     assert st['amcl'] == 'down' and ('amcl', 'ok', 'down') in ch
     st, _, _ = t.step(3.0, {'amcl'})
     assert st['amcl'] == 'ok' and t.restarts['amcl'] == 1
-    assert st['controller_server'] == 'waiting'     # Nav2 not started yet is no alarm
+    assert st['controller_server'] == 'waiting'
 
 
 def test_quick_restart_is_seen_by_its_new_pid():
     t = hl.NodeTracker(['controller_server'])
     t.step(0.0, {'controller_server'}, {'controller_server': 'active'}, {'controller_server': 10})
-    states = {'controller_server': 'active'}       # stale: read before the crash
+    states = {'controller_server': 'active'}
     st, _, restarted = t.step(1.0, {'controller_server'}, states, {'controller_server': 11})
     assert restarted == ['controller_server'] and t.restarts['controller_server'] == 1
     assert 'controller_server' not in states and st['controller_server'] == 'inactive'
@@ -40,16 +40,16 @@ def test_quick_restart_is_seen_by_its_new_pid():
 def test_respawned_lifecycle_node_is_activated_again_after_a_delay():
     t = hl.NodeTracker(['controller_server', 'amcl'])
     t.step(0.0, {'controller_server', 'amcl'}, {'controller_server': 'unconfigured'})
-    assert t.to_activate(10.0, 3.0, {'controller_server'}) == []      # still starting: not ours
+    assert t.to_activate(10.0, 3.0, {'controller_server'}) == []
     t.step(1.0, {'controller_server', 'amcl'}, {'controller_server': 'active', 'amcl': 'active'})
-    t.step(2.0, {'amcl'}, {'amcl': 'active'})                           # crash
+    t.step(2.0, {'amcl'}, {'amcl': 'active'})
     st, _, _ = t.step(2.5, {'controller_server', 'amcl'}, {'controller_server': 'active', 'amcl': 'active'})
-    assert st['controller_server'] == 'inactive'      # back, the stale 'active' is dropped
+    assert st['controller_server'] == 'inactive'
     st, _, _ = t.step(3.0, {'controller_server', 'amcl'}, {'controller_server': 'unconfigured', 'amcl': 'active'})
     assert st['controller_server'] == 'inactive' and t.restarts['controller_server'] == 1
     assert t.to_activate(4.0, 3.0, {'controller_server'}) == []
     assert t.to_activate(6.0, 3.0, {'controller_server'}) == ['controller_server']
-    assert t.to_activate(6.0, 3.0, set()) == []                         # bonded manager handles it
+    assert t.to_activate(6.0, 3.0, set()) == []
     t.activated('controller_server', 6.0)
     assert t.to_activate(7.0, 3.0, {'controller_server'}) == []
     st, _, _ = t.step(8.0, {'controller_server', 'amcl'}, {'controller_server': 'active', 'amcl': 'active'})
@@ -109,8 +109,6 @@ def test_health_monitor_watches_every_node_and_nav2_is_in_it():
 
 
 def test_long_running_nodes_respawn():
-    # not respawned: lifecycle managers (autostart on active nodes fails), slam_toolbox (the map would
-    # be lost), sim_robot (the simulated robot would jump back to the start)
     keep_out = {'sim_robot', 'slam_toolbox'}
     for mode in ('navigation', 'mapping', 'sensors'):
         for source in ('sim', 'hardware'):

@@ -1,11 +1,3 @@
-"""YOLOX on the Jetson GPU with TensorRT (FP16), for the detector service in the kelo-detector container
-(docker/detector/). Same pre- and post-processing as detector.Yolox, so the two give the same boxes.
-
-The engine is built from the ONNX model with trtexec on the first start (a few minutes) and cached
-next to it: an engine only runs on the TensorRT version and GPU it was built for. GPU memory is
-handled through the CUDA runtime with ctypes, so no extra Python packages (pycuda, cuda-python)
-are needed. Not used in the ROS container.
-"""
 import ctypes
 import ctypes.util
 import os
@@ -65,7 +57,6 @@ class _Cuda:
 
 
 def build_engine(onnx, engine, fp16=True):
-    """ONNX -> TensorRT engine file with trtexec."""
     exe = next((e for e in TRTEXEC if os.path.isfile(e)), 'trtexec')
     tmp = engine + '.part'
     cmd = [exe, f'--onnx={onnx}', f'--saveEngine={tmp}'] + (['--fp16'] if fp16 else [])
@@ -78,7 +69,6 @@ class TrtYolox:
     def __init__(self, model, engine=None, engine_dir=None, score_min=0.3, classes=None, fp16=True):
         import tensorrt as trt
         if engine is None:
-            # named after the TensorRT version: after a JetPack update a new engine is built
             stem = os.path.splitext(os.path.basename(model))[0] + f'_trt{trt.__version__}_{"fp16" if fp16 else "fp32"}.engine'
             folder = engine_dir or os.path.dirname(model)
             os.makedirs(folder, exist_ok=True)
@@ -110,8 +100,7 @@ class TrtYolox:
         self.size = int(self.host[self.input].shape[-1])
 
     def detect(self, rgb):
-        """rgb8 image -> [(label, score, x0, y0, x1, y1)]."""
-        img, r = letterbox(rgb[..., ::-1], self.size)  # the model was trained on BGR
+        img, r = letterbox(rgb[..., ::-1], self.size)
         blob = np.ascontiguousarray(img.transpose(2, 0, 1)[None], dtype=self.host[self.input].dtype)
         self.cuda.to_device(self.dev[self.input], blob)
         if not self.context.execute_async_v3(self.cuda.stream.value):

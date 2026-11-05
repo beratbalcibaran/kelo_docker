@@ -1,27 +1,3 @@
-"""Front camera view like a car's parking camera, for the camera window (camera_view) and RViz
-(/parking_view/image, /parking_view/color_image).
-
-The D435 depth image is drawn in grey (near = bright). On top of it:
-- guide lines on the floor at the robot width plus `margin` on each side, from the front edge forward,
-  with cross bars every 0.5 m (red up to 0.5 m, yellow up to 1.0 m, green beyond). They follow the
-  commanded velocity (cmd_vel) like a car's guide lines follow the steering wheel: the lines show
-  where the front corners go in the next `length` metres; standing still they point straight ahead;
-- every pixel whose 3D point is an obstacle (height `min_height`..`max_height` above the floor, the
-  same band as cloud_filter) is coloured: red inside the corridor swept by the robot along the guide
-  lines, amber up to `side` metres beside it (walls further away stay grey);
-- while Nav2 drives to a goal, the plan as a blue strip on the floor with arrows flowing towards the
-  goal, hidden behind obstacles like a road in a game, and a pin on the goal when it is in view;
-- on the colour image, the objects the detector names (objects node) with their distance;
-- the distance from the front edge to the nearest obstacle in the corridor, also published on
-  /parking_view/nearest (m, -1 when the corridor is free), the speed and the distance left to the goal.
-With `camera.color: true` the same is drawn on the colour image (/parking_view/color_image): the floor
-drawings are projected with the colour camera, the obstacle points found in the depth image are
-projected into it. Display only: the costmaps and the collision monitor do not use it.
-- people: where they walk in the next 3 s as a dotted line on the floor; WAITING FOR PERSON / the
-  speed limit near people in the status bar (social node).
-Double click on the floor in an image (camera_view, web_view) sends the robot there, right click
-cancels the goal. Rendered only while someone watches.
-"""
 import math
 
 import cv2
@@ -48,11 +24,6 @@ FLOOR_Z = 0.04
 
 def classify(depth, k, rot, trans, front, half_width, length, rng, hgt, side=0.4, poses=None, s=None,
              rear=None):
-    """Obstacle masks of a depth image (m): (inside the corridor, up to `side` beside it), the
-    distance from the front edge to each corridor pixel (inf elsewhere) and the pixels in the base
-    frame. Without `poses` the corridor is straight ahead; with the predicted poses (and the distance
-    `s` travelled at each, scene.predict_poses) it is the area the footprint (front edge `front`,
-    back edge `rear`) sweeps along them."""
     fx, fy, cx, cy = k
     v, u = np.mgrid[0:depth.shape[0], 0:depth.shape[1]]
     z = depth
@@ -85,7 +56,6 @@ def classify(depth, k, rot, trans, front, half_width, length, rng, hgt, side=0.4
 
 
 def nearest(dist, min_pixels):
-    """Distance of the min_pixels-th nearest corridor pixel (one noisy pixel is not an obstacle)."""
     d = dist[np.isfinite(dist)]
     if d.size < min_pixels:
         return None
@@ -93,7 +63,6 @@ def nearest(dist, min_pixels):
 
 
 def project(points, k, rot, trans):
-    """Base frame points -> pixel coordinates (None for points behind the camera)."""
     fx, fy, cx, cy = k
     out = []
     for p in points:
@@ -103,7 +72,6 @@ def project(points, k, rot, trans):
 
 
 def project_many(points, k, rot, trans):
-    """Base frame points (N x 3) -> pixel columns, rows and a mask of the points in front of the camera."""
     fx, fy, cx, cy = k
     c = (np.asarray(points, dtype=float) - np.asarray(trans)) @ np.asarray(rot)
     ok = c[:, 2] > 0.05
@@ -112,7 +80,6 @@ def project_many(points, k, rot, trans):
 
 
 def floor_pixels(xy, k, rot, trans):
-    """Floor points (N x 2, base frame) -> int pixel array N x 2 and the mask of the usable ones."""
     xy = np.asarray(xy, dtype=float).reshape(-1, 2)
     u, v, ok = project_many(np.column_stack([xy, np.zeros(len(xy))]), k, rot, trans)
     ok &= (np.abs(u) < 1e5) & (np.abs(v) < 1e5)
@@ -120,7 +87,6 @@ def floor_pixels(xy, k, rot, trans):
 
 
 def decode_depth(msg):
-    """Depth image in metres (0 = no measurement), or None for an unsupported encoding."""
     if msg.encoding == '16UC1':
         dt = np.dtype('>u2' if msg.is_bigendian else '<u2')
         depth = np.frombuffer(msg.data, dtype=dt).reshape(msg.height, msg.step // 2)[:, :msg.width]
@@ -133,7 +99,6 @@ def decode_depth(msg):
 
 
 def decode_color(msg):
-    """rgb8 image from an rgb8/bgr8 message, or None."""
     if msg.encoding not in ('rgb8', 'bgr8'):
         return None
     img = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.step)[:, :msg.width * 3]
@@ -146,8 +111,6 @@ def band_color(d):
 
 
 def draw_path(img, solid, path, k, rot, trans, t, half_width=0.22, speed=0.8):
-    """Nav2 plan as a translucent blue strip on the floor with arrows flowing along it; pixels in
-    `solid` (an obstacle seen in front of the floor) are left alone, so the strip passes behind them."""
     pts, s = scene.resample(path, 0.1)
     if len(pts) < 2:
         return
@@ -174,7 +137,6 @@ def draw_path(img, solid, path, k, rot, trans, t, half_width=0.22, speed=0.8):
 
 
 def draw_pin(img, xy, k, rot, trans, text):
-    """Goal pin: a post from the floor to 1 m with a ball and a label."""
     a, b = project([(xy[0], xy[1], 0.0), (xy[0], xy[1], 1.0)], k, rot, trans)
     if a is None or b is None or not (0 <= a[0] < img.shape[1] and 0 <= a[1] < img.shape[0]):
         return
@@ -191,7 +153,6 @@ def draw_pin(img, xy, k, rot, trans, text):
 
 
 def label(img, org, text, color, scale=0.55):
-    """Text on a dark chip with a coloured edge."""
     (w, h), base = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
     x, y = int(org[0]), int(org[1])
     x = min(max(x, 0), max(img.shape[1] - w - 10, 0))
@@ -202,7 +163,6 @@ def label(img, org, text, color, scale=0.55):
 
 
 def draw_box(img, box, color, text):
-    """Detection box drawn as corner brackets with a label above it."""
     x0, y0, x1, y1 = (int(round(c)) for c in box)
     n = max(8, min(x1 - x0, y1 - y0) // 4)
     for (px, py), (dx, dy) in (((x0, y0), (1, 1)), ((x1, y0), (-1, 1)), ((x0, y1), (1, -1)), ((x1, y1), (-1, -1))):
@@ -233,8 +193,6 @@ class ParkingView(Node):
         d('width', 848)
         d('rate_hz', 5.0)
         d('path_length', 8.0)
-        # grey depth image (hardware.yaml views.depth): off by default, the colour image keeps the obstacle
-        # drawings found in the depth image
         d('depth_view', bool((hw.get('views') or {}).get('depth', False)))
         g = lambda n: self.get_parameter(n).value
         self.base = g('base_frame')
@@ -255,7 +213,7 @@ class ParkingView(Node):
         self.color = None
         self.tfs = {}
         self.last = 0.0
-        self.models = {}  # pane -> (k of the published image, rot, trans): for clicks
+        self.models = {}
         self.buf = Buffer()
         self.listener = TransformListener(self.buf, self)
         self.inputs = DriveInputs(self, hw, self.buf)
@@ -379,7 +337,6 @@ class ParkingView(Node):
     def _render_color(self, rgb, beside_pts, inside_pts, solid_pts, tf, sc):
         img, k, s = self._scaled(rgb, self.k_color)
         self.models['color'] = (k, tf[0], tf[1])
-        # one depth pixel covers about this many colour pixels on screen
         r = max(1, int(round(s * self.k_color[0] / max(self.k[0], 1e-6))))
         kernel = np.ones((2 * r + 1, 2 * r + 1), np.uint8)
         for pts, color in ((beside_pts, AMBER), (inside_pts, RED)):
@@ -393,8 +350,6 @@ class ParkingView(Node):
         for lab, score, x0, y0, x1, y1, xy in self.inputs.detections():
             boxes.append((x0 * s, y0 * s, x1 * s, y1 * s))
             self._box(img, boxes[-1], lab, xy)
-        # named objects the detector does not see in this image (tracked by the LiDAR, or the
-        # simulator's people): their 3D box projected into the image
         for _, lab, _, x, y, sx, sy, sz, _, _ in self.inputs.objects_in_base():
             if lab == 'obstacle':
                 continue
@@ -427,8 +382,6 @@ class ParkingView(Node):
         self._hud(img, sc)
 
     def _guides(self, img, k, tf, poses, s, near):
-        """Paths of the two front corners (s = distance the front edge has travelled), a dark
-        outline first and the distance colours on top."""
         tracks = [floor_pixels(tr, k, tf[0], tf[1]) for tr in scene.edge_tracks(poses, self.front, self.half_w)]
         for thick, colored in ((7, False), (4, True)):
             for i in range(len(s) - 1):
@@ -450,7 +403,6 @@ class ParkingView(Node):
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1, cv2.LINE_AA)
 
     def _people_paths(self, img, k, tf):
-        """Where each person walks in the next 3 s: dots on the floor, fading with time."""
         for _, lab, _, x, y, _, _, _, vx, vy in self.inputs.objects_in_base():
             if lab != 'person':
                 continue
@@ -474,7 +426,6 @@ class ParkingView(Node):
         blocking, limit = self.inputs.social_state()
         top = 'WAITING FOR PERSON' if blocking else (f'PERSON NEAR - SPEED {limit:.0f}%' if limit else None)
         note = self.inputs.note()
-        # top right: the detection labels sit at the top left of their boxes
         for i, line in enumerate(t for t in (top, note) if t):
             (tw, _), _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
             label(img, (w - tw - 20, 10 + 34 * i), line, (150, 200, 255) if line == top else (255, 230, 120))

@@ -30,8 +30,6 @@ class OdomFilter(Node):
         d('lin_err_e', [0.0])
         d('max_age_s', 0.5)
         d('publish_tf', True)
-        # robot clock: the stamps of the robot's odometry are moved onto this computer's clock when they
-        # are more than `restamp_above_s` off (the robot computer has no chrony; robot.sh time is manual)
         d('restamp', True)
         d('restamp_above_s', 0.1)
         g = lambda n: self.get_parameter(n).value
@@ -48,7 +46,7 @@ class OdomFilter(Node):
         self.restamp, self.restamp_above = bool(g('restamp')), float(g('restamp_above_s'))
         self.offsets = []
         self.offset = 0.0
-        self.sent = None            # (x, y) of the last odom -> base TF we sent
+        self.sent = None
         self.conflict = False
         self.tf = TransformBroadcaster(self)
         self.pub = self.create_publisher(Odometry, g('output_topic'), 10)
@@ -61,8 +59,6 @@ class OdomFilter(Node):
         self.get_logger().info(f'odom_filter: yaw k table {yaw_k}, linear error table {lin}')
 
     def _tf_cb(self, msg):
-        """Another publisher of odom -> base_link (the robot driver with its own TF on): two owners make
-        the robot jump between two poses. Ours is stopped and the clash reported (nav_watch: not ready)."""
         if self.conflict or self.sent is None:
             return
         for t in msg.transforms:
@@ -79,7 +75,6 @@ class OdomFilter(Node):
                 return
 
     def _stamp(self, msg):
-        """Header stamp of the robot's message, moved onto this clock when the clocks differ."""
         raw = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         now = self.get_clock().now().nanoseconds * 1e-9
         if not self.restamp or raw <= 0.0:
@@ -100,7 +95,7 @@ class OdomFilter(Node):
 
     def _cb(self, msg):
         stamp = self._stamp(msg)
-        raw = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9   # dt: the robot's own clock
+        raw = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         age = self.get_clock().now().nanoseconds * 1e-9 - stamp
         if age > self.max_age:
             self.get_logger().warn(f'stale odom dropped ({age:.2f} s)', throttle_duration_sec=2.0)
@@ -146,7 +141,7 @@ class OdomFilter(Node):
         out.twist.covariance = msg.twist.covariance
         self.pub.publish(out)
         if self.publish_tf and not self.conflict:
-            self.sent = (self.sent or ())[-9:] + ((self.x, self.y),)   # our TFs come back on /tf a little later
+            self.sent = (self.sent or ())[-9:] + ((self.x, self.y),)
             t = TransformStamped()
             t.header = out.header
             t.child_frame_id = self.base_frame

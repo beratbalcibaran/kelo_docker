@@ -1,16 +1,3 @@
-"""Object detector as a small TCP service, so that the model can run in another process or container
-(on the Jetson: TensorRT in the kelo-detector container, docker/detector/) while the objects node stays
-in the ROS container.
-
-Protocol (one request after another on a connection, all lengths 4-byte big-endian):
-  request:  header length, JSON {"w", "h"}, image length, raw rgb8 pixels (h x w x 3)
-  response: body length, JSON {"backend": name, "ms": inference time, "dets": [[label, score, x0, y0, x1, y1], ...]}
-
-The server takes any detector with `detect(rgb) -> [(label, score, x0, y0, x1, y1)]` (detector.Yolox on
-the CPU, trt_detector.TrtYolox on the GPU). No ROS imports: the detector container has no ROS.
-
-    python3 -m kelo_bringup.detector_service --backend opencv --model /opt/kelo/models/yolox_tiny.onnx
-"""
 import argparse
 import json
 import socket
@@ -46,8 +33,6 @@ def _recv_block(sock, limit=64 << 20):
 
 
 class RemoteDetector:
-    """Client with the interface of detector.Yolox. A failed call raises; the caller falls back to
-    its local detector and tries the service again later."""
 
     def __init__(self, host='127.0.0.1', port=DEFAULT_PORT, timeout=1.0, classes=None):
         self.addr, self.timeout = (host, int(port)), float(timeout)
@@ -105,11 +90,11 @@ class _Handler(socketserver.BaseRequestHandler):
                     raise ValueError(f'image is {len(data)} bytes, expected {w}x{h}x3')
                 rgb = np.frombuffer(data, dtype=np.uint8).reshape(h, w, 3)
                 t0 = time.time()
-                with srv.lock:  # one inference at a time on the device
+                with srv.lock:
                     dets = srv.detector.detect(rgb)
                 body = {'backend': srv.backend, 'ms': round((time.time() - t0) * 1000.0, 1),
                         'dets': [[d[0], round(float(d[1]), 3)] + [round(float(v), 1) for v in d[2:6]] for d in dets]}
-            except Exception as exc:  # report, keep the connection
+            except Exception as exc:
                 body = {'error': f'{type(exc).__name__}: {exc}'}
             try:
                 _send_block(self.request, json.dumps(body).encode())
@@ -149,7 +134,6 @@ def main(argv=None):
     ap.add_argument('--port', type=int, default=DEFAULT_PORT)
     a = ap.parse_args(argv)
     det = make_detector(a.backend, a.model, a.size, a.score_min, a.engine, a.engine_dir)
-    # first inference outside the timing of the clients (CUDA context, kernel selection)
     det.detect(np.zeros((480, 848, 3), np.uint8))
     srv = Server(det, a.backend, a.host, a.port)
     print(f'[detector] {a.backend} {a.model} listening on {a.host}:{a.port}', flush=True)

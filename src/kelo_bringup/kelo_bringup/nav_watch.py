@@ -1,22 +1,3 @@
-"""Navigation watchdog: says why the robot is not driving, keeps it from driving when it is not ready,
-and recovers by itself.
-
-- /kelo/ready (Bool, latched) and /kelo/nav_status (String, latched): READY, or the first missing piece
-  (odometry, robot clock, odom TF clash, LiDAR, camera, navigation, localization); while a goal runs, why
-  it waits (person, collision monitor stop, obstacle on the path at x/y, goal in an obstacle, no path).
-  The behaviour tree itself only logs "Running wait".
-- a goal sent while not ready is cancelled with the reason (running goals are left to the safety chain).
-- a goal that makes no progress for `stuck_timeout_s` (default 60 s) is cancelled, with the reason.
-- LOST (loc_monitor cancels the goal): the robot localizes again by itself (from the last good pose,
-  then the whole map), and the same goal is sent again (`auto_relocalize`, at most twice per goal).
-- at start, when nobody localized the robot (no Marvelmind, last pose did not fit): `localize` runs by
-  itself (`auto_localize`; it turns in place through the safety chain).
-- incidents (long wait, LOST, given-up goal): the last minutes of sensor data are written to
-  /data/incidents (rosbag2 snapshot recorder of the stack) for replay.
-
-Goals are remembered from /kelo/nav_goal (panel, views, send_goal) and /goal_pose (RViz 2D Goal Pose);
-a goal from another action client is watched but not sent again.
-"""
 import json
 import math
 import os
@@ -90,13 +71,13 @@ class NavWatch(Node):
         self.grid = None
         self.path, self.plan_t = None, None
         self.remaining, self.recoveries = None, 0
-        self.goal_id = None             # bytes of the active goal
+        self.goal_id = None
         self.goal_t = None
-        self.goal_pose = None           # PoseStamped of the active goal (None: unknown sender)
+        self.goal_pose = None
         self.last_goal_msg = (0.0, None)
         self.reloc_count = 0
-        self.resume_pose = None         # goal to send again after the relocalization
-        self.resume_t = 0.0             # when nav_watch itself sent a goal again
+        self.resume_pose = None
+        self.resume_t = 0.0
         self.loc_proc, self.loc_kind = None, None
         self.auto_loc_done = False
         self.incident_goal = None
@@ -136,7 +117,6 @@ class NavWatch(Node):
         self.get_logger().info(f'nav_watch: stuck timeout {self.stuck.timeout:.0f} s, auto_localize '
                                f'{self.auto_loc}, auto_relocalize {self.auto_reloc}')
 
-    # ---- inputs
     def _seen(self, key):
         self.seen[key] = time.time()
 
@@ -188,7 +168,6 @@ class NavWatch(Node):
         if gid != self.goal_id:
             self._new_goal(gid)
 
-    # ---- goals
     def _new_goal(self, gid):
         now = time.time()
         t, msg = self.last_goal_msg
@@ -202,7 +181,7 @@ class NavWatch(Node):
             self.reloc_count = 0
         self.resume_pose = None
         if self.refuse:
-            ready = self._readiness(now)      # now, not the last tick's: a goal right after Localize is fine
+            ready = self._readiness(now)
             if not ready[0]:
                 self._cancel(f'goal refused: {ready[1]}')
                 return
@@ -234,7 +213,6 @@ class NavWatch(Node):
         self.nav.send_goal_async(goal)
         return True
 
-    # ---- localization
     def _on_lost(self, prev):
         self._incident('lost')
         if not self.auto_reloc or self.loc_proc is not None:
@@ -284,7 +262,6 @@ class NavWatch(Node):
         self._set_status('could not localize by itself: give the pose with "Set Initial Pose", then "Localize"',
                          force=True)
 
-    # ---- incidents
     def _incident(self, why):
         now = time.time()
         if now - self.incident_t < 60.0 or not self.snap_cli.service_is_ready():
@@ -293,11 +270,9 @@ class NavWatch(Node):
         self.get_logger().warn(f'incident ({why}): last minutes of sensor data saved to /data/incidents')
         self.snap_cli.call_async(self._Snapshot.Request())
 
-    # ---- status
     def _set_status(self, text, force=False):
         now = time.time()
         if text != self.status_text or force or now - self.status_t > 5.0:
-            # the log only when the kind changes (not every 'DRIVING (5.4 m left)')
             if text.split(' (')[0] != (self.status_text or '').split(' (')[0]:
                 self.get_logger().info(f'STATUS {text}')
             self.status_text, self.status_t = text, now
@@ -311,7 +286,6 @@ class NavWatch(Node):
         return t.translation.x, t.translation.y
 
     def _safe_tick(self):
-        """An error in one tick is logged, the watchdog keeps running (and keeps the goal it remembers)."""
         try:
             self._tick()
         except Exception as exc:  # noqa: BLE001
@@ -325,7 +299,6 @@ class NavWatch(Node):
         if ready != self.ready:
             if ready[0] != self.ready[0]:
                 self.ready_pub.publish(Bool(data=ready[0]))
-                # one severity per call site (rclpy raises ValueError otherwise)
                 if ready[0]:
                     self.get_logger().info('READY: goals are accepted')
                 else:
@@ -343,9 +316,6 @@ class NavWatch(Node):
         if self.goal_pose is not None and self.grid is not None:
             p = self.goal_pose.pose.position
             goal_cost = self.grid.cost(p.x, p.y)
-        # the tree plans once per goal and keeps the path while it is free (no periodic replanning): the
-        # age of the plan says nothing. "No path" = no plan at all for this goal after 5 s; a path that
-        # closes later shows up as an obstacle on the path.
         if self.plan_t is not None or (self.goal_t is not None and now - self.goal_t < 5.0):
             plan_age = 0.0
         else:
@@ -387,7 +357,6 @@ class NavWatch(Node):
                             nl.broken_nav_nodes(self.health))
 
     def _maybe_auto_localize(self, now, nav_up):
-        # not waiting for Nav2: it starts only once AMCL has a pose (wait_for_tf map -> base_link)
         if not self.auto_loc or self.auto_loc_done or self.loc_proc is not None:
             return
         if self.loc_state not in (None, '', 'UNKNOWN'):

@@ -63,7 +63,6 @@ RUN set -e; cd /ros2_ws/src && mkdir rf2o_laser_odometry && cd rf2o_laser_odomet
  && cd /ros2_ws && . /opt/ros/jazzy/setup.sh \
  && colcon build --packages-select rf2o_laser_odometry --cmake-args -DCMAKE_BUILD_TYPE=Release
 
-# object detection for the driver views (objects node): vision_msgs and the YOLOX-tiny COCO model
 RUN apt-get update && apt-get install -y --no-install-recommends ros-jazzy-vision-msgs \
     && rm -rf /var/lib/apt/lists/*
 ARG YOLOX_URL=https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.onnx
@@ -72,7 +71,6 @@ RUN mkdir -p /opt/kelo/models \
  && curl -fsSL -o /opt/kelo/models/yolox_tiny.onnx "${YOLOX_URL}" \
  && echo "${YOLOX_SHA256}  /opt/kelo/models/yolox_tiny.onnx" | sha256sum -c -
 
-# behaviour tree node for the people-aware navigation (IsPersonBlocking)
 COPY src/kelo_bt_nodes /ros2_ws/src/kelo_bt_nodes
 RUN cd /ros2_ws \
  && . /opt/ros/jazzy/setup.sh && . install/setup.sh \

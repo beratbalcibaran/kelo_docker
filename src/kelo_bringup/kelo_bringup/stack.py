@@ -205,8 +205,6 @@ def build(opts, hw=None):
 
 
 def node_names(actions):
-    """Names of the Nodes started by these launch actions, also those started later by a timer or an
-    event handler (Nav2 starts once map -> base_link exists)."""
     out = []
     for a in actions:
         if isinstance(a, Node):
@@ -223,8 +221,6 @@ def node_names(actions):
 
 
 def health_monitor(acts, extra=()):
-    """Node states (every long-running node respawns), Nav2 nodes activated again after a restart
-    (lifecycle_manager_navigation has no bonds), Jetson load: /kelo/health."""
     names = list(dict.fromkeys(node_names(acts) + list(extra)))
     return Node(package='kelo_bringup', executable='health_monitor', name='health_monitor', output='screen',
                 respawn=True, respawn_delay=2.0, parameters=[{
@@ -232,8 +228,6 @@ def health_monitor(acts, extra=()):
 
 
 def _driver_views(hw, sens, mode, opts):
-    """Objects and the people-aware navigation, the driver views (rendered only while watched), the
-    video recorder and the web view."""
     def node(exe, **kw):
         return Node(package='kelo_bringup', executable=exe, name=exe, output='screen', respawn=True,
                     respawn_delay=3.0, **kw)
@@ -314,9 +308,6 @@ def _mapping(hw, sens, opts, source):
 
 
 def localization_params(cfg, map_yaml, pose):
-    """Map file and initial pose written into the node sections of the params file. Launch passes
-    extra dict parameters as a '/**' wildcard file, and rcl lets a node-name section win over a
-    wildcard: with a dict, set_initial_pose/yaml_filename of nav2_params.yaml would silently win."""
     cfg['map_server']['ros__parameters']['yaml_filename'] = map_yaml
     if pose is not None:
         cfg['amcl']['ros__parameters'].update({
@@ -329,8 +320,6 @@ REBUILD_LOCALIZERS = ('auto', 'slam', 'amcl')
 
 
 def rebuild_localizer(map_yaml, choice='auto'):
-    """slam: slam_toolbox localization on the saved pose graph (same scan matcher as the mapping run),
-    amcl: particle filter on the PGM. auto picks slam when <map>.posegraph exists."""
     if choice not in REBUILD_LOCALIZERS:
         raise ValueError(f'rebuild_localizer must be one of {REBUILD_LOCALIZERS}: {choice}')
     real = os.path.realpath(map_yaml)
@@ -342,8 +331,6 @@ def rebuild_localizer(map_yaml, choice='auto'):
 
 
 def _localization(hw, plan, opts):
-    """camera_layer mode: localization on the finished lidar map, no Nav2. The camera layer is
-    rebuilt with poses that agree with the final map (loop closures included)."""
     pose = parse_initial_pose(opts.get('initial_pose')) or (0.0, 0.0, 0.0)
     kind, stem = rebuild_localizer(opts['map'], opts.get('rebuild_localizer') or 'auto')
     params = write_params(localization_params(nav2_params(hw, plan['topic']), opts['map'],
@@ -363,7 +350,6 @@ def _localization(hw, plan, opts):
         cfg['slam_toolbox']['ros__parameters'].update({
             'mode': 'localization', 'map_file_name': stem, 'map_start_pose': list(pose),
             'use_map_saver': False})
-        # the graph map goes to a side topic: /map stays the saved PGM from map_server
         slam = LifecycleNode(package='slam_toolbox', executable='localization_slam_toolbox_node',
                              name='slam_toolbox', namespace='', output='screen',
                              parameters=[write_params(cfg, 'kelo_slam_loc_')],
@@ -395,8 +381,6 @@ INCIDENT_TOPICS = ['/tf', '/tf_static', '/plan', '/local_plan', '/cmd_vel_nav', 
 
 
 def incident_recorder(hw, sens, plan, data='/data'):
-    """rosbag2 in snapshot mode: the last minutes stay in memory (recording.incidents.cache_mb) and
-    nav_watch writes them to /data/incidents/nav_<date> on a long wait, LOST or a given-up goal."""
     inc = (hw.get('recording') or {}).get('incidents') or {}
     if not inc.get('enabled', True):
         return []
@@ -413,10 +397,7 @@ def incident_recorder(hw, sens, plan, data='/data'):
 
 
 def _nav_watch(hw, sens, plan, opts, map_yaml, recorder=True):
-    """nav_watch (reasons, readiness, stuck goals, relocalization) and the incident recorder."""
     nw = hw.get('navigation') or {}
-    # auto:=true/false forces the self-localization features; default: on the robot only (in the
-    # simulator the panel and the end-to-end tests give the start pose and press Localize themselves)
     auto = str(opts.get('auto', '') or '').lower()
     hardware = auto == 'true' or (auto != 'false' and opts['source'] == 'hardware')
     acts = [Node(package='kelo_bringup', executable='nav_watch', name='nav_watch', output='screen',
@@ -426,7 +407,6 @@ def _nav_watch(hw, sens, plan, opts, map_yaml, recorder=True):
                      'map_frame': hw['frames']['map'], 'base_frame': hw['frames']['base'], 'map_yaml': map_yaml,
                      'stuck_timeout_s': float(nw.get('stuck_timeout_s', 60.0)),
                      'refuse_goals_when_not_ready': bool(nw.get('refuse_goals_when_not_ready', True)),
-                     # on the robot only: in the simulator the panel and the tests give the start pose
                      'auto_localize': bool(nw.get('auto_localize', True)) and hardware
                                       and not opts.get('initial_pose'),
                      'auto_relocalize': bool(nw.get('auto_relocalize', True)) and hardware}])]
@@ -464,7 +444,6 @@ def _navigation(hw, sens, plan, opts, safety, replay):
     if sens['marvelmind']:
         acts.append(Node(package='kelo_bringup', executable='mm_monitor', name='mm_monitor',
                          output='screen', respawn=True, respawn_delay=2.0, parameters=[safety]))
-    # scan fit of the AMCL pose (LOST -> goal cancelled), last good pose saved and restored at start
     acts.append(Node(package='kelo_bringup', executable='loc_monitor', name='loc_monitor', output='screen',
                      respawn=True, respawn_delay=2.0, parameters=[{
                          'map_yaml': map_yaml, 'map_frame': hw['frames']['map'], 'scan_topic': hw['topics']['scan'],

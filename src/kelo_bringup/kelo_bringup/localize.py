@@ -38,14 +38,11 @@ from kelo_bringup.logic import quat_from_yaw, yaw_from_quat
 
 XY_STD_OK = 0.15
 YAW_STD_OK = math.radians(8.0)
-# a very good scan fit also accepts a slightly wider particle cloud
 XY_STD_FIT = 0.25
 YAW_STD_FIT = math.radians(12.0)
 FIT_SURE = 0.75
 GLOBAL_ROUNDS = 3
 LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
-# map-fixed layers of the local costmap: they follow the AMCL pose, so while it is still wrong their
-# cells land under the robot and the spin stops with 'Collision Ahead'. Off during the turns.
 LOCAL_COSTMAP = '/local_costmap/local_costmap'
 LOCAL_MAP_LAYERS = ('camera_static_layer',)
 EXIT_ALREADY = 3
@@ -60,8 +57,6 @@ def log(msg):
 
 
 def accept(xy_std, yaw_std, fit):
-    """AMCL has converged AND the scan lies on the walls of the map there. fit None = no map/scan
-    (cannot check): covariance only."""
     tight = xy_std < XY_STD_OK and yaw_std < YAW_STD_OK
     if fit is None:
         return tight
@@ -103,7 +98,6 @@ class Localizer(Node):
         self.scan = m
 
     def fit(self):
-        """Share of the current scan on the walls of the map at the AMCL pose (None: cannot tell)."""
         if self.mapfit is None or self.scan is None:
             return None
         try:
@@ -210,7 +204,6 @@ class Localizer(Node):
         return True
 
     def map_layers(self, enabled):
-        """Switch the map-fixed layers of the local costmap; returns the layers switched."""
         get = self.create_client(GetParameters, f'{LOCAL_COSTMAP}/get_parameters')
         put = self.create_client(SetParameters, f'{LOCAL_COSTMAP}/set_parameters')
         if not (get.wait_for_service(timeout_sec=5.0) and put.wait_for_service(timeout_sec=5.0)):
@@ -230,7 +223,6 @@ class Localizer(Node):
         return layers
 
     def converged(self):
-        """(accepted, (xy std, yaw std), scan fit)"""
         if self.amcl is None:
             return False, (float('inf'), float('inf')), None
         self.spin_for(1.0)
@@ -239,7 +231,6 @@ class Localizer(Node):
         return accept(xy, yaw, f), (xy, yaw), f
 
     def try_last_pose(self, map_yaml):
-        """The pose saved by loc_monitor while localized: kept when the scan fits there."""
         pose = sm.load_last_pose(sm.last_pose_file(data_dir()), map_yaml)
         if pose is None:
             return False
@@ -281,7 +272,6 @@ def main():
     try:
         node.spin_for(2.0, lambda: node.prev_state is not None and node.amcl is not None)
         sxy, syaw = amcl_std(node.amcl) if node.amcl is not None else (float('inf'),) * 2
-        # map, scan and the map -> laser TF of a fresh listener: up to 4 s
         if node.amcl is not None:
             node.spin_for(4.0, lambda: node.fit() is not None)
         f0 = node.fit() if node.amcl is not None else None
@@ -333,7 +323,6 @@ def main():
                     if ok or i == tries:
                         break
                     if switched is None:
-                        # Nav2 starts only once AMCL has a pose (map->odom): switch the layers now
                         node.spin_server()
                         switched = node.map_layers(False)
                         if switched:

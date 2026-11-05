@@ -31,13 +31,11 @@ MIN_HZ = {'odom': 10.0, 'scan': 5.0, 'depth': 5.0, 'marvelmind': 2.0}
 MAX_CLOCK_OFFSET_S = 0.2
 OUR_CMD_PUBLISHERS = ('cmd_vel_gate',)
 OUR_ODOM_TF = ('odom_filter', 'rf2o_laser_odometry', 'sim_robot')
-# KELO nodes that only watch /cmd_vel (driver views): not the robot driver
 OUR_CMD_WATCHERS = ('surround_view', 'parking_view', 'web_view', 'objects', 'social', 'video_recorder',
                     'coverage_view', 'camera_view', 'map_side_view', 'kelo_e2e', 'kelo_robot_check')
 
 
 class Stream:
-    """Message count, rate, frames and the clock offset (receive time - header stamp) of one topic."""
 
     def __init__(self):
         self.n = 0
@@ -84,10 +82,6 @@ def _clock(name, st):
 
 
 def evaluate(hw, obs):
-    """Check results [(level, text)] from what was observed:
-    obs = {'streams': {key: Stream}, 'cmd_pubs': [node names], 'cmd_subs': [(node, type)],
-           'tf_pubs': [node names], 'odom_tf_seen': bool, 'map': path or None, 'camera_map': path or None,
-           'domain': str}"""
     fr, sens, out = hw['frames'], sensors(hw), []
     st = obs['streams']
     out.append((OK, f"ROS_DOMAIN_ID={obs.get('domain') or '0 (default)'}"))

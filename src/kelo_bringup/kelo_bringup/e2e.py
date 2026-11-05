@@ -235,8 +235,6 @@ def _navigate_wait(n, x, y, yaw=0.0, timeout=120.0):
 
 STAGING = (3.4, 1.0)
 CORRIDOR_GOAL = (5.9, 1.0)
-# people scenarios: the longest straight lane of the simulator room with room to pass a person on
-# either side (+-0.9 m without lethal cost, found on the global costmap), the goal away from the wall
 LANE_START = (3.2, 0.7)
 LANE_GOAL = (6.0, 0.7)
 
@@ -479,7 +477,6 @@ def _loc_state(n, timeout=3.0):
 
 
 def sc_restored(n, args):
-    """Navigation restarted where the robot stood: loc_monitor restores the last pose by itself."""
     end = time.time() + 40.0
     state = None
     while time.time() < end and state != 'LOCALIZED':
@@ -490,8 +487,6 @@ def sc_restored(n, args):
 
 
 def sc_kidnap(n, args):
-    """The robot is carried away (sim teleport, odometry does not see it): the scan no longer fits
-    the map at the AMCL pose -> LOST, a running goal is cancelled; Localize finds the robot again."""
     import subprocess
     start = tuple(float(v) for v in (args[0:3] if len(args) >= 3 else (1.0, 1.0, 0.0)))
     wx, wy = (float(args[3]), float(args[4])) if len(args) >= 5 else (6.2, 2.2)
@@ -516,7 +511,7 @@ def sc_kidnap(n, args):
         if line.startswith('[localize]'):
             log('  ' + line)
     ok &= check(r.returncode == 0, 'Localize finds the robot again')
-    n.spin_for(3.0)   # TF that arrived while localize ran
+    n.spin_for(3.0)
     return sc_localization(n, list(map(str, start))) and ok
 
 
@@ -558,11 +553,6 @@ def sc_detour(n, args):
 
 
 def sc_people(n, args):
-    """People-aware navigation.
-    stand: a person stands on the path and stays: the robot slows down, waits for them (person
-    wait), then passes them with the wide personal space (checked up to beside the person).
-    leave: the person leaves after 8 s: the robot waits and then drives on straight, no detour.
-    cross: a person walks across the path in front of the robot: it gives way and drives on straight."""
     kind = args[0] if args else 'stand'
     n.spin_for(5.0, lambda: n.gt.pose)
     _navigate_wait(n, *LANE_START)
@@ -634,9 +624,6 @@ def sc_people(n, args):
         ok &= check(still >= 8.0, 'waited for the person before passing (>= 8 s standing)')
         ok &= check(lateral >= 0.5, 'passed the person on a detour')
         ok &= check(closest >= 0.7, 'kept the personal space while passing (centre distance >= 0.7 m)')
-        # in the small simulator room the way past a standing person runs between them and a wall:
-        # 40 % near the person times the collision monitor slowdown is a crawl, so the goal behind
-        # them is not required here, only that the robot got beside them
         ok &= check(along >= ahead, 'got beside the person (passing them)')
     elif kind == 'leave':
         ok &= check(still >= 3.0, 'waited for the person (>= 3 s standing)')
@@ -678,7 +665,6 @@ def _drive_to(n, gx, gy, timeout=120.0):
 
 
 def sc_world_tour(n, args):
-    """Mapping drive for a world with an eval section; a person walks by during the first legs."""
     world, _ = _load_world(args[0])
     ev = world['eval']
     person = ev.get('person')
@@ -699,7 +685,6 @@ def sc_world_tour(n, args):
 
 
 class PlanWatch:
-    """Counts reroutes: a new global plan that leaves the previous one by more than `dev` m."""
 
     def __init__(self, dev=0.4, horizon=3.0, min_gap=2.0):
         self.dev, self.horizon, self.min_gap = dev, horizon, min_gap
@@ -730,8 +715,6 @@ class PlanWatch:
 
 
 def _reset_at_goal(n, start, wx, wy):
-    """After a failed goal: put the robot on that goal as if it had been reached (sim teleport,
-    AMCL re-seeded), so that one failure does not decide the goals after it."""
     n.stop()
     n.spin_for(1.0)
     pub = n.create_publisher(String, '/sim/teleport', 10)
@@ -757,8 +740,6 @@ def _reset_at_goal(n, start, wx, wy):
 
 
 def sc_world_goals(n, args):
-    """Navigation goals of a world eval section: success, time, reroutes and late stops per goal.
-    A failed goal is followed by a reset of the robot onto that goal, so each goal is measured alone."""
     import json
     from nav2_msgs.msg import CollisionMonitorState
     from nav_msgs.msg import Path

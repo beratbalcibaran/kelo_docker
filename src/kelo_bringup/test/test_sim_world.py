@@ -102,5 +102,4 @@ def test_box_ahead_of_a_turned_robot_does_not_reach_back_over_it(yaw_deg):
     parts = SimRobot._oriented_box(ob, 0.95 * c, 0.95 * s, c, s)
     boxes = [b for p in parts for b in W.obstacle_from_dict(p)[0]]
     assert W.collides(FOOT, (0.0, 0.0, yaw), 0.4, boxes, []) is None
-    # the tiles still block the robot once it drives up to the box
     assert W.collides(FOOT, (0.55 * c, 0.55 * s, yaw), 0.4, boxes, []) is not None

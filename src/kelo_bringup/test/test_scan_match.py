@@ -10,7 +10,6 @@ RES = 0.05
 
 
 def room(w=8.0, h=6.0, box=True):
-    """Walls of a w x h room (origin 0,0) and a box near one corner: no 180 deg symmetry."""
     grid = np.zeros((int(h / RES), int(w / RES)), dtype=np.int16)
     grid[0, :] = grid[-1, :] = grid[:, 0] = grid[:, -1] = 100
     if box:
@@ -19,7 +18,6 @@ def room(w=8.0, h=6.0, box=True):
 
 
 def ray_scan(grid, x, y, yaw, n=360, rmax=5.6):
-    """Ranges of an ideal 360 deg scanner at (x, y, yaw) in `grid` (simple ray marching)."""
     ranges = []
     for a in np.linspace(-math.pi, math.pi, n, endpoint=False):
         r = 0.05
@@ -48,9 +46,7 @@ def test_scan_does_not_fit_at_a_wrong_pose():
     g = room()
     true = (1.0, 1.0, 0.3)
     assert fit_at(g, true, (5.5, 3.0, 0.3)) < sm.LOST_FIT
-    # the box is behind the robot at this guess: the beams that measured free space cross it
     assert fit_at(g, (4.0, 2.0, 0.0), (2.5, 3.2, 0.0)) < sm.LOST_FIT
-    # 0.5 m off: clearly worse than the true pose
     assert fit_at(g, true, (1.5, 1.0, 0.3)) < sm.GOOD_FIT
 
 
@@ -78,8 +74,8 @@ def test_scan_points_drop_max_range_and_invalid():
 def test_accept_needs_the_scan_fit_when_known():
     assert accept(0.10, math.radians(5), None)
     assert accept(0.10, math.radians(5), 0.8)
-    assert not accept(0.10, math.radians(5), 0.3)        # tight cloud on the wrong place
-    assert accept(0.18, math.radians(7), 0.85)           # slightly wide cloud, very good fit
+    assert not accept(0.10, math.radians(5), 0.3)
+    assert accept(0.18, math.radians(7), 0.85)
     assert not accept(0.18, math.radians(7), 0.65)
     assert not accept(0.40, math.radians(5), 0.95)
 
@@ -89,7 +85,7 @@ def test_already_localized_rechecks_the_fit():
     assert not already_localized('LOCALIZED', 0.1, 0.05, fit=0.2)
     assert not already_localized('LOST', 0.1, 0.05, fit=0.8)
     assert not already_localized('LOCALIZED', 0.1, 0.05, force=True, fit=0.8)
-    assert already_localized('LOCALIZED', 0.16, 0.05, fit=0.9)     # wider cloud, very good fit
+    assert already_localized('LOCALIZED', 0.16, 0.05, fit=0.9)
 
 
 def test_last_pose_roundtrip_and_other_map(tmp_path):
@@ -109,7 +105,6 @@ def test_last_pose_roundtrip_and_other_map(tmp_path):
 def test_people_all_around_are_not_lost_but_a_wrong_pose_is():
     g = room()
     crowd = g.copy()
-    # people (0.4 m) all around the robot at 0.8 m: most beams end on them
     for a in np.linspace(0, 2 * math.pi, 8, endpoint=False):
         cx, cy = 4.0 + 0.8 * math.cos(a), 3.0 + 0.8 * math.sin(a)
         crowd[int((cy - 0.2) / RES):int((cy + 0.2) / RES), int((cx - 0.2) / RES):int((cx + 0.2) / RES)] = 100
@@ -118,6 +113,5 @@ def test_people_all_around_are_not_lost_but_a_wrong_pose_is():
     hits, crossings = sm.MapFit(g, RES, (0.0, 0.0)).parts(pts, origin=(4.0, 3.0))
     assert hits - crossings < sm.LOST_FIT
     assert not sm.looks_lost(hits, crossings)
-    # the same scan at a wrong pose: beams through the walls
     wrong = sm.transform(sm.scan_points(ranges, amin, inc, 0.05, 5.6, step=1), 1.0, 1.0, 0.0)
     assert sm.looks_lost(*sm.MapFit(g, RES, (0.0, 0.0)).parts(wrong, origin=(1.0, 1.0)))

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Task 1 evaluation in the simulator: two-layer map (lidar + camera layer) vs lidar only.
-#   1. mapping drive in config/sim_world_tables.yaml (a person walks by), bag recorded
-#   2. the same bag mapped twice: camera_layer false / true, then the camera layer rebuilt
-#      from the bag on the finished map (camera_layer_rebuild)
-#   3. the maps vs a reference built from the world (map_compare + per-object coverage)
-#   4. navigation goals of the world eval section on each map (success, reroutes, stops)
-# usage: scripts/camera_layer_eval.sh [--bag <mapping bag dir>] [--skip-nav]
 set -u
 IMG="${IMG:-kelo-slam:latest}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
