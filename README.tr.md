@@ -12,9 +12,12 @@ Orin Nano üzerinde çalışacak şekilde Docker imajı olarak paketlenmiştir.
 | Navigasyon | Nav2 (MPPI; yollar ileri yönde izlenir, platformun kendisi çok yönlüdür) |
 | Sensörler | Hokuyo URG-04LX (2B LiDAR), Intel RealSense D435 (derinlik), Marvelmind hedgehog |
 | Güvenlik | İki çarpışma monitörü (LiDAR + derinlik), hız kapısı, watchdog, konum sapma monitörü |
+| İzleme | Nedenleriyle robot durumu (`nav_watch`), düğüm yeniden başlatma ve toparlanma (`health_monitor`), olay kaydı |
 
 Yığın, robotun düşük seviyeli sürücüsünü değiştirmez. Robotla arayüz `/cmd_vel`, `/odom` ve
 `odom → base_link` dönüşümü ile sınırlıdır.
+
+**Gerçek robota bağlama:** [adım adım kılavuz](docs/robot_startup.tr.md).
 
 > **Güvenlik uyarısı.** Bu projedeki güvenlik işlevleri yazılım ile gerçeklenmiştir ve sertifikalı
 > değildir. URG-04LX ve D435 güvenlik sınıfı sensörler değildir. İnsanlarla paylaşılan alanlarda
@@ -34,12 +37,13 @@ Yığın, robotun düşük seviyeli sürücüsünü değiştirmez. Robotla aray�
 9. [Devreye alma prosedürü](#devreye-alma-prosedürü)
 10. [Sensör arabası ile haritalama](#sensör-arabası-ile-haritalama)
 11. [Kayıt ve yeniden oynatma](#kayıt-ve-yeniden-oynatma)
-12. [Güvenlik sistemi](#güvenlik-sistemi)
-13. [Simülatör](#simülatör)
-14. [Test](#test)
-15. [İşletim ve bakım](#i̇şletim-ve-bakım)
-16. [Açık konular](#açık-konular)
-17. [Bilinen kısıtlar](#bilinen-kısıtlar)
+12. [Otomatik başlatma ve izleme](#otomatik-başlatma-ve-izleme)
+13. [Güvenlik sistemi](#güvenlik-sistemi)
+14. [Simülatör](#simülatör)
+15. [Test](#test)
+16. [İşletim ve bakım](#i̇şletim-ve-bakım)
+17. [Açık konular](#açık-konular)
+18. [Bilinen kısıtlar](#bilinen-kısıtlar)
 
 ## Başlarken
 
@@ -149,7 +153,7 @@ kelo_docker/
 |---|---|
 | `stack.py`, `common.py` | Kaynağa, moda ve takılı sensörlere göre hangi programların başlayacağına karar verir |
 | `cmd_vel_gate.py` | Robota hız komutu gönderen tek program; hızı sınırlar, komut gelmezse durdurur |
-| `cloud_filter.py` | Derinlik görüntüsünü engel nokta bulutuna çevirir |
+| `cloud_filter.py`, `depth_noise.py` | Derinlik görüntüsünü engel nokta bulutlarına çevirir (costmap'ler için gürültü filtreli, collision monitor'ler için filtresiz); kamera eğimini zeminden ölçer |
 | `camera_mapper.py`, `camera_grid.py` | İki katmanlı harita: haritalama sırasında kamera engellerini ikinci bir harita katmanında biriktirir |
 | `camera_layer_rebuild.py` | Bitmiş bir haritanın kamera katmanını haritalama bag'inden yeniden oluşturur (konumlar son haritayla uyumlu) |
 | `odom_filter.py` | Robotun tekerlek odometrisini düzeltir |
@@ -158,6 +162,8 @@ kelo_docker/
 | `robot_check.py` | Robota ilk bağlantı kontrolü (topic'ler, tipler, frekanslar, TF sahipliği, saat farkı; robotu hareket ettirmez) |
 | `robot_discover.py` | Robot sürücüsünü bulur (ROS_DOMAIN_ID 0-10 ve 42 arar; hız topic'i ve tipi, odometri, `odom → base_link` sahibi, USB sensörler) ve `hardware.yaml` ayarlarını önerir; panel robot Ethernet'i açılınca kendisi çalıştırır (robotu hareket ettirmez) |
 | `loc_monitor.py`, `scan_match.py` | Konumlandırmayı haritaya göre denetler (tarama uyumu), `LOST` bildirir, son konumu kaydeder ve geri yükler |
+| `nav_watch.py`, `nav_logic.py` | Nedenleriyle robot durumu, hazır değilken hedef reddi, takılan hedefi bırakma, kendiliğinden konumlanma ve yeniden konumlanma, olay kaydı |
+| `health_monitor.py`, `health.py` | Düğüm durumları ve yeniden başlamaları, yeniden başlayan Nav2 düğümlerini yeniden etkinleştirme, Jetson yükü |
 | `send_goal.py` | Navigasyon hedefi gönderir (GUI: Send Goal) |
 | `waypoint_tool.py` | İsimli konumları kaydeder ve aralarında sürer |
 | `save_map.py` | Mevcut haritayı kaydeder (GUI: Save Map) |
@@ -211,8 +217,8 @@ tipleriyle yayınlar.
                         ▼
  odometri       odom_source:=robot → odom_filter (hıza bağlı düzeltme) | odom_source:=lidar → rf2o
  ortak          robot_state_publisher, cloud_filter (derinlik → engel bulutu), marvelmind_bridge,
-                cmd_vel_gate, collision_monitor_teleop, status_node
- mod            mapping: slam_toolbox (+ bag kaydı) | navigation: AMCL + Nav2 + mm_monitor | sensors
+                cmd_vel_gate, collision_monitor_teleop, status_node, health_monitor
+ mod            mapping: slam_toolbox (+ bag kaydı) | navigation: AMCL + Nav2 + mm_monitor + nav_watch | sensors
 
  Nav2 → velocity_smoother → collision_monitor ──→ /cmd_vel_safe ─────┐
  teleop/GUI → /cmd_vel_teleop → collision_monitor_teleop ────────────┴→ cmd_vel_gate → /cmd_vel → robot
@@ -228,6 +234,7 @@ tipleriyle yayınlar.
 |---|---|---|
 | `odom_source:=robot`, `odom_mode: corrected` (varsayılan) | `odom_filter` (sürücü TF'i kapalı olmalı) | `/odom_corrected` |
 | `odom_source:=robot`, `odom_mode: driver` | robot sürücüsü (replay'de `/odom`'dan yeniden üretilir) | `/odom` |
+| `odom_source:=robot`, `odom_mode: relay` | düzeltmesiz `odom_filter` (sürücü düzeltir, TF'i kapalı) | `/odom_corrected` |
 | `odom_source:=lidar` | rf2o | `/odom_rf2o` |
 
 MPPI kontrolcüsü dahil odometri okuyan tüm Nav2 düğümleri, aktif TF yayıncısının topic'ine abone olur.
@@ -1037,6 +1044,106 @@ KELO_BAG=/data/bags/map_hardware_<tarih> docker compose --profile replay up
 `replay_regression.sh` bag'den harita üretir ve `map_compare` ile referansla karşılaştırır (0,10 m
 toleransla dolu hücre kesinlik, duyarlılık ve F1).
 
+## Otomatik başlatma ve izleme
+
+Gerçek robot için adım adım yapılacaklar [docs/robot_startup.tr.md](docs/robot_startup.tr.md) sayfasındadır.
+
+### Otomatik başlatma
+
+Robot bilgisayarına hiçbir şey kurulmaz; sürücü eskisi gibi `scripts/robot.sh` ile başlatılır. Jetson
+tarafında ondan sonrası kendiliğinden olur:
+
+- **Panel** (`gui-hardware`, **Automatic** işaretli, `KELO_GUI_AUTO=0` kapatır): Ethernet bağlanınca
+  panel sürücüyü arar, ayarlarını sormadan uygular, `data/maps/current.yaml` varsa navigasyonu başlatır
+  ve robot kendisi konumlanır. Sürücü yoksa 10 s'de bir yeniden arar.
+- **Üretim servisi** (`kelo.service`, `KELO_AUTO=0` kapatır): `run-stack.sh` sürücüyü 10 s'de bir arar,
+  ayarları `/data/hardware.yaml`'a, `ROS_DOMAIN_ID`'yi `/data/robot.env`'e yazar, sonra yığını başlatır.
+- **Odometri modu** sürücünün kendi parametrelerinden (`publish_tf`, `fix_odom_rotation`) seçilir:
+
+  | Sürücü | `odom_mode` | TF yayıncısı | Düzeltme |
+  |---|---|---|---|
+  | `publish_tf: true` | `driver` | robot sürücüsü | yok |
+  | `publish_tf: false`, `fix_odom_rotation: true` | `relay` | `odom_filter` | yok (sürücü zaten düzeltiyor) |
+  | `publish_tf: false`, `fix_odom_rotation: false` | `corrected` | `odom_filter` | hıza bağlı tablo |
+
+- **İki TF yayıncısı.** Başka bir düğüm de `odom → base_link` yayınlıyorsa `odom_filter` kendi
+  dönüşümünü keser ve `/kelo/odom_conflict` ile bildirir; robot bu durumda hazır sayılmaz.
+- **Saat farkı.** Robot bilgisayarında zaman eşitlemesi yoktur. Odometri zaman damgaları Jetson
+  saatinden 0,1 s'den fazla farklıysa `odom_filter` onları Jetson saatine taşır (alış zamanı eksi damga
+  değerlerinin alt çeyreği). `driver` modunda yığın bunu yapamaz ve `scripts/robot.sh time` ister.
+
+### Robot durumu (`nav_watch`)
+
+`nav_watch` davranış ağacıyla aynı girdilere bakar ve robotu durduran ilk şeyi söyler. Ağacın kendisi
+beklerken ve yeniden denerken yalnızca `Running wait` yazar.
+
+- `/kelo/nav_status` (kalıcı, panelde **Robot:** satırında da görünür): `READY`, `NOT READY: <neden>`,
+  `WAITING: <neden>`, `DRIVING (x m left)`. Diğer programlar için `/kelo/ready` (Bool).
+- **Hazır değil:** odometri yok, robot saati 0,3 s'den fazla farklı, iki `odom → base_link` yayıncısı,
+  LiDAR yok, konumlanmadı, bir navigasyon düğümü düştü ya da yeniden başlıyor. Derinlik kamerasının
+  olmaması yalnızca uyarıdır: collision monitor onsuz robotu zaten durdurur.
+- **Bekleme** nedenleri: yolda insan, collision monitor durdurması, hedef engelin içinde, yolun sonraki
+  2 m'sinde engel (konumuyla), hedefe yol yok, controller hatasından sonra toparlanma.
+- Hazır değilken yeni hedefler reddedilir (`navigation.refuse_goals_when_not_ready`).
+- 60 s ilerleme olmayan hedef nedeniyle bırakılır (`navigation.stuck_timeout_s`). Bir engelin
+  etrafından dolanmak, kalan mesafe artsa da ilerleme sayılır.
+- **Açılışta kendisi konumlanır**: 15 s içinde kimse konumlandırmadıysa (`navigation.auto_localize`).
+- **`LOST` olunca kendisi yeniden konumlanır**: önce son iyi konumun çevresinde, sonra tüm haritada; sonra
+  aynı hedefi yeniden gönderir, hedef başına en fazla iki kez (`navigation.auto_relocalize`).
+- Otomatik konumlanma varsayılan olarak yalnızca `source:=hardware` ile açıktır; simülatörde `auto:=true` ile.
+
+### Olay kaydı
+
+Navigasyon sırasında tarama, odometri, TF, plan, costmap'ler, kamera noktaları ve durum konularının son
+dakikaları bellekte tutulur (rosbag2 snapshot modu, `recording.incidents.cache_mb`, 150 MB). 20 s'den
+uzun bekleme, `LOST` ya da bırakılan bir hedef bunları `/data/incidents/nav_<tarih>` altına yazar
+(dakikada en fazla bir kez). Kayıt simülatörde yeniden oynatılabilir.
+
+### Derinlik kamerası gürültüsü ve eğimi
+
+Gerçekte olmayan küçük kare engellerin iki kaynağı vardı: tek tek gürültülü pikseller ve
+`hardware.yaml`'dakinden 1-2° farklı kamera eğimi (bu durumda 2,4 m ilerideki zemin yaklaşık 8 cm
+yüksekte görünür). Costmap'lere giden bulut (`/camera/points_filtered`) dört adımda süzülür
+(`depth_noise.py`, `safety.yaml → cloud_filter`):
+
+1. Komşularından en az 3'üyle uyuşmayan pikseller atılır (uçan piksel, benek).
+2. Yükseklik eşiği mesafeyle artar: 1 m'ye kadar 6 cm, 2 m'de 9 cm (`min_height_slope`).
+3. 5 cm'lik bir hücrede en az 3 nokta olmalı ve hücre son 3 karenin 2'sinde görülmelidir (odom çerçevesinde).
+4. Costmap'ler için menzil 2,0 m.
+
+**Zeminden eğim ölçümü.** Robot dururken önündeki zemine (0,6-2,0 m) RANSAC ve en küçük kareler ile bir
+düzlem oturtulur. Tutarlı 15 kare (en fazla 1° yayılım, en fazla 6° düzeltme) kameranın gerçek roll ve
+pitch açısını verir. Düzeltme hemen uygulanır, `/data/camera_tilt.yaml`'a kaydedilir ve
+`/kelo/camera_tilt` konusunda yayınlanır. Bunun için robotun önünde yeterince boş, düz zemin olmalıdır;
+yoksa kayıtlı değer (ya da `hardware.yaml`'daki montaj) kullanılır.
+
+Collision monitor'ler gürültü filtresi olmayan ayrı bir bulut alır (`/camera/points_safety`): eskisi gibi
+2,5 m menzil ve 6 cm yükseklik, eğim düzeltmesiyle. Böylece güvenlik zinciri filtreye bağlı değildir;
+oradaki gürültülü bir nokta en fazla kısa bir duruşa yol açar, çünkü collision monitor'ün hafızası yoktur.
+
+### Düğüm izleme (`health_monitor`)
+
+- Uzun çalışan bütün düğümler `respawn` ile başlatılır: çökerse 2 s içinde yeniden başlar. Yeniden
+  başlatılmayanlar: lifecycle manager'lar, `slam_toolbox` (harita kaybolurdu) ve `sim_robot`.
+- Yeniden başlayan bir Nav2 düğümü yapılandırılmamış açılır ve `lifecycle_manager_navigation` (bond
+  kullanmadığı için) bunu fark etmez. `health_monitor` düğümü yeniden yapılandırıp etkinleştirir
+  (yaklaşık 6 s). Bu sırada `nav_watch` `NOT READY: navigation node … stopped: it is coming back by itself`
+  bildirir.
+- Yeniden başlama yeni işlem kimliğinden (pid) anlaşılır; öldürülen bir düğüm ROS grafiğinde birkaç saniye
+  daha görünür.
+- `/kelo/health` (JSON, kalıcı, 1 Hz): her düğümün durumu (`ok`, `down`, `waiting`, `inactive`) ve yeniden
+  başlama sayısı, CPU, GPU (Jetson), RAM, sıcaklık ve en çok CPU kullanan üç süreç. %90 CPU, %90 RAM ya da
+  85 °C üzerinde uyarı.
+- Panel: **Robot:** satırının altında **Health:** satırı (yeşil: hepsi çalışıyor, sarı: bir düğüm yeniden
+  başladı ya da Jetson zorlanıyor, kırmızı: düşen ya da etkin olmayan düğüm) ve tam liste için **Nodes**
+  penceresi.
+
+### Görüntü
+
+Gri derinlik görüntüsü varsayılan olarak kapalıdır (`views.depth`, panelde **Features → Depth image view**);
+kamera çalışmaya devam eder ve kamera penceresi yalnızca renkli görüntüyü gösterir. Çevre görünümü, park
+görünümü ve RViz değişmedi.
+
 ## Güvenlik sistemi
 
 | Durum | Tepki |
@@ -1045,10 +1152,12 @@ toleransla dolu hücre kesinlik, duyarlılık ve F1).
 | Durma bölgesinde engel | Çarpışma monitörü robotu durdurur (Nav2 ve teleop) |
 | Yavaşlama bölgesinde engel (merkezden 1,025 m önde) | Hız %40'a düşürülür |
 | 1,2 s (Nav2) / 1,0 s (teleop) içinde öngörülen çarpışma | Hız azaltılır (`FootprintApproach`) |
-| LiDAR düzlemi dışındaki engel | Derinlik kamerası ile algılanır (0,30–2,5 m, yükseklik 0,06–1,20 m) |
+| LiDAR düzlemi dışındaki engel | Derinlik kamerası ile algılanır: collision monitor'ler 0,30–2,5 m, yükseklik 0,06–1,20 m, filtresiz; costmap'ler 0,30–2,0 m, gürültü filtreli |
 | LiDAR veya kamera verisi 1,0 s'den eski | Veri gelene kadar robot durdurulur |
 | Engel kalktı | Temizleme bulutu ile costmap'ten silinir (LiDAR'ın boş gördüğü kamera kör kamasında da); navigasyon devam eder |
-| LiDAR taraması 8 s boyunca AMCL pozunda haritaya uymuyor | Durum `LOST`, çalışan hedef iptal, **Localize** yapılana kadar yeni hedef yok |
+| LiDAR taraması 8 s boyunca AMCL pozunda haritaya uymuyor | Durum `LOST`, çalışan hedef iptal; robotta kendisi yeniden konumlanıp hedefe devam eder (aksi halde **Localize**) |
+| 60 s boyunca hedefe ilerleme yok | Hedef bırakılır, nedeni bildirilir |
+| Bir düğüm çöker | 2 s içinde yeniden başlar; Nav2 düğümleri yeniden etkinleştirilir; bu arada yeni hedef alınmaz |
 | Marvelmind ile AMCL 2 s boyunca > 1,0 m farklı | `/kelo/safety_stop` etkin, sıfır hız |
 | Marvelmind verisi yok | `MM_LOST` olarak raporlanır; durdurma yapılmaz |
 | Container veya servis kapanışı | Sıfır hız yayınlanır; hata durumunda otomatik yeniden başlatma |

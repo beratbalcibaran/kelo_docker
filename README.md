@@ -12,9 +12,12 @@ for the NVIDIA Jetson Orin Nano.
 | Navigation | Nav2 (MPPI; paths are followed forward, the platform itself is omnidirectional) |
 | Sensors | Hokuyo URG-04LX (2D LiDAR), Intel RealSense D435 (depth), Marvelmind hedgehog |
 | Safety | Two collision monitors (LiDAR + depth), velocity gate, watchdog, position divergence monitor |
+| Supervision | Robot status with reasons (`nav_watch`), node restart and recovery (`health_monitor`), incident recording |
 
 The stack does not modify the robot's low-level driver. The interface to the robot is limited to
 `/cmd_vel`, `/odom` and the `odom → base_link` transform.
+
+**Connecting to the real robot:** [step-by-step guide](docs/robot_startup.md).
 
 > **Safety notice.** The safety functions in this project are implemented in software and are not
 > certified. The URG-04LX and the D435 are not safety-rated sensors. Operation in areas shared with
@@ -34,12 +37,13 @@ The stack does not modify the robot's low-level driver. The interface to the rob
 9. [Commissioning procedure](#commissioning-procedure)
 10. [Mapping with a sensor cart](#mapping-with-a-sensor-cart)
 11. [Recording and replay](#recording-and-replay)
-12. [Safety system](#safety-system)
-13. [Simulator](#simulator)
-14. [Testing](#testing)
-15. [Operations and maintenance](#operations-and-maintenance)
-16. [Open items](#open-items)
-17. [Known limitations](#known-limitations)
+12. [Automatic start and supervision](#automatic-start-and-supervision)
+13. [Safety system](#safety-system)
+14. [Simulator](#simulator)
+15. [Testing](#testing)
+16. [Operations and maintenance](#operations-and-maintenance)
+17. [Open items](#open-items)
+18. [Known limitations](#known-limitations)
 
 ## Getting started
 
@@ -151,7 +155,7 @@ Programs in `src/kelo_bringup/kelo_bringup/`:
 |---|---|
 | `stack.py`, `common.py` | Decide which programs start, depending on source, mode and installed sensors |
 | `cmd_vel_gate.py` | The only program that sends speed commands to the robot; limits speed, stops on timeout |
-| `cloud_filter.py` | Turns the depth image into an obstacle point cloud |
+| `cloud_filter.py`, `depth_noise.py` | Turns the depth image into obstacle point clouds (noise-filtered for the costmaps, unfiltered for the collision monitors); measures the camera tilt from the floor |
 | `camera_mapper.py`, `camera_grid.py` | Two-layer map: accumulates camera obstacles during mapping into a second map layer |
 | `camera_layer_rebuild.py` | Rebuilds the camera layer of a finished map from its mapping bag (poses agree with the final map) |
 | `odom_filter.py` | Corrects the robot's wheel odometry |
@@ -160,6 +164,8 @@ Programs in `src/kelo_bringup/kelo_bringup/`:
 | `robot_check.py` | First-connection check of the robot interface (topics, types, rates, TF ownership, clock offset; does not move the robot) |
 | `robot_discover.py` | Finds the robot driver (searches ROS_DOMAIN_IDs 0-10 and 42; velocity topic and type, odometry, who owns odom -> base_link, USB sensors) and proposes the hardware.yaml settings; the panel runs it when the robot Ethernet comes up (does not move the robot) |
 | `loc_monitor.py`, `scan_match.py` | Checks the localization against the map (scan fit), reports `LOST`, saves and restores the last pose |
+| `nav_watch.py`, `nav_logic.py` | Robot status with reasons, refuses goals while not ready, gives up stuck goals, localizes and re-localizes by itself, incident recording |
+| `health_monitor.py`, `health.py` | Node states and restarts, activates restarted Nav2 nodes again, Jetson load |
 | `send_goal.py` | Sends a navigation goal (GUI: Send Goal) |
 | `waypoint_tool.py` | Stores named positions and drives between them |
 | `save_map.py` | Saves the current map (GUI: Save Map) |
@@ -213,8 +219,8 @@ as the hardware.
                         ▼
  odometry       odom_source:=robot → odom_filter (speed-dependent correction) | odom_source:=lidar → rf2o
  common         robot_state_publisher, cloud_filter (depth → obstacle cloud), marvelmind_bridge,
-                cmd_vel_gate, collision_monitor_teleop, status_node
- mode           mapping: slam_toolbox (+ bag recording) | navigation: AMCL + Nav2 + mm_monitor | sensors
+                cmd_vel_gate, collision_monitor_teleop, status_node, health_monitor
+ mode           mapping: slam_toolbox (+ bag recording) | navigation: AMCL + Nav2 + mm_monitor + nav_watch | sensors
 
  Nav2 → velocity_smoother → collision_monitor ──→ /cmd_vel_safe ─────┐
  teleop/GUI → /cmd_vel_teleop → collision_monitor_teleop ────────────┴→ cmd_vel_gate → /cmd_vel → robot
@@ -230,6 +236,7 @@ The `odom → base_link` transform always has exactly one publisher.
 |---|---|---|
 | `odom_source:=robot`, `odom_mode: corrected` (default) | `odom_filter` (driver TF must be disabled) | `/odom_corrected` |
 | `odom_source:=robot`, `odom_mode: driver` | robot driver (reconstructed from `/odom` in replay) | `/odom` |
+| `odom_source:=robot`, `odom_mode: relay` | `odom_filter` without correction (driver corrects, its TF is off) | `/odom_corrected` |
 | `odom_source:=lidar` | rf2o | `/odom_rf2o` |
 
 All Nav2 nodes that consume odometry, including the MPPI controller, subscribe to the topic of the
@@ -1038,6 +1045,107 @@ KELO_BAG=/data/bags/map_hardware_<date> docker compose --profile replay up
 `replay_regression.sh` builds a map from the bag and compares it with the reference using
 `map_compare` (occupied-cell precision, recall and F1 with 0.10 m tolerance).
 
+## Automatic start and supervision
+
+The step-by-step procedure for the real robot is in [docs/robot_startup.md](docs/robot_startup.md).
+
+### Automatic start
+
+Nothing is installed on the robot computer; its driver is started with `scripts/robot.sh` as before.
+On the Jetson side everything after that is automatic:
+
+- **Panel** (`gui-hardware`, **Automatic** ticked, `KELO_GUI_AUTO=0` turns it off): when the Ethernet comes
+  up the panel looks for the driver, applies its settings without asking, starts navigation if
+  `data/maps/current.yaml` exists, and the robot localizes itself. Without a driver it tries again every
+  10 s.
+- **Production service** (`kelo.service`, `KELO_AUTO=0` turns it off): `run-stack.sh` looks for the
+  driver every 10 s, writes the settings to `/data/hardware.yaml` and `ROS_DOMAIN_ID` to
+  `/data/robot.env`, then starts the stack.
+- **Odometry mode** is chosen from the driver's own parameters (`publish_tf`, `fix_odom_rotation`):
+
+  | Driver | `odom_mode` | TF publisher | Correction |
+  |---|---|---|---|
+  | `publish_tf: true` | `driver` | robot driver | none |
+  | `publish_tf: false`, `fix_odom_rotation: true` | `relay` | `odom_filter` | none (the driver already corrects) |
+  | `publish_tf: false`, `fix_odom_rotation: false` | `corrected` | `odom_filter` | speed-dependent table |
+
+- **Two TF publishers.** If another node also publishes `odom → base_link`, `odom_filter` stops its own
+  transform and reports it on `/kelo/odom_conflict`; the robot is then not ready.
+- **Clock offset.** The robot computer has no time synchronisation. When the odometry time stamps are
+  more than 0.1 s off the Jetson clock, `odom_filter` moves them to the Jetson clock (lower quartile of
+  receive time minus stamp). In `driver` mode the stack cannot do this and asks for
+  `scripts/robot.sh time`.
+
+### Robot status (`nav_watch`)
+
+`nav_watch` looks at the same inputs as the behaviour tree and names the first thing that stops the
+robot. The tree itself only logs `Running wait` while it waits and retries.
+
+- `/kelo/nav_status` (latched, also shown in the panel's **Robot:** line): `READY`, `NOT READY: <reason>`,
+  `WAITING: <reason>`, `DRIVING (x m left)`. `/kelo/ready` (Bool) for other programs.
+- **Not ready** when: no odometry, robot clock more than 0.3 s off, two `odom → base_link` publishers,
+  no LiDAR, not localized, a navigation node down or restarting. A missing depth camera is only a
+  warning: the collision monitor stops the robot without it.
+- **Waiting** reasons: person on the path, collision monitor stop, goal inside an obstacle, obstacle on
+  the next 2 m of the path (with its position), no path to the goal, recovering after a controller failure.
+- New goals are refused while not ready (`navigation.refuse_goals_when_not_ready`).
+- A goal without progress for 60 s is given up with its reason (`navigation.stuck_timeout_s`). Driving
+  around an obstacle counts as progress even when the remaining distance grows.
+- **Localizes by itself at start** when nobody did within 15 s (`navigation.auto_localize`).
+- **Re-localizes by itself when `LOST`**: first around the last good pose, then on the whole map, and
+  sends the same goal again, at most twice per goal (`navigation.auto_relocalize`).
+- Automatic localization is on by default only with `source:=hardware`; in the simulator with `auto:=true`.
+
+### Incident recording
+
+During navigation the last minutes of scan, odometry, TF, plan, costmaps, camera points and status
+topics stay in memory (rosbag2 snapshot mode, `recording.incidents.cache_mb`, 150 MB). A wait longer
+than 20 s, `LOST` or a goal given up writes them to `/data/incidents/nav_<date>` (at most once a
+minute). The recording can be replayed in the simulator.
+
+### Depth camera noise and tilt
+
+Small square obstacles that are not there came from two sources: single noisy pixels, and a camera tilt
+1-2° different from `hardware.yaml` (the floor 2.4 m ahead then appears about 8 cm high). The cloud for
+the costmaps (`/camera/points_filtered`) is filtered in four steps (`depth_noise.py`, `safety.yaml →
+cloud_filter`):
+
+1. Pixels that do not agree with at least 3 of their neighbours are dropped (flying pixels, speckle).
+2. The height limit rises with distance: 6 cm up to 1 m, 9 cm at 2 m (`min_height_slope`).
+3. A 5 cm cell needs at least 3 points, and it must be seen in 2 of the last 3 frames (in the odom frame).
+4. Range 2.0 m for the costmaps.
+
+**Tilt from the floor.** While the robot stands still, the floor in front of it (0.6-2.0 m) is fitted
+with RANSAC and least squares. 15 consistent frames (spread at most 1°, correction at most 6°) give the
+real roll and pitch of the camera. The correction is applied at once, saved to `/data/camera_tilt.yaml`
+and published on `/kelo/camera_tilt`. It needs a flat floor with enough free space in front of the robot;
+otherwise the saved value (or the mount in `hardware.yaml`) is used.
+
+The collision monitors get a separate cloud (`/camera/points_safety`) without the noise filter: range
+2.5 m and 6 cm height as before, with the tilt correction. The safety chain therefore does not depend
+on the filter; a noisy point there causes at most a short stop, since the collision monitor has no memory.
+
+### Node supervision (`health_monitor`)
+
+- Every long-running node is started with `respawn`: after a crash it starts again within 2 s. Not
+  respawned: the lifecycle managers, `slam_toolbox` (the map would be lost) and `sim_robot`.
+- A respawned Nav2 node comes up unconfigured, and `lifecycle_manager_navigation` (without bonds) does
+  not notice. `health_monitor` configures and activates it again (about 6 s). Meanwhile `nav_watch`
+  reports `NOT READY: navigation node … stopped: it is coming back by itself`.
+- A restart is recognised by the new process id; a killed node stays visible in the ROS graph for a few
+  seconds.
+- `/kelo/health` (JSON, latched, 1 Hz): state of every node (`ok`, `down`, `waiting`, `inactive`) and its
+  restarts, CPU, GPU (Jetson), RAM, temperature and the three busiest processes. Warnings above 90 % CPU,
+  90 % RAM or 85 °C.
+- Panel: **Health:** line under **Robot:** (green: all up, amber: a node restarted or the Jetson is near
+  its limits, red: a node down or not active) and the **Nodes** window with the full list.
+
+### Display
+
+The grey depth image is off by default (`views.depth`, panel **Features → Depth image view**); the
+camera keeps running and the camera window shows the colour image only. The surround view, the parking
+view and RViz are unchanged.
+
 ## Safety system
 
 | Condition | Response |
@@ -1046,10 +1154,12 @@ KELO_BAG=/data/bags/map_hardware_<date> docker compose --profile replay up
 | Obstacle in the stop zone | Collision monitor stops the robot (Nav2 and teleop) |
 | Obstacle in the slowdown zone (1.025 m ahead of the centre) | Speed scaled to 40 % |
 | Predicted collision within 1.2 s (Nav2) / 1.0 s (teleop) | Speed reduced (`FootprintApproach`) |
-| Obstacle outside the LiDAR plane | Detected by the depth camera (0.30–2.5 m, height 0.06–1.20 m) |
+| Obstacle outside the LiDAR plane | Detected by the depth camera: collision monitors 0.30–2.5 m, height 0.06–1.20 m, unfiltered; costmaps 0.30–2.0 m, noise-filtered |
 | LiDAR or camera data older than 1.0 s | Robot stopped until data resumes |
 | Obstacle removed | Cleared from the costmap by the clearing cloud (also in the camera blind wedge where the LiDAR sees free); navigation resumes |
-| LiDAR scan no longer fits the map at the AMCL pose for 8 s | State `LOST`, running goal cancelled, no new goals until **Localize** |
+| LiDAR scan no longer fits the map at the AMCL pose for 8 s | State `LOST`, running goal cancelled; on the robot it re-localizes by itself and continues to the goal (otherwise **Localize**) |
+| No progress towards the goal for 60 s | Goal given up, the reason is reported |
+| A node crashes | Restarted within 2 s; Nav2 nodes activated again; no new goals meanwhile |
 | Marvelmind and AMCL differ by > 1.0 m for 2 s | `/kelo/safety_stop` asserted, zero velocity |
 | No Marvelmind data | Reported as `MM_LOST`; no stop |
 | Container or service shutdown | Zero velocity published; automatic restart on failure |
