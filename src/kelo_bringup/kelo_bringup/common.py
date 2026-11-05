@@ -113,8 +113,12 @@ def odom_plan(hw, odom_source):
     raw = hw['topics']['odom']
     if odom_source == 'lidar':
         return {'tf_owner': 'rf2o', 'topic': '/odom_rf2o', 'raw_topic': raw}
-    if hw['robot']['odom_mode'] == 'corrected':
-        return {'tf_owner': 'odom_filter', 'topic': '/odom_corrected', 'raw_topic': raw}
+    # corrected: odom_filter owns odom -> base_link and corrects the old driver's yaw rate (5x too small);
+    # relay: odom_filter owns the TF without correction (driver with fix_odom_rotation, publish_tf false):
+    # the stamps move onto this computer's clock in both
+    if hw['robot']['odom_mode'] in ('corrected', 'relay'):
+        return {'tf_owner': 'odom_filter', 'topic': '/odom_corrected', 'raw_topic': raw,
+                'correct': hw['robot']['odom_mode'] == 'corrected'}
     return {'tf_owner': 'driver', 'topic': raw, 'raw_topic': raw}
 
 
@@ -167,7 +171,8 @@ def nav2_params(hw, odom_topic, cfg=None, camera_map=False):
     cm = cfg['collision_monitor']['ros__parameters']
     if 'camera' in cm.get('observation_sources', []):
         if sens['camera']:
-            cm['camera']['topic'] = hw['topics']['camera_points']
+            # the collision monitors get the safety cloud (range and height only, no noise filter)
+            cm['camera']['topic'] = hw['topics'].get('camera_points_safety', hw['topics']['camera_points'])
         else:
             _drop_cm_source(cm, 'camera')
     return cfg
@@ -178,7 +183,8 @@ def safety_params(hw, cfg=None):
     cm = cfg['collision_monitor_teleop']['ros__parameters']
     if 'camera' in cm.get('observation_sources', []):
         if sensors(hw)['camera']:
-            cm['camera']['topic'] = hw['topics']['camera_points']
+            # the collision monitors get the safety cloud (range and height only, no noise filter)
+            cm['camera']['topic'] = hw['topics'].get('camera_points_safety', hw['topics']['camera_points'])
         else:
             _drop_cm_source(cm, 'camera')
     return cfg

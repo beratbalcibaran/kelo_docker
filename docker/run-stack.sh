@@ -26,6 +26,23 @@ cleanup() {
 }
 trap cleanup TERM INT
 
+# automatic start on the robot (KELO_AUTO=1, default): wait until the robot driver answers on the cable,
+# write its settings (topics, odom_mode, ROS_DOMAIN_ID) and only then start. Nothing on the robot computer
+# is changed: the driver must be running there.
+ROBOT_ENV="${KELO_ROBOT_ENV:-/data/robot.env}"
+load_robot_env() { [ -f "$ROBOT_ENV" ] && { set -a; . "$ROBOT_ENV"; set +a; echo "[kelo] robot settings: $(tr '\n' ' ' < "$ROBOT_ENV")"; }; }
+load_robot_env
+if [ "$SOURCE" = hardware ] && [ "${KELO_AUTO:-1}" = 1 ]; then
+  n=0
+  until ros2 run kelo_bringup robot_discover --apply --env-file "$ROBOT_ENV"; do
+    n=$((n + 1))
+    echo "[kelo] automatic: robot driver not found yet (cable in? driver started on the robot computer?), try $n, again in 10 s"
+    sleep 10 & wait $!
+  done
+  load_robot_env
+  echo "[kelo] automatic: robot found, starting $MODE"
+fi
+
 if [ "$MODE" = navigation ]; then
   while [ ! -f "$MAP" ]; do
     echo "[kelo] ERROR: no map: $MAP (map first with KELO_MODE=mapping). Waiting..."

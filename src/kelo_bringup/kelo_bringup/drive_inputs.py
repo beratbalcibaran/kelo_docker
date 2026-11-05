@@ -13,7 +13,7 @@ import math
 import numpy as np
 from action_msgs.msg import GoalStatus, GoalStatusArray
 from action_msgs.srv import CancelGoal
-from geometry_msgs.msg import PointStamped, Twist, TwistStamped
+from geometry_msgs.msg import PointStamped, PoseStamped, Twist, TwistStamped
 from nav2_msgs.action import NavigateToPose
 from nav2_msgs.msg import SpeedLimit
 from nav_msgs.msg import Path
@@ -58,6 +58,7 @@ class DriveInputs:
         self.blocking, self.blocking_t = False, -1e9
         self.limit = None
         self.goal_client = self.cancel_client = None
+        self.goal_pub = None
         self.goal_note = None
         self.loc_state = None
         node.create_subscription(String, '/kelo/localization_state', self._loc, QoSProfile(
@@ -162,6 +163,10 @@ class DriveInputs:
         goal.pose.header.stamp = self.node.get_clock().now().to_msg()
         goal.pose.pose.position.x, goal.pose.pose.position.y = float(mx), float(my)
         goal.pose.pose.orientation.z, goal.pose.pose.orientation.w = math.sin(yaw / 2.0), math.cos(yaw / 2.0)
+        if self.goal_pub is None:
+            self.goal_pub = self.node.create_publisher(PoseStamped, '/kelo/nav_goal', QoSProfile(
+                depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self.goal_pub.publish(goal.pose)     # nav_watch: sent again after a relocalization
         self.goal_client.send_goal_async(goal)
         self.node.get_logger().info(f'clicked goal: map {mx:.2f}, {my:.2f}, {math.degrees(yaw):.0f} deg')
         return self.say(f'goal sent: {dist:.1f} m away')

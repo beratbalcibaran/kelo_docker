@@ -64,7 +64,7 @@ def test_hardware_has_all_frames_and_mounts():
     for key in ('laser', 'camera', 'hedgehog'):
         assert set(hw['mounts'][key]) == {'x', 'y', 'z', 'roll', 'pitch', 'yaw'}
     assert hw['robot']['cmd_vel_type'] in ('Twist', 'TwistStamped')
-    assert hw['robot']['odom_mode'] in ('driver', 'corrected')
+    assert hw['robot']['odom_mode'] in ('driver', 'corrected', 'relay')
 
 
 import math

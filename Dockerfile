@@ -32,7 +32,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
       ros-jazzy-teleop-twist-keyboard \
       ros-jazzy-rosidl-default-generators \
       ros-jazzy-launch-xml \
-      python3-yaml python3-tk python3-numpy python3-pytest \
+      python3-yaml python3-tk python3-numpy python3-pytest python3-psutil \
       python3-colcon-common-extensions \
       git build-essential ca-certificates curl \
       xvfb x11vnc openbox novnc websockify \

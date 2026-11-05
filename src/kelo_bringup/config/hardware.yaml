@@ -19,6 +19,8 @@ topics:
   camera_color: /camera/camera/color/image_raw
   camera_color_info: /camera/camera/color/camera_info
   camera_points: /camera/points_filtered
+  # collision monitors: the same points without the noise filter (range and height only, 2.5 m)
+  camera_points_safety: /camera/points_safety
   camera_clearing: /camera/points_clearing
   camera_map_clearing: /camera/points_map_clearing
   camera_map: /map_camera
@@ -81,11 +83,23 @@ navigation:
   # top driving speed in m/s (0.05-0.30; the safety zones are sized for 0.30); the panel slider sets
   # it while navigating and saves it here
   max_speed: 0.25
+  # nav_watch: a goal without progress for this long is given up, with the reason (0: never)
+  stuck_timeout_s: 60.0
+  # goals sent while the robot is not ready (no odometry, robot clock off, not localized ...) are refused
+  refuse_goals_when_not_ready: true
+  # on the robot, when nobody localized it after the start: localize by itself (turns in place through
+  # the safety chain; the last good pose is tried first)
+  auto_localize: true
+  # LOST while driving: stop, localize again by itself and continue to the same goal (at most twice)
+  auto_relocalize: true
 
 # driver views: objects node, surround, parking and coverage views, video recorder and web view.
 # Off: only mapping/navigation and safety run (no object names, no people-aware navigation)
 views:
   enabled: true
+  # grey depth image of the parking camera (camera window, web view): off saves CPU; the depth camera
+  # itself keeps running for the obstacles. Turn it on to see what the camera marks as an obstacle.
+  depth: false
 
 # driver views in a browser (web_view): http://<robot>:8080, user kelo, password KELO_WEB_PASSWORD
 web:
@@ -100,6 +114,9 @@ recording:
   height: 480
   dashcam_s: 0
   max_minutes: 30
+  # incidents (nav_watch): the last minutes of sensor data stay in memory and are written to
+  # /data/incidents on a long wait, LOST or a given-up goal (rosbag2 snapshot; replay with source:=replay)
+  incidents: {enabled: true, cache_mb: 150}
 
 mounts:
   laser:    {x: 0.45, y: 0.0, z: 0.20, roll: 0.0, pitch: 0.0, yaw: 0.0}

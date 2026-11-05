@@ -107,11 +107,11 @@ def evaluate(hw, obs):
     mode = hw['robot']['odom_mode']
     ours = [n for n in obs['tf_pubs'] if any(n.startswith(p) for p in OUR_ODOM_TF)]
     others = [n for n in obs['tf_pubs'] if n not in ours]
-    if obs['odom_tf_seen'] and mode == 'corrected' and not ours:
+    if obs['odom_tf_seen'] and mode in ('corrected', 'relay') and not ours:
         out.append((FAIL, f"{fr['odom']} -> {fr['base']} TF is published by {', '.join(others) or 'another node'}, "
                           "but robot.odom_mode is 'corrected' (odom_filter owns this TF): switch it off in the "
                           "driver or set odom_mode: driver"))
-    elif obs['odom_tf_seen'] and mode == 'corrected' and others:
+    elif obs['odom_tf_seen'] and mode in ('corrected', 'relay') and others:
         out.append((WARN, f"the KELO stack publishes {fr['odom']} -> {fr['base']}; whether the driver does too can "
                           'only be checked with the stack off'))
     elif not obs['odom_tf_seen'] and mode == 'driver':

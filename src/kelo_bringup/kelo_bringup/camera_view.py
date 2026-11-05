@@ -55,10 +55,21 @@ def fit(rgb, width, height):
     return cv2.resize(rgb, size, interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_LINEAR)
 
 
+def panes():
+    """Colour only, unless the grey depth view is on (hardware.yaml views.depth)."""
+    try:
+        from kelo_bringup.common import load_hardware
+        depth = bool((load_hardware().get('views') or {}).get('depth', False))
+    except Exception:
+        depth = False
+    return PANES if depth else PANES[:1]
+
+
 class CameraView(Node):
     def __init__(self):
         super().__init__('camera_view')
-        self.declare_parameter('geometry', '1470x470+0+785')
+        self.panes = panes()
+        self.declare_parameter('geometry', '1470x470+0+785' if len(self.panes) > 1 else '735x470+0+785')
         self.declare_parameter('surround_geometry', '760x590-0-0')
         self.geometry = self.get_parameter('geometry').value
         self.surround_geometry = self.get_parameter('surround_geometry').value
@@ -66,7 +77,7 @@ class CameraView(Node):
         self.latest = {}
         # JPEG form of the views (view_publisher): ~40 KB per frame instead of ~2 MB raw, which DDS
         # delivers without dropping frames
-        for key, _, topic in PANES + (SURROUND, COVERAGE):
+        for key, _, topic in self.panes + (SURROUND, COVERAGE):
             self.create_subscription(CompressedImage, topic + '/compressed', lambda m, k=key: self._image(k, m), 2)
         self.click_pub = self.create_publisher(PointStamped, '/kelo/view_click', 10)
 
@@ -102,7 +113,7 @@ class Window:
         self.root.geometry(node.geometry)
         self.root.configure(bg='black')
         self.labels, self.photos, self.shown, self.drawn = {}, {}, {}, {}
-        for col, (key, title, _) in enumerate(PANES):
+        for col, (key, title, _) in enumerate(node.panes):
             self.root.columnconfigure(col, weight=1, uniform='pane')
             tk.Label(self.root, text=title, fg='white', bg='black').grid(row=0, column=col, sticky='ew')
             label = tk.Label(self.root, bg='black', fg='grey', text='waiting for images...')
@@ -148,7 +159,7 @@ class Window:
         other = COVERAGE[0] if lower == SURROUND[0] else SURROUND[0]
         if self.node.frame(lower) is None and self.node.frame(other) is not None:
             lower = other  # the selected view has no image (e.g. coverage outside mapping)
-        for key, src in [(k, k) for k, _, _ in PANES] + [('lower', lower)]:
+        for key, src in [(k, k) for k, _, _ in self.node.panes] + [("lower", lower)]:
             label = self.labels[key]
             item = self.node.frame(src)
             if item is None:

@@ -70,6 +70,8 @@ class WebView(Node):
     def __init__(self, password):
         super().__init__('web_view')
         hw = load_hardware()
+        # the grey depth view only when views.depth is on (it is not rendered otherwise)
+        self.views = {k: v for k, v in VIEWS.items() if k != 'depth' or (hw.get('views') or {}).get('depth', False)}
         web = hw.get('web', {}) or {}
         d = self.declare_parameter
         d('port', int(web.get('port', 8080)))
@@ -103,7 +105,7 @@ class WebView(Node):
     # ---- ROS side (executor thread) ----
     def _sync_subs(self):
         """Subscribe to a view only while a browser streams it: the view is rendered on demand."""
-        for view, topic in VIEWS.items():
+        for view, topic in self.views.items():
             want = self.frames.clients.get(view, 0) > 0
             if want and view not in self.subs:
                 self.subs[view] = self.create_subscription(CompressedImage, topic, lambda m, v=view: self._image(v, m), 2)
@@ -212,7 +214,8 @@ def make_handler(node):
                 return
             path = self.path.split('?')[0]
             if path in ('/', '/index.html'):
-                return self._send(200, PAGE.encode(), 'text/html; charset=utf-8')
+                page = PAGE if 'depth' in getattr(node, 'views', VIEWS) else PAGE.replace("['depth','Depth'],", '')
+                return self._send(200, page.encode(), 'text/html; charset=utf-8')
             if path == '/api/status':
                 return self._send(200, node.status())
             if path.startswith('/stream/') and path.endswith('.mjpg'):
@@ -242,7 +245,7 @@ def make_handler(node):
             self._send(404, {'error': 'not found'})
 
         def _stream(self, view):
-            if view not in VIEWS:
+            if view not in getattr(node, 'views', VIEWS):
                 return self._send(404, {'error': 'no such view'})
             self.send_response(200)
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=frame')

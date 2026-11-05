@@ -233,6 +233,9 @@ class ParkingView(Node):
         d('width', 848)
         d('rate_hz', 5.0)
         d('path_length', 8.0)
+        # grey depth image (hardware.yaml views.depth): off by default, the colour image keeps the obstacle
+        # drawings found in the depth image
+        d('depth_view', bool((hw.get('views') or {}).get('depth', False)))
         g = lambda n: self.get_parameter(n).value
         self.base = g('base_frame')
         self.front = hw['body']['length'] / 2.0
@@ -246,6 +249,7 @@ class ParkingView(Node):
         self.out_w = int(g('width'))
         self.period = 1.0 / max(float(g('rate_hz')), 0.1)
         self.path_length = float(g('path_length'))
+        self.depth_view = bool(g('depth_view'))
         self.k = None
         self.k_color = None
         self.color = None
@@ -309,7 +313,8 @@ class ParkingView(Node):
         self.inputs.send_goal(*p)
 
     def _watched(self):
-        return any(p.get_subscription_count() > 0 for p in (self.pub, self.color_pub, self.near_pub))
+        pubs = (self.pub, self.color_pub, self.near_pub) if self.depth_view else (self.color_pub, self.near_pub)
+        return any(p.get_subscription_count() > 0 for p in pubs)
 
     def _depth(self, msg):
         now = self.get_clock().now().nanoseconds * 1e-9
@@ -336,7 +341,8 @@ class ParkingView(Node):
         path, left = self.inputs.plan_in_base(self.path_length)
         scene_ = {'near': near, 'poses': poses, 's': s, 'path': path, 'left': left, 't': now,
                   'speed': math.hypot(vx, vy)}
-        self._publish(self.pub, msg.header, self._render_depth(depth, inside, beside, solid, tf, scene_))
+        if self.depth_view and self.pub.get_subscription_count() > 0:
+            self._publish(self.pub, msg.header, self._render_depth(depth, inside, beside, solid, tf, scene_))
         if self.color is not None and self.k_color is not None:
             ctf = self._transform(self.color.header.frame_id)
             rgb = decode_color(self.color)

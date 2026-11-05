@@ -105,7 +105,7 @@ def build(opts, hw=None):
         'hedgehog_xyz': _xyz(hw['mounts']['hedgehog']), 'hedgehog_rpy': _rpy(hw['mounts']['hedgehog']),
     }).toxml()
     acts.append(Node(package='robot_state_publisher', executable='robot_state_publisher',
-                     parameters=[{'robot_description': urdf}], output='screen'))
+                     parameters=[{'robot_description': urdf}], output='screen', respawn=True, respawn_delay=2.0))
 
     if source == 'hardware':
         acts += _hardware_drivers(hw, sens)
@@ -124,9 +124,11 @@ def build(opts, hw=None):
             target_action=play, on_exit=[LogInfo(msg='[kelo] REPLAY_FINISHED: bag playback complete')])))
 
     oc = hw['odom_correction']
+    if not plan.get('correct', True):
+        oc = dict(oc, yaw_k={'wz': [0.0], 'k': [1.0]}, linear_error={'v': [0.0], 'e': [0.0]})
     if plan['tf_owner'] == 'odom_filter':
         acts.append(Node(package='kelo_bringup', executable='odom_filter', name='odom_filter',
-                         output='screen', parameters=[{
+                         output='screen', respawn=True, respawn_delay=2.0, parameters=[{
                              'input_topic': plan['raw_topic'], 'output_topic': plan['topic'],
                              'odom_frame': fr['odom'], 'base_frame': fr['base'],
                              'yaw_k_wz': [float(v) for v in oc['yaw_k']['wz']],
@@ -136,13 +138,13 @@ def build(opts, hw=None):
                              'max_age_s': float(oc['max_age_s'])}]))
     elif plan['tf_owner'] == 'driver' and replay:
         acts.append(Node(package='kelo_bringup', executable='odom_filter', name='odom_tf_replay',
-                         output='screen', parameters=[{
+                         output='screen', respawn=True, respawn_delay=2.0, parameters=[{
                              'input_topic': plan['raw_topic'], 'output_topic': '/odom_tf_replay',
                              'odom_frame': fr['odom'], 'base_frame': fr['base'],
                              'max_age_s': float(oc['max_age_s'])}]))
     elif plan['tf_owner'] == 'rf2o':
         acts.append(Node(package='rf2o_laser_odometry', executable='rf2o_laser_odometry_node',
-                         output='screen', parameters=[{
+                         output='screen', respawn=True, respawn_delay=2.0, parameters=[{
                              'laser_scan_topic': tp['scan'], 'odom_topic': plan['topic'],
                              'publish_tf': True, 'base_frame_id': fr['base'],
                              'odom_frame_id': fr['odom'], 'init_pose_from_topic': '',
@@ -153,24 +155,25 @@ def build(opts, hw=None):
                      parameters=[safety, {'output_type': hw['robot']['cmd_vel_type'],
                                           'output_topic': tp['cmd_vel']}]))
     acts.append(Node(package='nav2_collision_monitor', executable='collision_monitor',
-                     name='collision_monitor_teleop', output='screen', parameters=[safety]))
+                     name='collision_monitor_teleop', output='screen', respawn=True, respawn_delay=2.0, parameters=[safety]))
     acts.append(Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
                      name='lifecycle_manager_teleop', output='screen',
                      parameters=[{'autostart': True, 'node_names': ['collision_monitor_teleop']}]))
     if sens['camera']:
         acts.append(Node(package='kelo_bringup', executable='cloud_filter', name='cloud_filter',
-                         output='screen', parameters=[safety, {
+                         output='screen', respawn=True, respawn_delay=2.0, parameters=[safety, {
                              'depth_topic': tp['camera_depth'], 'info_topic': tp['camera_info'],
                              'output_topic': tp['camera_points'], 'clearing_topic': tp['camera_clearing'],
+                             'safety_topic': tp.get('camera_points_safety', ''),
                              'map_clearing_topic': tp['camera_map_clearing'] if camera_map else '',
                              'base_frame': fr['base'], 'scan_topic': tp['scan']}]))
     acts.append(Node(package='kelo_bringup', executable='status_node', name='kelo_status',
-                     output='screen', parameters=[safety, {
+                     output='screen', respawn=True, respawn_delay=2.0, parameters=[safety, {
                          'odom_topic': plan['topic'], 'camera_info_topic': tp['camera_info'],
                          'camera_enabled': sens['camera'], 'marvelmind_enabled': sens['marvelmind']}]))
     if sens['marvelmind']:
         acts.append(Node(package='kelo_bringup', executable='marvelmind_bridge', name='marvelmind_bridge',
-                         output='screen', parameters=[{
+                         output='screen', respawn=True, respawn_delay=2.0, parameters=[{
                              'raw_topic': tp['marvelmind_raw'], 'pose_topic': tp['marvelmind_pose'],
                              'map_frame': fr['map'], 'mm_frame': fr['marvelmind_map']}]))
 
@@ -183,7 +186,7 @@ def build(opts, hw=None):
     if camera_map:
         filt = safety_cfg['cloud_filter']['ros__parameters']
         acts.append(Node(package='kelo_bringup', executable='camera_mapper', name='camera_mapper',
-                         output='screen', parameters=[{
+                         output='screen', respawn=True, respawn_delay=2.0, parameters=[{
                              'output_topic': tp['camera_map'], 'points_topic': tp['camera_points'],
                              'clearing_topic': tp['camera_map_clearing'], 'map_frame': fr['map'],
                              'base_frame': fr['base'], 'camera_frame': fr['camera_optical'],
@@ -197,7 +200,35 @@ def build(opts, hw=None):
         acts.append(Node(package='rviz2', executable='rviz2', output='screen', respawn=True,
                          respawn_delay=3.0,
                          arguments=['-d', os.path.join(share(), 'rviz', 'kelo.rviz')]))
+    acts.append(health_monitor(acts, extra=['camera'] if source == 'hardware' and sens['camera'] else []))
     return acts
+
+
+def node_names(actions):
+    """Names of the Nodes started by these launch actions, also those started later by a timer or an
+    event handler (Nav2 starts once map -> base_link exists)."""
+    out = []
+    for a in actions:
+        if isinstance(a, Node):
+            name = getattr(a, '_Node__node_name', None)
+            if isinstance(name, str):
+                out.append(name)
+        elif isinstance(a, TimerAction):
+            out += node_names(a.actions)
+        elif isinstance(a, RegisterEventHandler):
+            later = getattr(a.event_handler, '_OnActionEventBase__actions_on_event', None)
+            if isinstance(later, (list, tuple)):
+                out += node_names(later)
+    return out
+
+
+def health_monitor(acts, extra=()):
+    """Node states (every long-running node respawns), Nav2 nodes activated again after a restart
+    (lifecycle_manager_navigation has no bonds), Jetson load: /kelo/health."""
+    names = list(dict.fromkeys(node_names(acts) + list(extra)))
+    return Node(package='kelo_bringup', executable='health_monitor', name='health_monitor', output='screen',
+                respawn=True, respawn_delay=2.0, parameters=[{
+                    'expected_nodes': names or [''], 'reactivate_nodes': NAV_LIFECYCLE}])
 
 
 def _driver_views(hw, sens, mode, opts):
@@ -267,7 +298,7 @@ def _mapping(hw, sens, opts, source):
                     transition_id=Transition.TRANSITION_ACTIVATE))]))]
     if sens['marvelmind']:
         acts.append(Node(package='kelo_bringup', executable='mm_recorder', name='mm_recorder',
-                         output='screen'))
+                         output='screen', respawn=True, respawn_delay=2.0))
     record = str(opts.get('record', 'auto')).lower()
     if record == 'true' or (record == 'auto' and source != 'replay'):
         out = os.path.join(data_dir(), 'bags', time.strftime(f'map_{source}_%Y%m%d_%H%M%S'))
@@ -320,11 +351,11 @@ def _localization(hw, plan, opts):
     acts = [LogInfo(msg=f'[kelo] camera layer rebuild on {opts["map"]} with {kind}, initial pose '
                         f'{pose[0]:.3f} {pose[1]:.3f} {math.degrees(pose[2]):.1f} deg'),
             Node(package='nav2_map_server', executable='map_server', name='map_server', output='screen',
-                 parameters=[params])]
+                 respawn=True, respawn_delay=2.0, parameters=[params])]
     managed = ['map_server']
     if kind == 'amcl':
         acts.append(Node(package='nav2_amcl', executable='amcl', name='amcl', output='screen',
-                         parameters=[params]))
+                         respawn=True, respawn_delay=2.0, parameters=[params]))
         managed.append('amcl')
     else:
         with open(config_path('slam_toolbox.yaml'), encoding='utf-8') as f:
@@ -356,6 +387,57 @@ def _lifecycle_start(node):
                     transition_id=Transition.TRANSITION_ACTIVATE))]))]
 
 
+INCIDENT_TOPICS = ['/tf', '/tf_static', '/plan', '/local_plan', '/cmd_vel_nav', '/cmd_vel_safe',
+                   '/global_costmap/costmap', '/local_costmap/costmap', '/amcl_pose', '/collision_monitor_state',
+                   '/navigate_to_pose/_action/status', '/navigate_to_pose/_action/feedback', '/rosout',
+                   '/kelo/localization_state', '/kelo/localization_fit', '/kelo/nav_status', '/kelo/ready',
+                   '/kelo/odom_conflict', '/kelo/person_blocking', '/kelo/camera_tilt', '/kelo/gate_state']
+
+
+def incident_recorder(hw, sens, plan, data='/data'):
+    """rosbag2 in snapshot mode: the last minutes stay in memory (recording.incidents.cache_mb) and
+    nav_watch writes them to /data/incidents/nav_<date> on a long wait, LOST or a given-up goal."""
+    inc = (hw.get('recording') or {}).get('incidents') or {}
+    if not inc.get('enabled', True):
+        return []
+    tp = hw['topics']
+    topics = [tp['scan'], plan['raw_topic'], plan['topic'], tp['cmd_vel']] + INCIDENT_TOPICS
+    if sens['camera']:
+        topics += [tp['camera_points'], tp['camera_info']]
+    topics = list(dict.fromkeys(topics))
+    out = os.path.join(data, 'incidents', time.strftime('nav_%Y%m%d_%H%M%S'))
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    cache = int(float(inc.get('cache_mb', 150)) * 1024 * 1024)
+    return [ExecuteProcess(cmd=['ros2', 'bag', 'record', '--snapshot-mode', '--max-cache-size', str(cache),
+                                '-o', out, *topics], output='log', name='incident_recorder')]
+
+
+def _nav_watch(hw, sens, plan, opts, map_yaml, recorder=True):
+    """nav_watch (reasons, readiness, stuck goals, relocalization) and the incident recorder."""
+    nw = hw.get('navigation') or {}
+    # auto:=true/false forces the self-localization features; default: on the robot only (in the
+    # simulator the panel and the end-to-end tests give the start pose and press Localize themselves)
+    auto = str(opts.get('auto', '') or '').lower()
+    hardware = auto == 'true' or (auto != 'false' and opts['source'] == 'hardware')
+    acts = [Node(package='kelo_bringup', executable='nav_watch', name='nav_watch', output='screen',
+                 respawn=True, respawn_delay=2.0, parameters=[{
+                     'odom_topic': plan['raw_topic'], 'scan_topic': hw['topics']['scan'],
+                     'camera_info_topic': hw['topics']['camera_info'], 'camera_enabled': sens['camera'],
+                     'map_frame': hw['frames']['map'], 'base_frame': hw['frames']['base'], 'map_yaml': map_yaml,
+                     'stuck_timeout_s': float(nw.get('stuck_timeout_s', 60.0)),
+                     'refuse_goals_when_not_ready': bool(nw.get('refuse_goals_when_not_ready', True)),
+                     # on the robot only: in the simulator the panel and the tests give the start pose
+                     'auto_localize': bool(nw.get('auto_localize', True)) and hardware
+                                      and not opts.get('initial_pose'),
+                     'auto_relocalize': bool(nw.get('auto_relocalize', True)) and hardware}])]
+    try:
+        if recorder:
+            acts += incident_recorder(hw, sens, plan, data_dir())
+    except OSError as exc:
+        acts.append(LogInfo(msg=f'[kelo] incident recorder off: {exc}'))
+    return acts
+
+
 def _navigation(hw, sens, plan, opts, safety, replay):
     map_yaml = opts['map']
     camera_yaml = camera_layer_file(map_yaml) if camera_layer_enabled(hw) else None
@@ -381,15 +463,16 @@ def _navigation(hw, sens, plan, opts, safety, replay):
                      parameters=[{'autostart': True, 'node_names': loc_nodes, 'bond_timeout': 10.0}]))
     if sens['marvelmind']:
         acts.append(Node(package='kelo_bringup', executable='mm_monitor', name='mm_monitor',
-                         output='screen', parameters=[safety]))
+                         output='screen', respawn=True, respawn_delay=2.0, parameters=[safety]))
     # scan fit of the AMCL pose (LOST -> goal cancelled), last good pose saved and restored at start
     acts.append(Node(package='kelo_bringup', executable='loc_monitor', name='loc_monitor', output='screen',
                      respawn=True, respawn_delay=2.0, parameters=[{
                          'map_yaml': map_yaml, 'map_frame': hw['frames']['map'], 'scan_topic': hw['topics']['scan'],
                          'restore_last_pose': not sens['marvelmind'] and not opts.get('initial_pose')}]))
+    acts += _nav_watch(hw, sens, plan, opts, map_yaml, recorder=not replay)
 
     def node(pkg, exe, name, remap=None):
-        return Node(package=pkg, executable=exe, name=name, output='screen',
+        return Node(package=pkg, executable=exe, name=name, output='screen', respawn=True, respawn_delay=2.0, 
                     parameters=[params], remappings=remap or [])
 
     nav_nodes = [

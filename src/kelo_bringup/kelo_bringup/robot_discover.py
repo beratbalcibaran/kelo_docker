@@ -152,11 +152,21 @@ def propose(hw, obs):
     # who owns odom -> base_link
     pairs = {tuple(p) for p in obs['tf_pairs']}
     base_pair = odom_frames or (fr['odom'], fr['base'])
-    mode = 'driver' if base_pair in pairs else 'corrected'
+    fixed = (obs.get('driver_params') or {}).get('fix_odom_rotation')
+    if base_pair in pairs:
+        mode = 'driver'
+    else:
+        # the driver's own rotation fix (fix_odom_rotation) and odom_filter's yaw table must not both act
+        mode = 'relay' if fixed else 'corrected'
     if odom:
         notes.append([OK, f'{base_pair[0]} -> {base_pair[1]} TF '
                           + ('published by the driver -> odom_mode driver' if mode == 'driver' else
-                             'not published by the driver -> odom_mode corrected (odom_filter publishes it)')])
+                             'not published by the driver, the driver fixes the rotation itself '
+                             '(fix_odom_rotation) -> odom_mode relay (odom_filter publishes it, no correction)'
+                             if mode == 'relay' else
+                             'not published by the driver -> odom_mode corrected (odom_filter publishes it'
+                             + (', yaw table on: the driver did not report fix_odom_rotation)' if fixed is None
+                                else ', yaw table on)'))])
         if mode != hw['robot']['odom_mode']:
             settings.append([['robot', 'odom_mode'], mode])
     ours = {fr[k] for k in ('base', 'laser', 'camera', 'camera_optical', 'hedgehog')}
@@ -193,6 +203,16 @@ def local_devices(hw):
             except OSError:
                 pass
     return {'lidar': port('lidar_port'), 'camera': camera, 'marvelmind': port('marvelmind_port')}
+
+
+def write_env(file, key, value):
+    lines = []
+    if os.path.isfile(file):
+        with open(file, encoding='utf-8') as f:
+            lines = [ln for ln in f.read().splitlines() if ln.strip() and not ln.startswith(key + '=')]
+    lines.append(f'{key}={value}')
+    with open(file, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
 
 
 def save_override(path, value):
@@ -292,8 +312,39 @@ def observe(d, seconds):
         odom[name] = {'hz': hz, 'frame': s['frame'], 'child': s['child'],
                       'offset': statistics.median(s['off']) if s['off'] else None}
     nodes, topics = _graph(d)   # again: late discoveries
+    drivers = sorted({nd for name, t in topics.items() for nd, typ in t['pubs']
+                      if typ == ODOM_TYPE and not is_ours(nd)})
     return {'domain': d.domain, 'nodes': nodes, 'topics': topics, 'odom': odom,
-            'tf_pairs': sorted([list(p) for p in pairs])}
+            'tf_pairs': sorted([list(p) for p in pairs]), 'driver_params': driver_params(d, drivers)}
+
+
+def driver_params(d, nodes, names=('fix_odom_rotation', 'publish_tf'), timeout=2.0):
+    """Parameters of the odometry publisher (the robot driver), read over its parameter service; works
+    across ROS 2 distributions (Humble driver, Jazzy stack). {} when nothing answers."""
+    from rcl_interfaces.srv import GetParameters
+    out = {}
+    for name in nodes:
+        cli = d.node.create_client(GetParameters, f'/{name.lstrip("/")}/get_parameters')
+        try:
+            end = time.time() + timeout
+            while not cli.service_is_ready() and time.time() < end:
+                d.spin(0.05)
+            if not cli.service_is_ready():
+                continue
+            fut = cli.call_async(GetParameters.Request(names=list(names)))
+            while not fut.done() and time.time() < end + timeout:
+                d.spin(0.05)
+            res = fut.result() if fut.done() else None
+            if res is None:
+                continue
+            for key, val in zip(names, res.values):
+                if val.type == 1:          # PARAMETER_BOOL
+                    out[key] = bool(val.bool_value)
+            if out:
+                return out
+        finally:
+            d.node.destroy_client(cli)
+    return out
 
 
 def discover(hw, domains, seconds, discovery_s=3.0, log=print):
@@ -351,6 +402,9 @@ def main():
                     help='ROS_DOMAIN_IDs to search, e.g. 0-10 or 0,5,42 (the current one is always searched)')
     ap.add_argument('--apply', action='store_true', help='write the proposed settings to /data/hardware.yaml')
     ap.add_argument('--json', action='store_true', help='also print the result as one JSON line (for the panel)')
+    ap.add_argument('--env-file', default='',
+                    help='with --apply: write environment settings (ROS_DOMAIN_ID) to this file (run-stack.sh '
+                         'reads it before the start)')
     args = ap.parse_args()
     hw = load_hardware()
     iface, state = iface_state()
@@ -368,7 +422,11 @@ def main():
     if args.apply:
         for path, value in res['settings']:
             if path[0] == 'env':
-                print(f'[robot_discover] not written: {path[1]}={value} goes into .env', flush=True)
+                if args.env_file:
+                    write_env(args.env_file, path[1], value)
+                    print(f'[robot_discover] {path[1]}={value} written to {args.env_file}', flush=True)
+                else:
+                    print(f'[robot_discover] not written: {path[1]}={value} goes into .env', flush=True)
                 continue
             save_override(path, value)
         print('[robot_discover] written to ' + os.path.join(data_dir(), 'hardware.yaml'), flush=True)

@@ -72,6 +72,15 @@ def main():
             last[0] = time.time()
             log(f'Remaining distance: {fb.feedback.distance_remaining:.2f} m')
 
+    # nav_watch remembers the goal (sent again after a relocalization): latched, before the goal
+    from rclpy.qos import DurabilityPolicy, QoSProfile
+    goal_pub = node.create_publisher(PoseStamped, '/kelo/nav_goal',
+                                     QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+    t1 = time.time()
+    while goal_pub.get_subscription_count() == 0 and time.time() - t1 < 1.5:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    goal_pub.publish(goal.pose)
+    rclpy.spin_once(node, timeout_sec=0.2)
     log(f'Driving to goal: x={x} y={y} yaw={math.degrees(yaw):.1f} deg')
     send = client.send_goal_async(goal, feedback_callback=feedback)
     rclpy.spin_until_future_complete(node, send)

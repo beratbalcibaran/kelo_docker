@@ -13,3 +13,6 @@ data/last_pose.yaml*
 data/videos/
 data/models/
 .env
+data/incidents/
+data/camera_tilt.yaml
+data/robot.env
