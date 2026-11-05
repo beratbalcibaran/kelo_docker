@@ -44,6 +44,7 @@ services:
       <<: *env
       KELO_VNC_PASSWORD: "${KELO_VNC_PASSWORD:-}"
       KELO_GUI_SOURCE: hardware
+      KELO_GUI_AUTO: "${KELO_GUI_AUTO:-1}"
       KELO_DDS_IFACE: "${KELO_DDS_IFACE:-enP8p1s0}"
 
   production:
@@ -61,6 +62,7 @@ services:
       KELO_MODE: "${KELO_MODE:-navigation}"
       KELO_DDS_IFACE: "${KELO_DDS_IFACE:-enP8p1s0}"
       KELO_INITIAL_POSE: "${KELO_INITIAL_POSE:-}"
+      KELO_AUTO: "${KELO_AUTO:-1}"
 
   mapping:
     <<: *kelo
@@ -79,7 +81,6 @@ services:
       KELO_DDS_IFACE: "${KELO_DDS_IFACE:-enP8p1s0}"
       KELO_ODOM_SOURCE: "${KELO_ODOM_SOURCE:-robot}"
 
-  # object detector on the Jetson GPU (TensorRT, YOLOX-s) for the objects node; see docker/detector/
   detector:
     profiles: ["detector"]
     image: kelo-detector:latest

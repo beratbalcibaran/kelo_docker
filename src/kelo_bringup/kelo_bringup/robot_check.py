@@ -31,13 +31,11 @@ MIN_HZ = {'odom': 10.0, 'scan': 5.0, 'depth': 5.0, 'marvelmind': 2.0}
 MAX_CLOCK_OFFSET_S = 0.2
 OUR_CMD_PUBLISHERS = ('cmd_vel_gate',)
 OUR_ODOM_TF = ('odom_filter', 'rf2o_laser_odometry', 'sim_robot')
-# KELO nodes that only watch /cmd_vel (driver views): not the robot driver
 OUR_CMD_WATCHERS = ('surround_view', 'parking_view', 'web_view', 'objects', 'social', 'video_recorder',
                     'coverage_view', 'camera_view', 'map_side_view', 'kelo_e2e', 'kelo_robot_check')
 
 
 class Stream:
-    """Message count, rate, frames and the clock offset (receive time - header stamp) of one topic."""
 
     def __init__(self):
         self.n = 0
@@ -84,10 +82,6 @@ def _clock(name, st):
 
 
 def evaluate(hw, obs):
-    """Check results [(level, text)] from what was observed:
-    obs = {'streams': {key: Stream}, 'cmd_pubs': [node names], 'cmd_subs': [(node, type)],
-           'tf_pubs': [node names], 'odom_tf_seen': bool, 'map': path or None, 'camera_map': path or None,
-           'domain': str}"""
     fr, sens, out = hw['frames'], sensors(hw), []
     st = obs['streams']
     out.append((OK, f"ROS_DOMAIN_ID={obs.get('domain') or '0 (default)'}"))
@@ -107,11 +101,11 @@ def evaluate(hw, obs):
     mode = hw['robot']['odom_mode']
     ours = [n for n in obs['tf_pubs'] if any(n.startswith(p) for p in OUR_ODOM_TF)]
     others = [n for n in obs['tf_pubs'] if n not in ours]
-    if obs['odom_tf_seen'] and mode == 'corrected' and not ours:
+    if obs['odom_tf_seen'] and mode in ('corrected', 'relay') and not ours:
         out.append((FAIL, f"{fr['odom']} -> {fr['base']} TF is published by {', '.join(others) or 'another node'}, "
                           "but robot.odom_mode is 'corrected' (odom_filter owns this TF): switch it off in the "
                           "driver or set odom_mode: driver"))
-    elif obs['odom_tf_seen'] and mode == 'corrected' and others:
+    elif obs['odom_tf_seen'] and mode in ('corrected', 'relay') and others:
         out.append((WARN, f"the KELO stack publishes {fr['odom']} -> {fr['base']}; whether the driver does too can "
                           'only be checked with the stack off'))
     elif not obs['odom_tf_seen'] and mode == 'driver':

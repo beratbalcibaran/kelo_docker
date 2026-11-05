@@ -36,7 +36,6 @@ def _load(path):
 
 
 def _objects(cfg, band):
-    """{name: (boxes, cylinders)} of the parts that reach into the height band."""
     room = cfg.get('room', {})
     out = {'walls': ([], [])}
     boxes, cyls = W.load_world({'room': room, 'obstacles': []})
@@ -139,7 +138,6 @@ UNKNOWN_C, FREE_C, OCC_C, CAMERA_C = (205, 205, 205), (255, 255, 255), (0, 0, 0)
 
 
 def _classes(map_yaml, xs, ys):
-    """0 unknown, 1 free, 2 occupied at map-frame points (xs, ys) of a map yaml."""
     import os
     with open(map_yaml, encoding='utf-8') as f:
         meta = yaml.safe_load(f)
@@ -160,7 +158,6 @@ def _classes(map_yaml, xs, ys):
 
 
 def figure(out_png, reference_yaml, panels, scale=4):
-    """panels: [(title, map_yaml, with_camera)]; the reference outline is the first panel."""
     from PIL import Image, ImageDraw, ImageFont
     ref, res = load_map(reference_yaml)
     lo, hi = ref.min(axis=0) - 0.2, ref.max(axis=0) + 0.2

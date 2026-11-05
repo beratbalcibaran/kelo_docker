@@ -184,7 +184,6 @@ def test_views_switch():
     hw['views'] = {'enabled': False}
     off = nodes(build(opts(), hw=hw))
     assert not VIEW_NODES & off
-    # navigation and safety stay
     assert on - VIEW_NODES == off
     assert not VIEW_NODES & nodes(build(opts(views='false'), hw=all_sensors()))
 
@@ -225,7 +224,6 @@ def test_camera_static_layer_only_adds_obstacles():
     assert with_cam == ['static_layer', 'camera_static_layer'] + plain[1:]
     layer = gc['camera_static_layer']
     assert layer['plugin'] == 'nav2_costmap_2d::StaticLayer'
-    # StaticLayer reads use_maximum from the costmap (Nav2 Jazzy), not from the layer
     assert gc['use_maximum'] is True and 'use_maximum' not in layer
     assert layer['map_topic'] == hw['topics']['camera_map']
     for camera_map in (False, True):
@@ -237,7 +235,6 @@ def test_camera_static_layer_only_adds_obstacles():
 
 
 def test_localize_switches_every_map_layer_of_the_local_costmap():
-    # localize turns these off during the spins; a map-fixed layer missing here would stop the spin
     from kelo_bringup.localize import LOCAL_MAP_LAYERS
     lc = nav2_params(all_sensors(), '/odom', camera_map=True)['local_costmap']['local_costmap']['ros__parameters']
     fixed = [p for p in lc['plugins'] if lc[p]['plugin'] == 'nav2_costmap_2d::StaticLayer']
@@ -276,7 +273,6 @@ def test_camera_layer_rebuild_mode():
 
 
 def test_localization_params_in_node_sections():
-    # dict parameters reach the nodes as a '/**' wildcard that loses against the node sections
     from kelo_bringup.stack import localization_params
     cfg = localization_params(nav2_params(all_sensors(), '/odom'), '/data/maps/x.yaml', (1.0, 2.0, 0.5))
     assert cfg['map_server']['ros__parameters']['yaml_filename'] == '/data/maps/x.yaml'

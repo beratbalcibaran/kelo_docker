@@ -74,7 +74,7 @@ def test_cmd_vel_type_and_extra_publishers():
     res = evaluate(h, obs)
     assert FAIL in levels(res, 'TwistStamped')
     assert FAIL in levels(res, 'teleop_twist_keyboard')
-    obs['cmd_subs'] = [('surround_view', 'geometry_msgs/msg/Twist')]   # a view is not the driver
+    obs['cmd_subs'] = [('surround_view', 'geometry_msgs/msg/Twist')]
     assert FAIL in levels(evaluate(h, obs), 'nobody subscribes')
 
 

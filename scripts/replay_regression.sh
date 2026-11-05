@@ -25,7 +25,6 @@ echo "[replay] bag=$BAG (~${DUR} s) ref=$REF odom_source=$ODOM -> $OUT"
 
 R='source /opt/ros/jazzy/setup.bash; source /ros2_ws/install/setup.bash;'
 if [ "${REPLAY_NATIVE:-0}" = 1 ]; then
-  # without Docker, on the native install (workspace KELO_WS, default ../ws next to the repo)
   ROOT="$(cd "$(dirname "$0")/.." && pwd)"
   WS="${KELO_WS:-$(cd "$ROOT/.." && pwd)/ws}"
   R="source /opt/ros/jazzy/setup.bash; source $WS/install/setup.bash;"

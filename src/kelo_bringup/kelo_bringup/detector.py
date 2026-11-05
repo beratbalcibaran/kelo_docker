@@ -1,8 +1,3 @@
-"""YOLOX object detector on the colour image (OpenCV DNN, CPU, no extra Python packages).
-
-The model is the official YOLOX ONNX export (COCO, 80 classes), downloaded into the image at build time
-(Dockerfile, /opt/kelo/models). Display only: navigation does not use the labels.
-"""
 import os
 
 import cv2
@@ -21,8 +16,6 @@ COCO = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 't
 
 
 def letterbox(rgb, size):
-    """Image scaled into a size x size square (top left, grey padding) as the model expects, and the
-    scale factor."""
     h, w = rgb.shape[:2]
     r = min(size / float(h), size / float(w))
     out = np.full((size, size, 3), 114, np.uint8)
@@ -32,8 +25,6 @@ def letterbox(rgb, size):
 
 
 def decode(raw, size, ratio, score_min, nms=0.45, strides=(8, 16, 32)):
-    """YOLOX head output (N x 85: grid offsets, log sizes, objectness, class scores) -> detections
-    [(class index, score, x0, y0, x1, y1)] in original image pixels."""
     grids, steps = [], []
     for st in strides:
         n = size // st
@@ -66,8 +57,7 @@ class Yolox:
         self.classes = None if not classes else {COCO.index(c) for c in classes if c in COCO}
 
     def detect(self, rgb):
-        """rgb8 image -> [(label, score, x0, y0, x1, y1)]."""
-        img, r = letterbox(rgb[..., ::-1], self.size)  # the model was trained on BGR
+        img, r = letterbox(rgb[..., ::-1], self.size)
         self.net.setInput(cv2.dnn.blobFromImage(img, 1.0, (self.size, self.size), swapRB=False))
         raw = self.net.forward()[0]
         dets = decode(raw, self.size, r, self.score_min)

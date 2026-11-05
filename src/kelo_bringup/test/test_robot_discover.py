@@ -87,5 +87,15 @@ def test_missing_devices_warn():
 
 def test_parse_domains():
     assert parse_domains('0-3,7,2') == [0, 1, 2, 3, 7]
-    # the robot computer's container uses 42 (robot/docker/docker-compose.yml)
     assert parse_domains('0-10,42') == DEFAULT_DOMAINS
+
+
+def test_driver_that_fixes_the_rotation_itself_gets_relay():
+    res = propose(hw(odom_mode='corrected'), obs(driver_params={'fix_odom_rotation': True, 'publish_tf': False}))
+    assert settings(res) == {'robot.odom_mode': 'relay'}
+    assert any('relay' in t for _, t in res['notes'])
+    res = propose(hw(odom_mode='relay'), obs(tf=True, driver_params={'fix_odom_rotation': True}))
+    assert settings(res) == {'robot.odom_mode': 'driver'}
+    res = propose(hw(odom_mode='relay'), obs(driver_params={}))
+    assert settings(res) == {'robot.odom_mode': 'corrected'}
+    assert any('did not report fix_odom_rotation' in t for _, t in res['notes'])

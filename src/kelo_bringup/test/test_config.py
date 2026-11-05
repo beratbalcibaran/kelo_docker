@@ -19,7 +19,6 @@ def test_footprints_identical():
     nav = load('nav2_params.yaml')
     saf = load('safety.yaml')
     ref = poly(nav['local_costmap']['local_costmap']['ros__parameters']['footprint'])
-    # the global costmap uses the inscribed radius (path validity like the planner), see nav2_params.yaml
     gc = nav['global_costmap']['global_costmap']['ros__parameters']
     assert 'footprint' not in gc
     assert gc['robot_radius'] == min(max(abs(x) for x, _ in ref), max(abs(y) for _, y in ref))
@@ -64,7 +63,7 @@ def test_hardware_has_all_frames_and_mounts():
     for key in ('laser', 'camera', 'hedgehog'):
         assert set(hw['mounts'][key]) == {'x', 'y', 'z', 'roll', 'pitch', 'yaw'}
     assert hw['robot']['cmd_vel_type'] in ('Twist', 'TwistStamped')
-    assert hw['robot']['odom_mode'] in ('driver', 'corrected')
+    assert hw['robot']['odom_mode'] in ('driver', 'corrected', 'relay')
 
 
 import math

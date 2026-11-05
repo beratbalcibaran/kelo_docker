@@ -13,7 +13,6 @@ def test_standing_still_gives_the_straight_corridor():
 
 
 def test_turning_left_follows_a_circle():
-    # 0.3 m/s with 0.3 rad/s: radius 1 m around (0, 1)
     poses, s = scene.predict_poses(0.3, 0.0, 0.3, math.pi / 2, ds=0.01)
     x, y, yaw = poses[-1]
     assert (x, y) == pytest.approx((1.0, 1.0), abs=0.02)
@@ -24,7 +23,6 @@ def test_turning_left_follows_a_circle():
 def test_sideways_motion_and_no_spirals():
     poses, _ = scene.predict_poses(0.0, 0.2, 0.0, 1.0)
     assert poses[-1] == pytest.approx([0.0, 1.0, 0.0])
-    # slow and turning hard: the prediction stops after max_turn
     poses, s = scene.predict_poses(0.05, 0.0, 1.0, 2.5, max_turn=2.0)
     assert s[-1] == pytest.approx(0.1, abs=0.05) and abs(poses[-1, 2]) <= 2.0 + 1e-6
 
@@ -38,8 +36,6 @@ def test_sweep_distance_straight_matches_the_front_edge():
 
 
 def test_sweep_distance_on_a_curve():
-    # turning left: a point on the left of the curve is reached, the same point mirrored is not
-    # radius 1.5 m around (0, 1.5): after 0.8 rad the centre is at (1.076, 0.455)
     poses, s = scene.predict_poses(0.3, 0.0, 0.2, 2.5, ds=0.05)
     d = scene.sweep_distance([(1.076, 0.455), (1.076, -0.455)], poses, s, 0.425, 0.425, 0.3)
     assert np.isfinite(d[0]) and math.isinf(d[1])
@@ -67,16 +63,15 @@ def test_ribbon_and_chevrons():
     assert len(heads) == 4
     wl, tip, wr = heads[0]
     assert tip[0] > wl[0] and wl[1] > 0 > wr[1]
-    # the arrows flow forwards with the phase
     assert scene.chevrons(pts, s, 0.5, 0.2, 0.1)[0][1][0] == pytest.approx(tip[0] + 0.2)
 
 
 def test_sector_distances():
     pts = [(1.0, 0.0), (0.0, 0.8), (-0.6, 0.0)]
     best, where = scene.sector_distances(pts, 0.425, 0.425, 0.265, sectors=4, max_dist=1.5)
-    assert best[0] == pytest.approx(0.575)   # ahead
-    assert best[1] == pytest.approx(0.535)   # left
-    assert best[2] == pytest.approx(0.175)   # behind
+    assert best[0] == pytest.approx(0.575)
+    assert best[1] == pytest.approx(0.535)
+    assert best[2] == pytest.approx(0.175)
     assert math.isinf(best[3]) and where[3] is None
 
 
@@ -97,6 +92,5 @@ def test_tracker_keeps_ids_velocity_and_labels():
     for i in range(2, 16):
         out = tr.update([obj(1.0 + 0.1 * i)], 0.2 * i)
     assert out[0].id == 1 and out[0].vx > 0.2
-    # the label goes after label_keep seconds without a labelled detection
     assert out[0].label == ''
     assert tr.update([], 4.5) == []

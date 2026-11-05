@@ -32,7 +32,7 @@ def test_remote_detection_round_trip(server):
     cli = RemoteDetector('127.0.0.1', srv.server_address[1], classes=['person'])
     img = np.zeros((48, 64, 3), np.uint8)
     assert cli.detect(img) == [('person', 0.9, 10.0, 20.0, 110.0, 220.0)]
-    assert cli.detect(img)  # the same connection again
+    assert cli.detect(img)
     assert fake.shapes == [(48, 64, 3)] * 2 and cli.backend == 'fake'
 
 

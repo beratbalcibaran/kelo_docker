@@ -40,6 +40,8 @@ setup(
             'map_side_view = kelo_bringup.map_side_view:main',
             'localize = kelo_bringup.localize:main',
             'loc_monitor = kelo_bringup.loc_monitor:main',
+            'nav_watch = kelo_bringup.nav_watch:main',
+            'health_monitor = kelo_bringup.health_monitor:main',
             'marvelmind_bridge = kelo_bringup.marvelmind_bridge:main',
             'mm_recorder = kelo_bringup.mm_recorder:main',
             'mm_calibrate = kelo_bringup.mm_calibrate:main',

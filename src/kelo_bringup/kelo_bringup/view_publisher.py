@@ -1,8 +1,3 @@
-"""Publisher of a rendered driver view: the raw image on `<topic>` (camera windows, video recorder) and the
-same frame as JPEG on `<topic>/compressed` (web view). A 960 x 720 RGB frame is about 2 MB, its JPEG about
-40 KB: through DDS the raw frames of a 15/s view are partly lost and the web view would encode every one
-again. Each form is only built while it has subscribers.
-"""
 import cv2
 from sensor_msgs.msg import CompressedImage, Image
 
@@ -19,7 +14,6 @@ class ViewPublisher:
         return self.raw.get_subscription_count() + self.jpeg.get_subscription_count()
 
     def publish(self, header, rgb):
-        """rgb: H x W x 3 uint8 image in RGB order."""
         if self.raw.get_subscription_count() > 0:
             msg = Image()
             msg.header = header

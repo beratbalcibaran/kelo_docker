@@ -1,17 +1,3 @@
-"""Driver views in a phone or tablet browser, without VNC: http://<robot>:8080
-
-- live surround view, colour and depth parking camera and mapping coverage (MJPEG, a view is only
-  rendered while someone watches it);
-- status: speed, goal distance, people-aware navigation, recording;
-- double tap on the floor in a view: drive there (Nav2 goal, as in camera_view); Cancel goal;
-- Record / Save clip (video_recorder);
-- a hold-to-drive joystick (`allow_drive`): commands go to /cmd_vel_teleop, so the teleop collision
-  monitor and the gate limit them like the keyboard; when the finger leaves the pad, or no command
-  arrives for 0.3 s (lost connection), the robot gets zero.
-
-Password protected (HTTP basic auth, any user name): KELO_WEB_PASSWORD, or a random one printed in the
-log at start. Plain HTTP: use it on the robot's own network only. Python standard library only.
-"""
 import base64
 import hmac
 import json
@@ -34,17 +20,13 @@ from tf2_ros import Buffer, TransformListener
 from kelo_bringup.common import load_hardware
 from kelo_bringup.drive_inputs import DriveInputs
 
-# the views publish their frames as JPEG on <topic>/compressed (view_publisher): sent on as they are
 VIEWS = {'surround': '/surround_view/image/compressed', 'color': '/parking_view/color_image/compressed',
          'depth': '/parking_view/image/compressed', 'coverage': '/coverage_view/image/compressed'}
 DRIVE_TIMEOUT_S = 0.3
-# send buffer of a stream: about one frame, so a slow link (e.g. Tailscale relay) skips frames
-# instead of queueing them, and the browser always shows a recent one
 STREAM_SNDBUF = 64 * 1024
 
 
 class Frames:
-    """Latest JPEG of every view and how many clients stream it."""
 
     def __init__(self):
         self.cond = threading.Condition()
@@ -70,11 +52,11 @@ class WebView(Node):
     def __init__(self, password):
         super().__init__('web_view')
         hw = load_hardware()
+        self.views = {k: v for k, v in VIEWS.items() if k != 'depth' or (hw.get('views') or {}).get('depth', False)}
         web = hw.get('web', {}) or {}
         d = self.declare_parameter
         d('port', int(web.get('port', 8080)))
         d('allow_drive', bool(web.get('allow_drive', True)))
-        # above the render rate of the views (surround 15/s), so no frame is dropped by the limit
         d('max_fps', 20.0)
         d('max_vx', 0.30)
         d('max_wz', 0.80)
@@ -100,10 +82,8 @@ class WebView(Node):
         self.create_timer(0.5, self._sync_subs)
         self.create_timer(0.1, self._drive_tick)
 
-    # ---- ROS side (executor thread) ----
     def _sync_subs(self):
-        """Subscribe to a view only while a browser streams it: the view is rendered on demand."""
-        for view, topic in VIEWS.items():
+        for view, topic in self.views.items():
             want = self.frames.clients.get(view, 0) > 0
             if want and view not in self.subs:
                 self.subs[view] = self.create_subscription(CompressedImage, topic, lambda m, v=view: self._image(v, m), 2)
@@ -127,10 +107,9 @@ class WebView(Node):
             self.drive_pub.publish(msg)
             self.driving = True
         elif self.driving:
-            self.drive_pub.publish(Twist())  # finger lifted or connection lost: stop once
+            self.drive_pub.publish(Twist())
             self.driving = False
 
-    # ---- HTTP side (server threads) ----
     def set_drive(self, vx, wz):
         if not self.allow_drive:
             return False
@@ -147,7 +126,6 @@ class WebView(Node):
         self.click_pub.publish(msg)
 
     def cancel(self):
-        """Cancel all navigation goals (empty cancel request)."""
         if not self.cancel_cli.service_is_ready():
             return False
         self.cancel_cli.call_async(CancelGoal.Request())
@@ -212,7 +190,8 @@ def make_handler(node):
                 return
             path = self.path.split('?')[0]
             if path in ('/', '/index.html'):
-                return self._send(200, PAGE.encode(), 'text/html; charset=utf-8')
+                page = PAGE if 'depth' in getattr(node, 'views', VIEWS) else PAGE.replace("['depth','Depth'],", '')
+                return self._send(200, page.encode(), 'text/html; charset=utf-8')
             if path == '/api/status':
                 return self._send(200, node.status())
             if path.startswith('/stream/') and path.endswith('.mjpg'):
@@ -242,7 +221,7 @@ def make_handler(node):
             self._send(404, {'error': 'not found'})
 
         def _stream(self, view):
-            if view not in VIEWS:
+            if view not in getattr(node, 'views', VIEWS):
                 return self._send(404, {'error': 'no such view'})
             self.send_response(200)
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=frame')

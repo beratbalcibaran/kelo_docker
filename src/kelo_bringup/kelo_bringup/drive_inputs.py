@@ -1,19 +1,9 @@
-"""What the driver views (parking_view, surround_view) show besides the sensors: the commanded velocity,
-the Nav2 plan while a goal runs, the objects and the obstacle memory (objects node), and the state of
-the people-aware navigation (social node). One instance per node; it subscribes and caches, the views
-ask for the latest values.
-
-It also sends the goals clicked in a view (camera_view, web_view publish the click on /kelo/view_click
-as a PointStamped: header.frame_id = the view's image, point.x/y = pixel in the published image,
-point.z = 1 for a goal, 0 to cancel the running goal): the view turns the pixel into a floor point
-and calls send_goal().
-"""
 import math
 
 import numpy as np
 from action_msgs.msg import GoalStatus, GoalStatusArray
 from action_msgs.srv import CancelGoal
-from geometry_msgs.msg import PointStamped, Twist, TwistStamped
+from geometry_msgs.msg import PointStamped, PoseStamped, Twist, TwistStamped
 from nav2_msgs.action import NavigateToPose
 from nav2_msgs.msg import SpeedLimit
 from nav_msgs.msg import Path
@@ -36,7 +26,6 @@ MAX_CLICK_GOAL_M = 15.0
 
 
 def cloud_fields(msg, names):
-    """float32 fields of a PointCloud2 as an N x len(names) array."""
     offs = {f.name: f.offset for f in msg.fields}
     if msg.width * msg.height == 0 or any(n not in offs for n in names):
         return np.zeros((0, len(names)))
@@ -58,6 +47,7 @@ class DriveInputs:
         self.blocking, self.blocking_t = False, -1e9
         self.limit = None
         self.goal_client = self.cancel_client = None
+        self.goal_pub = None
         self.goal_note = None
         self.loc_state = None
         node.create_subscription(String, '/kelo/localization_state', self._loc, QoSProfile(
@@ -77,7 +67,6 @@ class DriveInputs:
         node.create_subscription(SpeedLimit, '/speed_limit', self._limit, 10)
 
     def on_click(self, handler):
-        """Call handler(frame_id, u, v, is_goal) for every click on a view (/kelo/view_click)."""
         self.node.create_subscription(
             PointStamped, '/kelo/view_click',
             lambda m: handler(m.header.frame_id, m.point.x, m.point.y, m.point.z > 0.5), 10)
@@ -89,7 +78,6 @@ class DriveInputs:
         self.loc_state = m.data
 
     def _cmd(self, m):
-        # smoothed, so that the guide lines do not jump with every controller step
         new = (m.linear.x, m.linear.y, m.angular.z)
         a = 0.35 if self._now() - self.cmd_t < CMD_TIMEOUT_S else 1.0
         self.cmd = tuple((1 - a) * o + a * n for o, n in zip(self.cmd, new))
@@ -121,14 +109,11 @@ class DriveInputs:
         self.limit = m.speed_limit if m.percentage and 0.0 < m.speed_limit < 100.0 else None
 
     def social_state(self):
-        """(a person blocks the path, speed limit in % or None) from the social node."""
         now = self._now()
-        # the limit is sent only when it changes; /kelo/person_blocking (5 Hz) shows the node is alive
         alive = now - self.blocking_t < SOCIAL_TIMEOUT_S
         return self.blocking and alive and self.nav_active, self.limit if alive else None
 
     def memory_in_base(self, min_age=0.3):
-        """Remembered obstacle points not seen for `min_age` s: N x 4 (x, y, z, age), base frame."""
         if self.memory is None or self._now() - self.memory_t > 2.0:
             return np.zeros((0, 4))
         pts = cloud_fields(self.memory, ('x', 'y', 'z', 'age'))
@@ -139,8 +124,6 @@ class DriveInputs:
         return np.column_stack([scene.to_base(pts[:, :2], pose), pts[:, 2:]])
 
     def send_goal(self, x, y):
-        """Navigate to the floor point (x, y) of the base frame, facing away from the robot. Returns a
-        short text for the view (what happened)."""
         dist = math.hypot(x, y)
         if dist < 0.3:
             return self.say('goal too close to the robot')
@@ -162,6 +145,10 @@ class DriveInputs:
         goal.pose.header.stamp = self.node.get_clock().now().to_msg()
         goal.pose.pose.position.x, goal.pose.pose.position.y = float(mx), float(my)
         goal.pose.pose.orientation.z, goal.pose.pose.orientation.w = math.sin(yaw / 2.0), math.cos(yaw / 2.0)
+        if self.goal_pub is None:
+            self.goal_pub = self.node.create_publisher(PoseStamped, '/kelo/nav_goal', QoSProfile(
+                depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self.goal_pub.publish(goal.pose)
         self.goal_client.send_goal_async(goal)
         self.node.get_logger().info(f'clicked goal: map {mx:.2f}, {my:.2f}, {math.degrees(yaw):.0f} deg')
         return self.say(f'goal sent: {dist:.1f} m away')
@@ -171,7 +158,6 @@ class DriveInputs:
             self.goal_client = ActionClient(self.node, NavigateToPose, 'navigate_to_pose')
         if not self.goal_client.server_is_ready():
             return self.say('navigation is not running')
-        # cancel all goals of the server (also those sent by the panel or RViz): empty request
         if self.cancel_client is None:
             self.cancel_client = self.node.create_client(CancelGoal, 'navigate_to_pose/_action/cancel_goal')
         self.cancel_client.call_async(CancelGoal.Request())
@@ -183,17 +169,14 @@ class DriveInputs:
         return text
 
     def note(self, keep=3.0):
-        """Text about the last clicked goal for `keep` seconds, else None."""
         if self.goal_note is None or self._now() - self.goal_note[0] > keep:
             return None
         return self.goal_note[1]
 
     def twist(self):
-        """(vx, vy, wz) the robot is commanded, zero when no command is coming."""
         return self.cmd if self._now() - self.cmd_t < CMD_TIMEOUT_S else (0.0, 0.0, 0.0)
 
     def pose_in(self, frame):
-        """Base pose (x, y, yaw) in `frame`, or None."""
         try:
             tf = self.buf.lookup_transform(frame, self.base, Time())
         except TransformException:
@@ -202,7 +185,6 @@ class DriveInputs:
         return t.x, t.y, yaw_from_quat(q.x, q.y, q.z, q.w)
 
     def plan_in_base(self, max_length=None):
-        """The rest of the Nav2 plan in the base frame and its length, while a goal runs; (None, 0)."""
         if self.plan is None:
             return None, 0.0
         if self.nav_seen and not self.nav_active:
@@ -218,7 +200,6 @@ class DriveInputs:
         return path, total
 
     def objects_in_base(self):
-        """[(id, label, score, x, y, sx, sy, sz, vx, vy)] in the base frame (velocity in the base frame)."""
         if self.objects is None or self._now() - self.objects_t > OBJECTS_TIMEOUT_S:
             return []
         pose = self.pose_in(self.objects.header.frame_id)
@@ -239,7 +220,6 @@ class DriveInputs:
         return out
 
     def detections(self):
-        """[(label, score, x0, y0, x1, y1, (x, y) in the base frame or None)] of the latest colour image."""
         if self.dets is None or self._now() - self.dets_t > DETECTIONS_TIMEOUT_S:
             return []
         out = []

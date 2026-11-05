@@ -1,10 +1,3 @@
-"""RViz helper: shows the camera layer next to the LiDAR map instead of on top of it.
-
-Republishes /map_camera on /map_camera_side with its origin moved to the right of the map by the map
-width plus a gap, and publishes the robot pose shifted the same way and a title above each map
-(/map_side_view/markers). Display only: nothing in the stack subscribes to these topics.
-The camera images are shown in their own window (camera_view).
-"""
 import rclpy
 from nav_msgs.msg import OccupancyGrid
 from rclpy.executors import ExternalShutdownException
@@ -56,7 +49,6 @@ class MapSideView(Node):
         if self.info is None:
             return
         info = self.info
-        # self.info already holds the shifted origin; the LiDAR map starts at x0
         x0 = info.origin.position.x - self.shift
         y0 = info.origin.position.y
         w, h = info.width * info.resolution, info.height * info.resolution

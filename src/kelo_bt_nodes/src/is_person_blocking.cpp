@@ -1,9 +1,3 @@
-// IsPersonBlocking: SUCCESS while a person stands (or is about to walk) on the path ahead, as reported
-// by the social node on /kelo/person_blocking (std_msgs/Bool). FAILURE when the topic says false or
-// has been silent for longer than `timeout` seconds (no social node: behave as before).
-//
-//   <IsPersonBlocking topic="/kelo/person_blocking" timeout="1.0"/>
-
 #include <chrono>
 #include <memory>
 #include <string>
@@ -31,7 +25,7 @@ public:
     rclcpp::SubscriptionOptions options;
     options.callback_group = group_;
     sub_ = node_->create_subscription<std_msgs::msg::Bool>(
-      // depth 1: only the latest state counts
+
       topic, rclcpp::QoS(1),
       [this](std_msgs::msg::Bool::SharedPtr msg) {
         blocking_ = msg->data;
@@ -51,8 +45,7 @@ public:
 
   BT::NodeStatus tick() override
   {
-    // spin_all, not spin_some: on the first tick of an instance spin_some only collects the
-    // subscription and returns without the waiting message
+
     executor_.spin_all(std::chrono::milliseconds(10));
     if (!received_ || (node_->now() - stamp_).seconds() > timeout_) {
       return BT::NodeStatus::FAILURE;
@@ -71,7 +64,7 @@ private:
   bool received_{false};
 };
 
-}  // namespace kelo_bt_nodes
+}
 
 BT_REGISTER_NODES(factory)
 {

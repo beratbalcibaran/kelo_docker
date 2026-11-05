@@ -168,8 +168,6 @@ PALETTE = np.array([[200, 120, 60], [70, 140, 200], [190, 170, 80], [140, 90, 16
 
 
 def color_image(robot_pose, mount, boxes, cyls, width, height, intr, offset_y=0.0):
-    """Simple colour camera (rgb8): checkered floor, light walls, one colour per obstacle, people blue,
-    darker with distance. Only for the parking camera view: no sensor model behind it."""
     fx, fy, cx, cy = intr
     pos, rot = sensor_pose(robot_pose, mount)
     pos = pos + rot @ np.array([0.0, offset_y, 0.0])

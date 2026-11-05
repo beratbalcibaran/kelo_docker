@@ -1,6 +1,5 @@
 #!/bin/bash
 source /opt/ros/jazzy/setup.bash
-# in the image; the native install (sim_e2e_test.sh E2E_NATIVE=1) has sourced its workspace already
 [ -f /ros2_ws/install/setup.bash ] && source /ros2_ws/install/setup.bash
 set -u
 set -m
@@ -25,6 +24,20 @@ cleanup() {
   exit 0
 }
 trap cleanup TERM INT
+
+ROBOT_ENV="${KELO_ROBOT_ENV:-/data/robot.env}"
+load_robot_env() { [ -f "$ROBOT_ENV" ] && { set -a; . "$ROBOT_ENV"; set +a; echo "[kelo] robot settings: $(tr '\n' ' ' < "$ROBOT_ENV")"; }; }
+load_robot_env
+if [ "$SOURCE" = hardware ] && [ "${KELO_AUTO:-1}" = 1 ]; then
+  n=0
+  until ros2 run kelo_bringup robot_discover --apply --env-file "$ROBOT_ENV"; do
+    n=$((n + 1))
+    echo "[kelo] automatic: robot driver not found yet (cable in? driver started on the robot computer?), try $n, again in 10 s"
+    sleep 10 & wait $!
+  done
+  load_robot_env
+  echo "[kelo] automatic: robot found, starting $MODE"
+fi
 
 if [ "$MODE" = navigation ]; then
   while [ ! -f "$MAP" ]; do

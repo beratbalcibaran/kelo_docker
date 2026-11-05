@@ -1,13 +1,3 @@
-"""Watches the localization while navigation runs.
-
-- /kelo/localization_fit (Float32, 1 Hz): share of the LiDAR points that lie on a wall of the map at the
-  AMCL pose (scan_match). AMCL's covariance alone can be small on a wrong pose.
-- LOCALIZED but the fit stays below LOST_FIT for `lost_time_s`: state LOST, the running goal is cancelled
-  (no driving on a wrong map pose); "Localize" again.
-- While LOCALIZED with a good fit the pose is saved to /data/last_pose.yaml. At the next start (no
-  Marvelmind, no initial_pose) that pose is given to AMCL and kept only if the scan fits there: a robot
-  that was switched off where it stood is localized again without turning.
-"""
 import math
 import time
 
@@ -84,7 +74,6 @@ class LocMonitor(Node):
         self.amcl_t = time.time()
 
     def fit(self):
-        """((hits, crossings), (x, y, yaw) of base_link in the map) or (None, None)."""
         if self.mapfit is None or self.scan is None:
             return None, None
         try:
@@ -139,7 +128,6 @@ class LocMonitor(Node):
             self.saved_t = now
 
     def _restore_step(self, f):
-        """Once, at start: give AMCL the saved pose and keep it if the scan fits there."""
         if not self.restore:
             return
         if self.restoring is None:

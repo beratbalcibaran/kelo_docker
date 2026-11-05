@@ -102,7 +102,6 @@ class SimRobot(Node):
             self.color_info_pub = self.create_publisher(CameraInfo, tp['camera_color_info'], 10)
         self.mm_pub = self.create_publisher(HedgePositionAngle, tp['marvelmind_raw'], 10)
         self.gt_pub = self.create_publisher(Odometry, '/sim/ground_truth', 10)
-        # people (cylinders named person*) in the base frame: the object labels of the driver views
         self.people_pub = self.create_publisher(PoseArray, '/sim/people', 10)
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.contact_pub = self.create_publisher(UInt32, '/sim/contacts', latched)
@@ -171,8 +170,6 @@ class SimRobot(Node):
 
     @staticmethod
     def _oriented_box(ob, cx, cy, c, s, tile=0.15):
-        """A box turned with the robot heading, as axis-aligned tiles: one bounding box of a turned
-        0.3 x 1.2 m box would reach back over the robot. Tiles stick out at most tile/2 * 0.41."""
         sx, sy = [float(v) for v in ob.get('size', [0.4, 0.4])]
         q = min(sx, sy, tile)
         nx, ny = max(1, math.ceil(sx / q - 1e-9)), max(1, math.ceil(sy / q - 1e-9))
@@ -189,8 +186,6 @@ class SimRobot(Node):
         return parts
 
     def _teleport_cb(self, msg):
-        """Evaluation only: move the robot to {x, y, yaw} (world, rad). Odometry does not jump, so the
-        caller re-seeds the localization."""
         try:
             req = yaml.safe_load(msg.data) or {}
             pose = (float(req['x']), float(req['y']), wrap(float(req.get('yaw', 0.0))))

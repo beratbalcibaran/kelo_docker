@@ -83,21 +83,18 @@ def camera_layer_enabled(hw):
 
 
 def people_aware(hw):
-    """social node, people layers in the costmaps, person wait in the behaviour tree."""
     return bool((hw.get('navigation') or {}).get('people_aware', True))
 
 
-MAX_SPEED_RANGE = (0.05, 0.30)  # m/s; the collision monitor zones are sized for the top end
+MAX_SPEED_RANGE = (0.05, 0.30)
 
 
 def max_speed(hw):
-    """Top driving speed (navigation.max_speed), clamped to MAX_SPEED_RANGE."""
     v = float((hw.get('navigation') or {}).get('max_speed', 0.25))
     return min(max(v, MAX_SPEED_RANGE[0]), MAX_SPEED_RANGE[1])
 
 
 def views_enabled(hw):
-    """Driver views (objects, surround, parking, coverage, video recorder, web view)."""
     return bool((hw.get('views') or {}).get('enabled', True))
 
 
@@ -113,8 +110,9 @@ def odom_plan(hw, odom_source):
     raw = hw['topics']['odom']
     if odom_source == 'lidar':
         return {'tf_owner': 'rf2o', 'topic': '/odom_rf2o', 'raw_topic': raw}
-    if hw['robot']['odom_mode'] == 'corrected':
-        return {'tf_owner': 'odom_filter', 'topic': '/odom_corrected', 'raw_topic': raw}
+    if hw['robot']['odom_mode'] in ('corrected', 'relay'):
+        return {'tf_owner': 'odom_filter', 'topic': '/odom_corrected', 'raw_topic': raw,
+                'correct': hw['robot']['odom_mode'] == 'corrected'}
     return {'tf_owner': 'driver', 'topic': raw, 'raw_topic': raw}
 
 
@@ -148,26 +146,19 @@ def nav2_params(hw, odom_topic, cfg=None, camera_map=False):
         lc.pop('camera_layer', None)
     gc = cfg['global_costmap']['global_costmap']['ros__parameters']
     if camera_map:
-        # second static layer: can only add obstacles (use_maximum of the costmap, nav2_params.yaml),
-        # unknown cells leave the lidar map as it is
         layer = {'plugin': 'nav2_costmap_2d::StaticLayer', 'map_topic': hw['topics']['camera_map'],
                  'map_subscribe_transient_local': True, 'subscribe_to_updates': False}
         gc['plugins'].insert(gc['plugins'].index('static_layer') + 1, 'camera_static_layer')
         gc['camera_static_layer'] = dict(layer)
-        # also in the local costmap: the controller must keep mapped low objects that are in the
-        # camera blind zone, or beside/behind the robot where the camera never looks. It follows the
-        # localization, so localize turns it off while the pose is not known yet.
         lc['plugins'].insert(0, 'camera_static_layer')
         lc['camera_static_layer'] = dict(layer)
     if not people_aware(hw):
         gc['plugins'] = [p for p in gc['plugins'] if p != 'people_layer']
         gc.pop('people_layer', None)
-        # the behaviour tree keeps IsPersonBlocking: without the social node its topic is silent and
-        # it always reports 'no person'
     cm = cfg['collision_monitor']['ros__parameters']
     if 'camera' in cm.get('observation_sources', []):
         if sens['camera']:
-            cm['camera']['topic'] = hw['topics']['camera_points']
+            cm['camera']['topic'] = hw['topics'].get('camera_points_safety', hw['topics']['camera_points'])
         else:
             _drop_cm_source(cm, 'camera')
     return cfg
@@ -178,7 +169,7 @@ def safety_params(hw, cfg=None):
     cm = cfg['collision_monitor_teleop']['ros__parameters']
     if 'camera' in cm.get('observation_sources', []):
         if sensors(hw)['camera']:
-            cm['camera']['topic'] = hw['topics']['camera_points']
+            cm['camera']['topic'] = hw['topics'].get('camera_points_safety', hw['topics']['camera_points'])
         else:
             _drop_cm_source(cm, 'camera')
     return cfg

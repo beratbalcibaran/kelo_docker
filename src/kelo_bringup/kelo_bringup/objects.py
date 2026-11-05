@@ -1,33 +1,3 @@
-"""Objects around the robot for the driver views (surround_view, parking_view): what is there, where,
-and what it is.
-
-- Obstacle points: the LiDAR scan and the filtered camera cloud (/camera/points_filtered), in the base
-  frame. Points on the walls of the map (/map, occupied cells grown by `static_margin`) are left out, so
-  only things that are not in the map become objects; an unnamed group that touches a wall is left out
-  too (the end of a wall the map has a few cm off).
-- The points are grouped on a 0.1 m grid; every group up to `max_size` metres is one object.
-- YOLOX on the colour image names them (person, chair, ...): the camera points that fall inside a
-  detection box give its position, and the nearest group takes the name. A detection without a group
-  (e.g. above the LiDAR) is an object of its own.
-- A tracker in the odom frame smooths the objects and keeps the name while the camera no longer sees
-  them (label_keep).
-- In the simulator the people come from /sim/people (sim_robot) instead of YOLOX: the simple colour
-  rendering has no people to recognise.
-- The detector runs in the detector service when one answers (perception.service: on the Jetson the
-  kelo-detector container with TensorRT, docker/detector/), otherwise here on the CPU (OpenCV DNN).
-  The service is tried again every `service_retry` seconds.
-- Obstacle memory: the LiDAR and camera points are kept in the odom frame after the sensors no longer
-  see them (scene.ObstacleMemory), so the driver views can show what is behind the robot, where the
-  LiDAR does not look.
-
-Outputs (the people in /kelo/objects are used by the social node in navigation; the rest is display):
-  /kelo/objects            vision_msgs/Detection3DArray, odom frame, id = track id, class 'obstacle'
-                           when unnamed
-  /kelo/detections         vision_msgs/Detection2DArray, colour image pixels, results[0].pose = the
-                           position in the base frame (NaN when no camera point fell inside the box)
-  /kelo/objects/markers    visualization_msgs/MarkerArray for RViz
-  /kelo/obstacle_memory    sensor_msgs/PointCloud2, odom frame, fields x y z age (s since last seen)
-"""
 import math
 import os
 
@@ -51,7 +21,6 @@ from kelo_bringup.common import load_hardware
 from kelo_bringup.logic import yaw_from_quat
 from kelo_bringup.parking_view import decode_color, project_many
 
-# typical sizes (x, y, z in metres) of a named object without camera height information
 SIZES = {'person': (0.5, 0.5, 1.7), 'chair': (0.5, 0.5, 0.9), 'couch': (0.9, 1.8, 0.8),
          'bench': (0.5, 1.5, 0.5), 'dining table': (0.9, 1.4, 0.75), 'potted plant': (0.4, 0.4, 0.8),
          'dog': (0.7, 0.3, 0.6), 'cat': (0.5, 0.2, 0.3), 'suitcase': (0.3, 0.5, 0.7),
@@ -63,14 +32,12 @@ DEFAULT_CLASSES = ['person', 'chair', 'couch', 'bench', 'dining table', 'potted 
 
 
 def points_in_box(u, v, ok, box, shrink=0.2):
-    """Mask of projected points inside a detection box shrunk by `shrink` (box edges are background)."""
     x0, y0, x1, y1 = box
     dx, dy = (x1 - x0) * shrink / 2.0, (y1 - y0) * shrink / 2.0
     return ok & (u >= x0 + dx) & (u <= x1 - dx) & (v >= y0 + dy) & (v <= y1 - dy)
 
 
 def cloud_xyz(msg):
-    """x, y, z float32 fields of a PointCloud2 (cloud_filter layout: 12-byte points)."""
     if msg.point_step != 12 or msg.width * msg.height == 0:
         return np.zeros((0, 3))
     return np.frombuffer(msg.data, dtype='<f4').reshape(-1, 3).astype(float)
@@ -87,7 +54,6 @@ class Objects(Node):
         d('max_range', 6.0)
         d('max_size', 2.0)
         d('min_points', 6)
-        # map walls grown by this much: covers the localization error, so walls do not become objects
         d('static_margin', 0.25)
         d('detector', bool(per.get('detector', True)))
         d('model', per.get('model', '/opt/kelo/models/yolox_tiny.onnx'))
@@ -189,7 +155,6 @@ class Objects(Node):
         return self.tfs[frame]
 
     def _pose(self, parent):
-        """Base pose (x, y, yaw) in `parent`, or None."""
         try:
             tf = self.buf.lookup_transform(parent, self.fr['base'], Time())
         except TransformException:
@@ -216,7 +181,6 @@ class Objects(Node):
         return cloud_xyz(self.cloud[1])
 
     def _static(self, xy):
-        """Per point: (on a map wall, within TOUCH_M of one); all False without a map."""
         none = np.zeros((2, len(xy)), bool)
         if self.static is None or len(xy) == 0:
             return none
@@ -235,7 +199,6 @@ class Objects(Node):
         return hit
 
     def _run_detector(self, rgb, now):
-        """Detections from the service when it answers, else from the local model."""
         if self.service is not None and now - self.service_down >= self.service_retry:
             try:
                 dets = self.service.detect(rgb)
@@ -252,7 +215,6 @@ class Objects(Node):
         return self.yolo.detect(rgb) if self.yolo is not None else []
 
     def _detect(self, now, cam):
-        """YOLOX on the latest colour image: [(label, score, box, base xyz or None)]."""
         if (self.yolo is None and self.service is None) or self.color is None or self.k_color is None or now - self.color[0] > 0.5:
             return None
         if now - self.last_det < self.det_period:
@@ -273,7 +235,6 @@ class Objects(Node):
                 m = points_in_box(u, v, ok, box)
                 if m.sum() >= 5:
                     pts = cam[m]
-                    # the nearest part of what is inside the box: the background behind is not the object
                     rng = np.hypot(pts[:, 0], pts[:, 1])
                     near = pts[rng <= np.percentile(rng, 40)]
                     pos = np.median(near, axis=0)
@@ -325,8 +286,6 @@ class Objects(Node):
             elif best is None or math.hypot(best['x'] - x, best['y'] - y) >= gate:
                 objs.append({'x': x, 'y': y, 'label': label, 'score': score,
                              'size': list(SIZES.get(label, DEFAULT_SIZE))})
-        # an unnamed group touching a map wall is most likely the end of that wall (map and scan a few
-        # cm apart): not shown as an object; named ones (a person by the wall) are
         objs = [o for o in objs if o['label'] or not o.get('touch')]
         if odom is None:
             return
@@ -387,7 +346,6 @@ class Objects(Node):
             hyp.hypothesis.class_id = tr.label or 'obstacle'
             hyp.hypothesis.score = float(tr.score)
             hyp.pose.pose.position = det.bbox.center.position
-            # velocity in the odom frame (m/s), for motion arrows
             hyp.pose.pose.orientation.x, hyp.pose.pose.orientation.y = tr.vx, tr.vy
             det.results.append(hyp)
             arr.detections.append(det)

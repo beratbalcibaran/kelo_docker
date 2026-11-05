@@ -38,8 +38,6 @@ def _compose(a, b):
 
 
 def bag_start_pose(bag, map_frame, odom_frame, base_frame):
-    """Robot pose in the map when slam_toolbox started, from the /tf recorded in the mapping bag:
-    first map->odom composed with the odom->base just before it. (0, 0, 0) when the bag has no /tf."""
     import rosbag2_py
     from rclpy.serialization import deserialize_message
     from tf2_msgs.msg import TFMessage
@@ -125,7 +123,6 @@ def main(argv=None):
         print('WARNING: no /tf in the bag, assuming the mapping started at the map origin')
         pose = (0.0, 0.0, 0.0)
 
-    # isolated replay: sim time and the replayed /map must not reach a live stack
     os.environ['ROS_DOMAIN_ID'] = str(a.domain)
     os.environ['ROS_AUTOMATIC_DISCOVERY_RANGE'] = 'LOCALHOST'
     os.environ.pop('CYCLONEDDS_URI', None)
@@ -142,7 +139,6 @@ def main(argv=None):
     log_file = open(log_path, 'w', encoding='utf-8')
 
     def pump():
-        # keep draining the launch output until it exits, so a full pipe never blocks the nodes
         for line in proc.stdout:
             log_file.write(line)
             if 'camera layer:' in line and 'frames' in line:

@@ -48,7 +48,6 @@ def test_person_walking_by_is_erased_when_seen_free_again():
     for _ in range(3):
         g.integrate(CAM, person, person)
     assert cell(g, 1.5, 0.0) == OCCUPIED
-    # the camera sees up to ~19 deg above horizontal: wall points up to 1.7 m clear the upper voxels
     wall = np.array([[3.02, 0.02, z] for z in np.arange(0.1, 1.75, 0.05)])
     for _ in range(15):
         g.integrate(CAM, wall, np.vstack([floor_rays(1.6, 2.9, ys=(0.02,)), wall]))
@@ -105,8 +104,6 @@ def test_clearing_rays_are_pulled_back_to_max_range():
 
 
 def test_low_box_survives_rays_grazing_its_top():
-    # 12 cm box at 1.5-1.9 m: each frame only a few top pixels hit it, while every ray to the floor
-    # behind it (visible from 2.35 m on) passes 1-10 cm above its top and crosses its voxels
     g = grid()
     rng = np.random.default_rng(0)
     top = np.array([[x, y, 0.12] for x in np.arange(1.5, 1.9, 0.05) + 0.02 for y in YS])
@@ -124,9 +121,9 @@ def test_false_obstacles_counts_only_cells_away_from_objects(tmp_path):
     world = tmp_path / 'w.yaml'
     world.write_text('room: {width: 4.0, height: 3.0, wall_height: 2.0}\nstart: {x: 1.0, y: 1.0, yaw: 0.0}\n'
                      'obstacles:\n  - {type: box, name: b, xy: [2.0, 1.0, 2.4, 1.4], z: [0.0, 0.12]}\n')
-    g = np.full((60, 80), FREE, dtype=np.int8)       # map origin (-1, -1) = world (0, 0)
+    g = np.full((60, 80), FREE, dtype=np.int8)
     cellat = lambda wx, wy: (int((wy - 1.0 + 1.0) / 0.05), int((wx - 1.0 + 1.0) / 0.05))
-    for wx, wy in ((2.2, 1.2), (2.05, 1.05), (2.45, 1.2), (1.0, 2.0)):  # inside, inside, near, phantom
+    for wx, wy in ((2.2, 1.2), (2.05, 1.05), (2.45, 1.2), (1.0, 2.0)):
         g[cellat(wx, wy)] = OCCUPIED
     write_map(str(tmp_path / 'm'), g, 0.05, (-1.0, -1.0))
     assert false_obstacles(str(world), str(tmp_path / 'm.yaml')) == {'occupied': 4, 'false': 1}
@@ -142,7 +139,7 @@ def test_figure_colours_lidar_and_camera_cells(tmp_path):
     write_map(str(tmp_path / 'm'), lidar, 0.05, (0.0, 0.0))
     write_map(str(tmp_path / 'm_camera'), cam, 0.05, (0.0, 0.0))
     ref = np.full((40, 40), FREE, dtype=np.int8)
-    ref[[0, 39], [0, 39]] = OCCUPIED                  # reference extent = the whole 2 x 2 m map
+    ref[[0, 39], [0, 39]] = OCCUPIED
     write_map(str(tmp_path / 'ref'), ref, 0.05, (0.0, 0.0))
     out = str(tmp_path / 'f.png')
     figure(out, str(tmp_path / 'ref.yaml'), [('two layers', str(tmp_path / 'm.yaml'), True)], scale=1)
@@ -151,8 +148,6 @@ def test_figure_colours_lidar_and_camera_cells(tmp_path):
 
 
 def test_saved_unknown_stays_unknown_for_map_server(tmp_path):
-    # map_server (trinary): occ = (255 - pixel) / 255; free below free_thresh, unknown between the
-    # thresholds. The unknown pixel 205 must not fall under free_thresh (it did with 0.25).
     import yaml
     g = np.full((4, 4), UNKNOWN, np.int8)
     write_map(str(tmp_path / 'u'), g, 0.05, (0.0, 0.0))

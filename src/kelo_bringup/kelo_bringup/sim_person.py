@@ -1,14 +1,3 @@
-"""Simulator test helper: a person steps onto the planned path while the robot navigates.
-
-For each navigation goal, once the robot is driving, a person (cylinder, r 0.25 m, 1.7 m tall) is added
-on the global plan `ahead` metres in front of the robot. `mode:=stand` keeps the person standing on the
-path, `mode:=cross` lets them walk once across it (2.4 m, then they are gone), `mode:=block` puts a wall of `block_width`
-across the path instead (no way around: the robot has to wait). The person is removed when the robot has passed
-them, when the goal ends, or after `max_time` seconds. Uses /sim/obstacles, so it works in the
-simulator only.
-
-    ros2 run kelo_bringup sim_person --ros-args -p mode:=stand -p ahead:=1.8
-"""
 import math
 import time
 
@@ -27,7 +16,6 @@ from kelo_bringup.logic import wrap, yaw_from_quat
 
 
 def point_ahead(path, x, y, ahead):
-    """Point on the path `ahead` metres along it from the path point closest to (x, y), or None."""
     if len(path) < 2:
         return None
     i0 = min(range(len(path)), key=lambda i: math.hypot(path[i][0] - x, path[i][1] - y))
@@ -149,7 +137,6 @@ class SimPerson(Node):
         target = point_ahead(self.plan, mx, my, self.ahead)
         if target is None or point_ahead(self.plan, mx, my, self.ahead + self.min_remaining) is None:
             return
-        # map -> simulator world, from the robot pose in both frames
         dyaw = wrap(self.gt[2] - _yaw(tf.transform.rotation))
         c, s = math.cos(dyaw), math.sin(dyaw)
         dx, dy = target[0] - mx, target[1] - my
