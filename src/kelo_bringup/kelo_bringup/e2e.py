@@ -1,5 +1,6 @@
 import ast
 import math
+import os
 import sys
 import time
 
@@ -18,7 +19,7 @@ from rclpy.time import Time
 from std_msgs.msg import String, UInt32
 from tf2_ros import Buffer, TransformException, TransformListener
 
-from kelo_bringup.common import config_path
+from kelo_bringup.common import config_path, data_dir
 from kelo_bringup.logic import quat_from_yaw, wrap, yaw_from_quat
 
 
@@ -38,19 +39,36 @@ class Track:
         self.pose = None
         self.dist = 0.0
         self.turn = 0.0
+        self.abs_turn = 0.0
         self.speed = 0.0
+        self.wz = 0.0
+        self.hist = []
 
     def cb(self, msg):
         x, y, yaw = _pose(msg)
         if self.last is not None:
             self.dist += math.hypot(x - self.last[0], y - self.last[1])
             self.turn += wrap(yaw - self.last[2])
+            self.abs_turn += abs(wrap(yaw - self.last[2]))
         self.last = self.pose = (x, y, yaw)
         t = msg.twist.twist
         self.speed = math.hypot(t.linear.x, t.linear.y)
+        self.wz = t.angular.z
+        self.hist.append((time.time(), x, y, yaw, self.speed, self.wz))
+        if len(self.hist) > 20000:
+            del self.hist[:5000]
+
+    def dump(self, name, t0):
+        try:
+            with open(os.path.join(data_dir(), f'e2e_{name}.csv'), 'w', encoding='utf-8') as f:
+                f.write('t,x,y,yaw,v,wz\n')
+                f.writelines('%.2f,%.3f,%.3f,%.3f,%.3f,%.3f\n' % ((r[0] - t0,) + r[1:])
+                             for r in self.hist if r[0] >= t0)
+        except OSError:
+            pass
 
     def reset(self):
-        self.dist = self.turn = 0.0
+        self.dist = self.turn = self.abs_turn = 0.0
 
 
 class E2E(Node):
@@ -542,11 +560,44 @@ def sc_detour(n, args):
     dur = time.time() - t0
     x1, y1, yaw1 = n.gt.pose
     log(f'time {dur:.1f} s, path {n.gt.dist:.2f} m, robot at {x1:.2f}, {y1:.2f}, {math.degrees(yaw1):.0f} deg')
+    n.gt.dump(f'detour_{kind}_{when}', t0)
     if not fut.done():
         handle.cancel_goal_async()
         n.spin_for(1.0)
     limit = 90.0 if when == 'far' else 150.0
     ok = check(ok_goal and dur < limit, f'went around the obstacle and reached the goal within {limit:.0f} s')
+    ok &= check(n.contacts == c0, f'no collision (counter {n.contacts - c0})')
+    n.obstacles({'clear': True})
+    return ok
+
+
+def sc_cornered(n, _args):
+    n.spin_for(5.0, lambda: n.gt.pose)
+    _navigate_wait(n, *STAGING)
+    n.spin_for(1.0)
+    c0 = n.contacts
+    n.obstacles({'add': {'type': 'box', 'ahead': FRONT + 0.27, 'size': [0.30, 1.0], 'z': [0.0, 1.0]}})
+    n.spin_for(2.0)
+    log('wide obstacle 12 cm in front of the robot, goal behind it')
+    handle = _navigate(n, *CORRIDOR_GOAL)
+    t0 = time.time()
+    n.gt.reset()
+    fut = handle.get_result_async()
+    back = 0.0
+    x0, y0, yaw0 = n.gt.pose
+    while time.time() - t0 < 120.0 and not fut.done():
+        n.spin_for(0.2)
+        x, y, _ = n.gt.pose
+        back = max(back, -(math.cos(yaw0) * (x - x0) + math.sin(yaw0) * (y - y0)))
+    ok_goal = fut.done() and fut.result().status == GoalStatus.STATUS_SUCCEEDED
+    dur = time.time() - t0
+    n.gt.dump('cornered', t0)
+    log(f'time {dur:.1f} s, path {n.gt.dist:.2f} m, backed up {back:.2f} m, '
+        f'goal {"reached" if ok_goal else "not reached"}')
+    if not fut.done():
+        handle.cancel_goal_async()
+        n.spin_for(1.0)
+    ok = check(ok_goal and dur < 120.0, 'got out of the tight spot and reached the goal within 120 s')
     ok &= check(n.contacts == c0, f'no collision (counter {n.contacts - c0})')
     n.obstacles({'clear': True})
     return ok
@@ -578,7 +629,7 @@ def sc_people(n, args):
     else:
         ahead = 1.3
         n.obstacles({'add': {'type': 'cylinder', 'name': 'person', 'ahead': ahead, 'r': 0.22, 'z': [0.0, 1.7]}})
-        walk = 8.0 if kind == 'leave' else None
+        walk = 3.0 if kind == 'leave' else None
 
         def person(_t):
             return x0 + ahead * c, y0 + ahead * s
@@ -587,6 +638,8 @@ def sc_people(n, args):
     gone = False
     closest, lateral, still, near_speed, along = math.inf, 0.0, 0.0, 0.0, 0.0
     last = time.time()
+    turn0, dist0, flips, steer = n.gt.abs_turn, n.gt.dist, 0, 0
+    trace = []
     while time.time() - t0 < 150.0 and not fut.done():
         n.spin_for(0.1)
         now = time.time()
@@ -603,25 +656,40 @@ def sc_people(n, args):
                 log(f'person gone after {now - t0:.1f} s')
         lateral = max(lateral, abs(-s * (x - x0) + c * (y - y0)))
         along = max(along, c * (x - x0) + s * (y - y0))
-        if n.gt.speed < 0.02:
+        if n.gt.speed < 0.02 and along < ahead:
             still += now - last
         last = now
+        side = 1 if n.gt.wz > 0.15 else -1 if n.gt.wz < -0.15 else 0
+        if side and steer and side != steer:
+            flips += 1
+        steer = side or steer
+        trace.append((now - t0, x, y, n.gt.pose[2], n.gt.speed, n.gt.wz))
     dur = time.time() - t0
+    try:
+        with open(os.path.join(data_dir(), f'e2e_people_{kind}.csv'), 'w', encoding='utf-8') as f:
+            f.write('t,x,y,yaw,v,wz\n')
+            f.writelines('%.2f,%.3f,%.3f,%.3f,%.3f,%.3f\n' % r for r in trace)
+    except OSError:
+        pass
+    turned, driven = math.degrees(n.gt.abs_turn - turn0), n.gt.dist - dist0
     ok_goal = fut.done() and fut.result().status == GoalStatus.STATUS_SUCCEEDED
     if not fut.done():
         handle.cancel_goal_async()
         n.spin_for(1.0)
     n.obstacles({'clear': True})
-    log(f'time {dur:.1f} s, standing {still:.1f} s, closest robot-person {closest:.2f} m, '
+    log(f'time {dur:.1f} s, standing before passing {still:.1f} s, closest robot-person {closest:.2f} m, '
         f'max speed near the person {near_speed:.2f} m/s, max lateral offset {lateral:.2f} m, '
         f'progress along the lane {along:.2f} m (person at {ahead:.2f} m), goal {"reached" if ok_goal else "not reached"}')
+    log(f'turned {turned:.0f} deg in total, {flips} left/right steering changes, path {driven:.2f} m')
     ok = True
     if kind != 'stand':
         ok &= check(ok_goal, 'reached the goal')
     ok &= check(n.contacts == c0, f'no collision (counter {n.contacts - c0})')
     ok &= check(near_speed <= 0.17, 'slow near the person (<= 0.17 m/s within 1.3 m)')
     if kind == 'stand':
-        ok &= check(still >= 8.0, 'waited for the person before passing (>= 8 s standing)')
+        ok &= check(still >= 3.0, 'waited briefly for the person before passing (>= 3 s standing)')
+        ok &= check(still <= 12.0, 'did not wait too long (<= 12 s standing)')
+        ok &= check(turned <= 280.0, 'passed without excessive turning (<= 280 deg in total)')
         ok &= check(lateral >= 0.5, 'passed the person on a detour')
         ok &= check(closest >= 0.7, 'kept the personal space while passing (centre distance >= 0.7 m)')
         ok &= check(along >= ahead, 'got beside the person (passing them)')
@@ -808,7 +876,7 @@ SCENARIOS = {'odom': sc_odom, 'tour': sc_tour, 'localization': sc_localization,
              'obstacle': sc_obstacle, 'dropout': sc_dropout,
              'teleop_obstacle': sc_teleop_obstacle, 'teleop_dropout': sc_teleop_dropout,
              'near_wall': sc_near_wall, 'goal_motion': sc_goal_motion, 'relocalize': sc_relocalize,
-             'detour': sc_detour, 'restored': sc_restored, 'kidnap': sc_kidnap, 'people': sc_people, 'world_tour': sc_world_tour, 'world_goals': sc_world_goals}
+             'detour': sc_detour, 'cornered': sc_cornered, 'restored': sc_restored, 'kidnap': sc_kidnap, 'people': sc_people, 'world_tour': sc_world_tour, 'world_goals': sc_world_goals}
 
 
 def main():

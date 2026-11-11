@@ -146,7 +146,7 @@ if [[ " $PHASES " == *" B "* ]]; then
   e2e "AMCL pose ~ true pose" localization
   for sc in "obstacle table" "obstacle low" "obstacle person" "teleop_obstacle table" "teleop_obstacle low" \
             "dropout camera" "dropout lidar" "teleop_dropout camera" "teleop_dropout lidar" "near_wall" \
-            "detour box far" "detour table far" "detour table sudden" \
+            "detour box far" "detour table far" "detour table sudden" "cornered" \
             "people stand" "people leave" "people cross"; do
     e2e "safety: $sc" $sc
   done

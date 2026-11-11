@@ -15,7 +15,11 @@
                 <ScriptCondition code="need_plan == false"/>
               </ReactiveSequence>
               <Sequence name="Plan">
-                <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+                <ComputePathToPose goal="{goal}" path="{raw_path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+                <Fallback name="SmoothOrRaw">
+                  <SmoothPath unsmoothed_path="{raw_path}" smoothed_path="{path}" smoother_id="simple_smoother" check_for_collisions="true" error_code_id="{smoother_error_code}"/>
+                  <SetBlackboard output_key="path" value="{raw_path}"/>
+                </Fallback>
                 <Script code="need_plan := false"/>
               </Sequence>
             </Fallback>
@@ -29,11 +33,17 @@
                 <IsPathValid path="{path_ahead}"/>
               </Sequence>
             </RateController>
-            <RecoveryNode number_of_retries="1" name="RecoveryFollowPath">
+            <RecoveryNode number_of_retries="2" name="RecoveryFollowPath">
               <FollowPath path="{path}" controller_id="{selected_controller}" error_code_id="{follow_path_error_code}"/>
               <Sequence>
                 <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
-                <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+                <RoundRobin name="ClearThenBackUp">
+                  <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+                  <Sequence name="BackUpAndReplan">
+                    <BackUp name="BackUpCornered" backup_dist="0.20" backup_speed="0.06" time_allowance="8.0"/>
+                    <Script code="need_plan := true"/>
+                  </Sequence>
+                </RoundRobin>
               </Sequence>
             </RecoveryNode>
           </ReactiveSequence>
@@ -46,7 +56,7 @@
               <Sequence name="WaitForPerson">
                 <IsPersonBlocking topic="/kelo/person_blocking" timeout="1.0"/>
                 <ForceSuccess>
-                  <RetryUntilSuccessful num_attempts="20">
+                  <RetryUntilSuccessful num_attempts="6">
                     <Sequence>
                       <Wait name="WaitPerson" wait_duration="0.5"/>
                       <Inverter>
@@ -57,7 +67,7 @@
                 </ForceSuccess>
                 <ClearEntireCostmap name="ClearLocalCostmap-Person" service_name="local_costmap/clear_entirely_local_costmap"/>
                 <ClearEntireCostmap name="ClearGlobalCostmap-Person" service_name="global_costmap/clear_entirely_global_costmap"/>
-                <Wait name="WaitSensorsPerson" wait_duration="2.0"/>
+                <Wait name="WaitSensorsPerson" wait_duration="1.0"/>
                 <Script code="need_plan := true"/>
               </Sequence>
               <RoundRobin name="WaitThenReplan">

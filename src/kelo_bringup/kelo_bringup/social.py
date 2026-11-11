@@ -44,8 +44,8 @@ class Social(Node):
         super().__init__('social')
         hw = load_hardware()
         d = self.declare_parameter
-        d('core', 0.55)
-        d('social', 1.2)
+        d('core', 0.45)
+        d('social', 0.9)
         d('lethal_s', 1.5)
         d('horizon', 3.0)
         d('check_ahead', 2.5)
