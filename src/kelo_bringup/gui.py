@@ -61,6 +61,7 @@ class KeloGUI:
         self.health = None
         self.health_sub = None
         self.nodes_win = None
+        self.route_win = None
         self.auto_retry = None
 
         self.window_procs = {}
@@ -158,6 +159,7 @@ class KeloGUI:
         ttk.Button(nav_btns, text="Send Goal", command=self.send_goal_dialog).pack(side="left", padx=4)
         ttk.Button(nav_btns, text="Stop Navigation", command=lambda: self.stop("navigation")).pack(side="left", padx=4)
         ttk.Checkbutton(nav_btns, text="Person on path (sim)", variable=self.sim_person).pack(side="left", padx=6)
+        ttk.Button(nav_btns, text="Routes / stations...", command=self.open_routes).pack(side="left", padx=4)
 
         speed = ttk.LabelFrame(top, text="Top speed (navigation; slower near walls and people)", padding=8)
         speed.pack(fill="x", pady=6)
@@ -661,6 +663,16 @@ class KeloGUI:
         self._log(f"\n[GUI] Start pose: {' '.join(cmd)}\n")
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         threading.Thread(target=self._stream_output, args=("localize", proc), daemon=True).start()
+
+    def open_routes(self):
+        if self.route_win is not None and self.route_win.win.winfo_exists():
+            self.route_win.win.lift()
+            return
+        if not os.path.isfile(MAP_YAML):
+            messagebox.showwarning("No map", f"Build a map first (Start Mapping -> Save Map).\nExpected: {MAP_YAML}")
+            return
+        from kelo_bringup.route_window import RouteWindow
+        self.route_win = RouteWindow(self, MAP_YAML)
 
     def send_goal_dialog(self):
         x = simpledialog.askfloat("Goal X", "Goal X (metres, map frame):", parent=self.root)

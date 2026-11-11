@@ -38,7 +38,7 @@ check() {
 }
 e2e() {
   local name="$1"; shift
-  if run "timeout 300 ros2 run kelo_bringup kelo_e2e $*" >"$WORK/last.txt" 2>&1
+  if run "timeout 900 ros2 run kelo_bringup kelo_e2e $*" >"$WORK/last.txt" 2>&1
   then record "OK   $name"; else record "FAIL $name"; fi
   grep '\[e2e\]' "$WORK/last.txt" | sed 's/^/     /'
 }
@@ -146,7 +146,7 @@ if [[ " $PHASES " == *" B "* ]]; then
   e2e "AMCL pose ~ true pose" localization
   for sc in "obstacle table" "obstacle low" "obstacle person" "teleop_obstacle table" "teleop_obstacle low" \
             "dropout camera" "dropout lidar" "teleop_dropout camera" "teleop_dropout lidar" "near_wall" \
-            "detour box far" "detour table far" "detour table sudden" "cornered" \
+            "detour box far" "detour table far" "detour table sudden" "cornered" "route basic" "route skip" "route pause" "route person" "route loop" "route foreign" \
             "people stand" "people leave" "people cross"; do
     e2e "safety: $sc" $sc
   done

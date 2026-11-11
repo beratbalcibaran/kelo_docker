@@ -1,0 +1,95 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence>
+      <Script code="need_plan := true"/>
+      <RecoveryNode number_of_retries="100000" name="NavigateRecovery">
+        <PipelineSequence name="NavigateWaitThenDetour">
+          <ControllerSelector selected_controller="{selected_controller}" default_controller="FollowPath" topic_name="controller_selector"/>
+          <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>
+          <RateController hz="1.0" name="PlanWhenNeeded">
+            <Sequence>
+            <RemovePassedGoals input_goals="{goals}" output_goals="{goals}" radius="0.5"/>
+            <Fallback>
+              <ReactiveSequence name="KeepPath">
+                <Inverter>
+                  <GlobalUpdatedGoal/>
+                </Inverter>
+                <ScriptCondition code="need_plan == false"/>
+              </ReactiveSequence>
+              <Sequence name="Plan">
+                <ComputePathThroughPoses goals="{goals}" path="{raw_path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+                <Fallback name="SmoothOrRaw">
+                  <SmoothPath unsmoothed_path="{raw_path}" smoothed_path="{path}" smoother_id="simple_smoother" check_for_collisions="true" error_code_id="{smoother_error_code}"/>
+                  <SetBlackboard output_key="path" value="{raw_path}"/>
+                </Fallback>
+                <Script code="need_plan := false"/>
+              </Sequence>
+            </Fallback>
+            </Sequence>
+          </RateController>
+          <ReactiveSequence name="FollowWhileFree">
+            <RateController hz="2.0" name="CheckPathAhead">
+              <Sequence>
+                <TruncatePath input_path="{path}" output_path="{path_to_check}" distance="0.5"/>
+                <TruncatePathLocal input_path="{path_to_check}" output_path="{path_ahead}" distance_forward="2.0" distance_backward="0.0"/>
+                <SkipPathStart input_path="{path_ahead}" output_path="{path_ahead}" distance="0.4"/>
+                <IsPathValid path="{path_ahead}"/>
+              </Sequence>
+            </RateController>
+            <RecoveryNode number_of_retries="2" name="RecoveryFollowPath">
+              <FollowPath path="{path}" controller_id="{selected_controller}" error_code_id="{follow_path_error_code}"/>
+              <Sequence>
+                <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
+                <RoundRobin name="ClearThenBackUp">
+                  <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+                  <Sequence name="BackUpAndReplan">
+                    <BackUp name="BackUpCornered" backup_dist="0.20" backup_speed="0.06" time_allowance="8.0"/>
+                    <Script code="need_plan := true"/>
+                  </Sequence>
+                </RoundRobin>
+              </Sequence>
+            </RecoveryNode>
+          </ReactiveSequence>
+        </PipelineSequence>
+        <ReactiveFallback name="WaitOrNewGoal">
+          <GoalUpdated/>
+          <Sequence name="PersonOrObstacle">
+            <Wait name="WaitIdentify" wait_duration="1.0"/>
+            <Fallback name="PersonOrBox">
+              <Sequence name="WaitForPerson">
+                <IsPersonBlocking topic="/kelo/person_blocking" timeout="1.0"/>
+                <ForceSuccess>
+                  <RetryUntilSuccessful num_attempts="6">
+                    <Sequence>
+                      <Wait name="WaitPerson" wait_duration="0.5"/>
+                      <Inverter>
+                        <IsPersonBlocking topic="/kelo/person_blocking" timeout="1.0"/>
+                      </Inverter>
+                    </Sequence>
+                  </RetryUntilSuccessful>
+                </ForceSuccess>
+                <ClearEntireCostmap name="ClearLocalCostmap-Person" service_name="local_costmap/clear_entirely_local_costmap"/>
+                <ClearEntireCostmap name="ClearGlobalCostmap-Person" service_name="global_costmap/clear_entirely_global_costmap"/>
+                <Wait name="WaitSensorsPerson" wait_duration="1.0"/>
+                <Script code="need_plan := true"/>
+              </Sequence>
+              <RoundRobin name="WaitThenReplan">
+                <Sequence name="Wait">
+                  <Wait name="WaitBlocked" wait_duration="4.0"/>
+                  <Script code="need_plan := true"/>
+                </Sequence>
+                <Sequence name="WaitAndClear">
+                  <Wait name="WaitBlockedAgain" wait_duration="4.0"/>
+                  <ClearEntireCostmap name="ClearLocalCostmap-Blocked" service_name="local_costmap/clear_entirely_local_costmap"/>
+                  <ClearEntireCostmap name="ClearGlobalCostmap-Blocked" service_name="global_costmap/clear_entirely_global_costmap"/>
+                  <Wait name="WaitSensors" wait_duration="2.0"/>
+                  <Script code="need_plan := true"/>
+                </Sequence>
+              </RoundRobin>
+            </Fallback>
+          </Sequence>
+        </ReactiveFallback>
+      </RecoveryNode>
+    </Sequence>
+  </BehaviorTree>
+</root>

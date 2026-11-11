@@ -55,6 +55,8 @@ setup(
             'status_node = kelo_bringup.status_node:main',
             'surround_view = kelo_bringup.surround_view:main',
             'waypoint_tool = kelo_bringup.waypoint_tool:main',
+            'route_runner = kelo_bringup.route_runner:main',
+            'route_tool = kelo_bringup.route_tool:main',
             'save_map = kelo_bringup.save_map:main',
             'sim_person = kelo_bringup.sim_person:main',
             'sim_robot = kelo_bringup.sim_robot:main',

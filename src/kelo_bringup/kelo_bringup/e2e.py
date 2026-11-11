@@ -603,6 +603,204 @@ def sc_cornered(n, _args):
     return ok
 
 
+ROUTE_STATIONS = {'A': (3.2, -0.1), 'E': (4.7, -0.1), 'B': (6.2, -0.1), 'C': (6.2, 1.5), 'D': (3.3, 1.5),
+                  'X': (1.5, 1.0)}
+WORLD_START = (1.0, 1.0, 0.0)
+
+
+class RouteWatch:
+    def __init__(self, n):
+        from rclpy.qos import DurabilityPolicy, QoSProfile
+        self.n, self.state = n, {}
+        self.pub = n.create_publisher(String, '/kelo/route/command', 10)
+        n.create_subscription(String, '/kelo/route/state', self._state,
+                              QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+
+    def _state(self, m):
+        import json
+        self.state = json.loads(m.data)
+
+    def send(self, **cmd):
+        import json
+        self.n.spin_for(2.0, lambda: self.pub.get_subscription_count() > 0)
+        self.pub.publish(String(data=json.dumps(cmd)))
+        self.n.spin_for(0.5)
+
+
+def _clear_costmaps(n):
+    """A fresh start for each route scenario: the sim removes people instantly, also behind the robot
+    where no sensor clears their cells."""
+    from nav2_msgs.srv import ClearEntireCostmap
+    for srv in ('/global_costmap/clear_entirely_global_costmap', '/local_costmap/clear_entirely_local_costmap'):
+        cli = n.create_client(ClearEntireCostmap, srv)
+        if cli.wait_for_service(timeout_sec=5.0):
+            fut = cli.call_async(ClearEntireCostmap.Request())
+            rclpy.spin_until_future_complete(n, fut, timeout_sec=5.0)
+    n.spin_for(3.0)
+
+
+def _write_route(name, spec):
+    from kelo_bringup import route as rt
+    routes = rt.load_routes()
+    routes[name] = {'stations': [rt.station(k, *ROUTE_STATIONS[k], None, wait, stop) for k, wait, stop in spec]}
+    rt.save_routes(routes)
+
+
+def sc_route(n, args):
+    kind = args[0] if args else 'basic'
+    n.spin_for(5.0, lambda: n.gt.pose)
+    _clear_costmaps(n)
+    rw = RouteWatch(n)
+    c0 = n.contacts
+    if kind == 'basic':
+        spec, laps, limit = [('A', 2.0, True), ('E', 0.0, False), ('B', 0.0, False), ('C', 0.0, True),
+                             ('D', 0.0, True)], 2, 420.0
+    elif kind == 'skip':
+        spec, laps, limit = [('A', 0.0, True), ('X', 0.0, True), ('C', 0.0, True)], 1, 240.0
+    elif kind == 'person':
+        spec, laps, limit = [('A', 0.0, True), ('E', 0.0, False), ('B', 0.0, True)], 1, 300.0
+    elif kind == 'loop':
+        spec, laps, limit = [('A', 0.0, True), ('B', 0.0, True)], 0, 400.0
+    elif kind == 'foreign':
+        spec, laps, limit = [('A', 0.0, True), ('B', 0.0, True), ('C', 0.0, True)], 1, 360.0
+    else:
+        spec, laps, limit = [('A', 0.0, True), ('B', 0.0, True), ('C', 0.0, True)], 1, 300.0
+    _write_route(f'e2e_{kind}', spec)
+    rw.send(cmd='start', route=f'e2e_{kind}', laps=laps)
+    log(f'route {kind}: {" -> ".join(k + ("(pass)" if not st else "") + (f"(wait {w:.0f}s)" if w else "") for k, w, st in spec)}, {laps} lap(s)')
+    t0 = time.time()
+    trace, paused_ok, skip_sent, pause_sent, resume_t = [], None, False, False, None
+    person_t, stop_sent, foreign = None, None, {}
+    while time.time() - t0 < limit:
+        n.spin_for(0.1)
+        x, y, yaw = _gt_in_map(n, WORLD_START)
+        trace.append((time.time() - t0, x, y, yaw, n.gt.speed))
+        st = rw.state
+        visits_now = st.get('visits') or []
+        if kind == 'person' and person_t is None and len(visits_now) == 1 and n.gt.speed > 0.12:
+            ex, ey = ROUTE_STATIONS['E']
+            n.obstacles({'add': {'type': 'cylinder', 'name': 'person', 'center': [ex + 0.6 + WORLD_START[0], ey + WORLD_START[1]],
+                                 'r': 0.22, 'z': [0.0, 1.7]}})
+            person_t = time.time()
+            log('person standing on the leg A -> E -> B (0.6 m after E)')
+        if kind == 'person' and person_t is not None and time.time() - person_t > 12.0 and not foreign.get('gone'):
+            n.obstacles({'clear': True})
+            foreign['gone'] = True
+            log('person left')
+        if kind == 'loop' and stop_sent is None and sum(1 for v in visits_now if v['name'] == 'B') >= 2:
+            rw.send(cmd='stop')
+            stop_sent = time.time()
+            log(f'stop sent after lap {st.get("lap")}')
+        if kind == 'loop' and stop_sent is not None and time.time() - stop_sent > 6.0:
+            foreign['moved_after_stop'] = max(v for t, *_r, v in trace if t > stop_sent - t0 + 2.0) if any(
+                t > stop_sent - t0 + 2.0 for t, *_r in trace) else 0.0
+            break
+        if kind == 'foreign' and not foreign.get('sent') and len(visits_now) == 1 and n.gt.speed > 0.12:
+            handle = _navigate(n, *ROUTE_STATIONS['D'])
+            foreign.update(sent=True, handle=handle, t=time.time())
+            log('another goal (to D) sent during the route')
+        if kind == 'foreign' and foreign.get('sent') and not foreign.get('resumed'):
+            fut = foreign.setdefault('fut', foreign['handle'].get_result_async())
+            if fut.done() or time.time() - foreign['t'] > 120.0:
+                foreign['paused'] = st.get('status') == 'PAUSED'
+                foreign['other_done'] = fut.done() and fut.result().status == GoalStatus.STATUS_SUCCEEDED
+                rw.send(cmd='resume')
+                foreign['resumed'] = True
+                log(f'other goal finished ({foreign["other_done"]}), route was {st.get("status")}: resume')
+        if st.get('status') in ('DONE', 'DONE_WITH_SKIPS', 'FAILED') and time.time() - t0 > 3.0:
+            break
+        if st.get('status') == 'IDLE' and time.time() - t0 > 3.0 and kind != 'loop':
+            break
+        if kind == 'pause':
+            visits = st.get('visits') or []
+            if len(visits) == 1 and not pause_sent:
+                n.spin_for(2.0)
+                rw.send(cmd='pause')
+                pause_sent = True
+                n.spin_for(3.0)
+                moved0 = n.gt.dist
+                n.spin_for(5.0)
+                paused_ok = n.gt.dist - moved0 < 0.05 and rw.state.get('status') == 'PAUSED'
+                log(f'paused: moved {n.gt.dist - moved0:.3f} m in 5 s, state {rw.state.get("status")}')
+                rw.send(cmd='resume')
+                resume_t = time.time()
+            if resume_t and not skip_sent and time.time() - resume_t > 4.0:
+                rw.send(cmd='skip')
+                skip_sent = True
+    st = rw.state
+    dur = time.time() - t0
+    n.gt.dump(f'route_{kind}', t0)
+    visits = [v['name'] for v in st.get('visits') or []]
+    errors = [v['error_m'] for v in st.get('visits') or [] if v.get('error_m') is not None]
+    log(f'state {st.get("status")} "{st.get("message")}", {dur:.0f} s, visits {visits}, skipped {st.get("skipped")}, '
+        f'arrival errors (cm) {[round(e * 100) for e in errors]}')
+    ok = check(n.contacts == c0, f'no collision (counter {n.contacts - c0})')
+    if kind == 'basic':
+        names = [k for k, _, _ in spec] * laps
+        ok &= check(st.get('status') == 'DONE', 'route finished (DONE)')
+        ok &= check(visits == names, f'stations visited in order ({" ".join(names)})')
+        stops = [v for v in st.get('visits') or [] if v.get('stop')]
+        gt_err = []
+        for v in stops:
+            sx, sy = ROUTE_STATIONS[v['name']]
+            at = min(trace, key=lambda r: abs(r[0] - v['t']))
+            gt_err.append(math.hypot(at[1] - sx, at[2] - sy))
+        log(f'true distance to the stop stations on arrival (cm) {[round(e * 100) for e in gt_err]}')
+        ok &= check(bool(gt_err) and max(gt_err) <= 0.30, 'stopped within 30 cm of every stop station (true position)')
+        ex, ey = ROUTE_STATIONS['E']
+        near_e = [v for t, x, y, _, v in trace if math.hypot(x - ex, y - ey) < 0.5]
+        ok &= check(bool(near_e) and min(near_e) > 0.08,
+                    f'drove through the pass-through station E on a straight line without slowing down much '
+                    f'(min speed {min(near_e or [0]):.2f} m/s)')
+        corner = []
+        for k, v in enumerate(st.get('visits') or []):
+            if v['name'] == 'B' and k + 1 < len(st['visits']):
+                corner.append(st['visits'][k + 1]['t'] - v['t'])
+        log(f'pass-through corner B -> stop C took {[round(c) for c in corner]} s')
+        ok &= check(bool(corner) and max(corner) <= 25.0, 'sharp pass-through corner B -> C taken within 25 s')
+        turn, last, per = 0.0, None, {}
+        for t, x, y, yaw, v in trace:
+            if last is not None and v < 0.03 and t > 5.0:
+                d = abs(wrap(yaw - last))
+                turn += d
+                near = min(ROUTE_STATIONS, key=lambda k: math.hypot(ROUTE_STATIONS[k][0] - x, ROUTE_STATIONS[k][1] - y))
+                per[near] = per.get(near, 0.0) + d
+            last = yaw
+        log(f'turned in place {math.degrees(turn):.0f} deg in total: '
+            + ', '.join(f'{k} {math.degrees(v):.0f}' for k, v in sorted(per.items())))
+        ok &= check(math.degrees(turn) <= 120.0 * 4 * laps, 'no turning in place beyond the corners (<= 120 deg per corner)')
+        ax, ay = ROUTE_STATIONS['A']
+        still = 0.0
+        for (t1, x1, y1, _, v1), (t2, *_rest) in zip(trace, trace[1:]):
+            if v1 < 0.02 and math.hypot(x1 - ax, y1 - ay) < 0.3:
+                still += t2 - t1
+        ok &= check(still >= 2.0 * laps * 0.9, f'waited at A ({still:.1f} s standing there, 2 s per visit)')
+    elif kind == 'skip':
+        ok &= check(st.get('status') == 'DONE_WITH_SKIPS', 'route finished with a skipped station')
+        ok &= check(st.get('skipped') == ['X'], 'the station inside the box was skipped')
+        ok &= check(visits == ['A', 'C'], 'the reachable stations were visited (A C)')
+        ok &= check(dur < 150.0, f'the unreachable station did not hold the route up ({dur:.0f} s)')
+    elif kind == 'person':
+        ok &= check(st.get('status') == 'DONE' and visits == ['A', 'E', 'B'], 'route finished A E B with a person on the way')
+        ok &= check(person_t is not None, 'the person was placed on the leg')
+    elif kind == 'loop':
+        ok &= check(stop_sent is not None, 'two laps driven with laps = 0 (until stopped)')
+        ok &= check(visits[:4] == ['A', 'B', 'A', 'B'], 'stations alternate A B A B')
+        ok &= check(st.get('status') == 'IDLE', 'stop ended the route (IDLE)')
+        ok &= check(foreign.get('moved_after_stop', 1.0) < 0.03, 'robot stands still after stop')
+    elif kind == 'foreign':
+        ok &= check(foreign.get('paused') is True, 'route paused when another goal was sent')
+        ok &= check(foreign.get('other_done') is True, 'the other goal was driven')
+        ok &= check(st.get('status') == 'DONE' and visits == ['A', 'B', 'C'], 'route resumed and finished A B C')
+    else:
+        ok &= check(bool(paused_ok), 'pause stopped the robot and kept it standing')
+        ok &= check(st.get('status') == 'DONE_WITH_SKIPS' and st.get('skipped') == ['B'],
+                    'skip during the second leg skipped B')
+        ok &= check(visits == ['A', 'C'], 'route continued after resume (A C)')
+    rw.send(cmd='stop')
+    return ok
+
+
 def sc_people(n, args):
     kind = args[0] if args else 'stand'
     n.spin_for(5.0, lambda: n.gt.pose)
@@ -876,7 +1074,7 @@ SCENARIOS = {'odom': sc_odom, 'tour': sc_tour, 'localization': sc_localization,
              'obstacle': sc_obstacle, 'dropout': sc_dropout,
              'teleop_obstacle': sc_teleop_obstacle, 'teleop_dropout': sc_teleop_dropout,
              'near_wall': sc_near_wall, 'goal_motion': sc_goal_motion, 'relocalize': sc_relocalize,
-             'detour': sc_detour, 'cornered': sc_cornered, 'restored': sc_restored, 'kidnap': sc_kidnap, 'people': sc_people, 'world_tour': sc_world_tour, 'world_goals': sc_world_goals}
+             'detour': sc_detour, 'route': sc_route, 'cornered': sc_cornered, 'restored': sc_restored, 'kidnap': sc_kidnap, 'people': sc_people, 'world_tour': sc_world_tour, 'world_goals': sc_world_goals}
 
 
 def main():

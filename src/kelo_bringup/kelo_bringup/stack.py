@@ -464,6 +464,8 @@ def _navigation(hw, sens, plan, opts, safety, replay):
         node('nav2_velocity_smoother', 'velocity_smoother', 'velocity_smoother',
              [('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel_smoothed')]),
         node('nav2_collision_monitor', 'collision_monitor', 'collision_monitor'),
+        Node(package='kelo_bringup', executable='route_runner', name='route_runner', output='screen',
+             respawn=True, respawn_delay=2.0),
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
              name='lifecycle_manager_navigation', output='screen',
              parameters=[{'autostart': True, 'node_names': NAV_LIFECYCLE, 'bond_timeout': 0.0}]),

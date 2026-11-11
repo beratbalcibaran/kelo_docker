@@ -136,7 +136,8 @@ def nav2_params(hw, odom_topic, cfg=None, camera_map=False):
     vs = cfg['velocity_smoother']['ros__parameters']
     vs['max_velocity'][0], vs['min_velocity'][0] = v, -v
     bt = cfg['bt_navigator']['ros__parameters']
-    bt['default_nav_to_pose_bt_xml'] = os.path.join(share(), 'behavior_trees', bt['default_nav_to_pose_bt_xml'])
+    for key in ('default_nav_to_pose_bt_xml', 'default_nav_through_poses_bt_xml'):
+        bt[key] = os.path.join(share(), 'behavior_trees', bt[key])
     lc = cfg['local_costmap']['local_costmap']['ros__parameters']
     if sens['camera']:
         lc['camera_layer']['camera']['topic'] = hw['topics']['camera_points']
