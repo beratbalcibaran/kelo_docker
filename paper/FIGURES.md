@@ -5,6 +5,26 @@ repository root after unzipping `experiments/archives/2026-11-12/*.zip` into `ex
 All numbers are in `figures/numbers.json`. Figures are sized for one IEEE column (Fig. 1: two columns)
 and readable in black and white.
 
+## Index
+
+| Item | File | Paper section | Status |
+|---|---|---|---|
+| Table: test campaigns | in `main.tex` | III | keep |
+| Fig. 1: setup (floor plan, rigid body 3D) | `figures/fig1_setup.pdf` | III | keep, add the photo |
+| Table II: uncertainty budget | in `main.tex` | IV | keep |
+| Table I: C1 as recorded / z filter / corrected / C2, Monte Carlo intervals | in `main.tex` | V-A | keep |
+| Fig. 2: slow triangle as recorded vs corrected | `figures/fig2_correction.pdf` | V-A | optional |
+| Fig. 3: CDF per test type | `figures/fig3_cdf.pdf` | V-A | keep |
+| Fig. 8: Monte Carlo of beacon height errors | `figures/fig8_montecarlo.pdf` | V-B | keep |
+| Fig. 4: at rest (vertices, heading) | `figures/fig4_rest.pdf` | V-C | keep |
+| Fig. 6: Allan deviation | `figures/fig6_allan.pdf` | V-C | keep |
+| Fig. 5: error vs speed | `figures/fig5_speed.pdf` | V-D | optional |
+| Fig. 7: out-and-back | `figures/fig7_inout.pdf` | V-E | keep |
+
+In `main.tex` the results sections are: A. configuration error and correction; B. tolerance to beacon
+height errors (simulation); C. at rest; D. while moving; E. outside the OptiTrack area. LaTeX numbers the
+figures in order of appearance, so the final numbering will differ from the file names.
+
 ## Experimental design: two campaigns
 
 | | Campaign 1 (C1): main test programme | Campaign 2 (C2): reference configuration |
@@ -36,20 +56,27 @@ out-and-back and rest and all of C2. Lever arms (rigid body pivot → hedgehog):
 3. **Delay**: best delay per recording with motion 0.04–0.21 s; applied value = median, 0.105 s.
 4. OptiTrack frames with mean marker error > 3 mm discarded. Stops: speed < 2 cm/s and rotation
    < 3 °/s for at least 10 s, 2 s trimmed at both ends.
+5. **Uncertainty**: budget (Table II) and Monte Carlo propagation (JCGM 101) of the comparison; the
+   intervals of Table I come from the Monte Carlo.
+6. **Simulation**: Monte Carlo of beacon height errors with the true geometry and trajectories (Fig. 8).
+7. **Supporting analyses**: height filter alone vs correction (Table I), beacon left out vs heading,
+   sensitivity of the correction to its settings.
 
 ---
 
 ## Table I: C1 as recorded, z filter only, corrected, and C2
 
-Median / p95 (cm). Stops: per-stop offset. Moving: RMS / p95. Last column: difference of the median
-stop offsets C1 corrected − C2, 95 % bootstrap interval.
+Median / p95 (cm). Stops: per-stop offset. Moving: RMS / p95. Last column: difference C1 corrected −
+C2 with the 95 % Monte Carlo interval (registration, delay, OptiTrack noise, stop resampling).
 
 | Test | C1 as recorded | C1 z filter only | C1 corrected | C2 reference | C1 corr. − C2 |
 |---|---|---|---|---|---|
-| Rotation, stops (8 / 8) | 16.6 / 85.8 | – | 4.3 / 14.0 | 8.4 / 16.1 | −4.0 [−11.8, 3.1] |
-| Triangle, stops (22 / 9) | 20.7 / 126.7 | – | 7.8 / 14.2 | 5.8 / 14.2 | 2.0 [−4.3, 7.1] |
-| Triangle, moving | 65.6 / 141.5 | 20.4 RMS | 11.0 / 21.1 | 11.1 / 23.4 | – |
-| Rest (1 / 1) | 35.9 | 35.8 | 2.6 | 5.5 | – |
+| Rotation, stops (8 / 8) | 16.6 / 85.8 | – | 4.3 / 14.0 | 8.4 / 16.1 | −4.0 [−12.8, 2.4] |
+| Triangle, stops (22 / 9) | 20.7 / 126.7 | – | 7.8 / 14.2 | 5.8 / 14.2 | 2.0 [−3.9, 10.6] |
+| Triangle, moving | 65.6 / 141.5 | 20.4 RMS | 11.0 / 21.1 | 11.1 / 23.4 | −0.1 [−2.4, 3.7] (RMS) |
+| Triangle, all samples | – | 12.4 / 50.4 | 7.7 / 19.9 | – | – |
+| Rest (1 / 1) | 35.9 | 35.8 | 2.6 | 5.5 | −2.9 [−7.4, 7.3] |
+| Kept samples | 100 % | 55–100 % | 81–100 % | 100 % | |
 
 All samples with reference (median / p95, and share of samples kept):
 
@@ -65,9 +92,9 @@ All samples with reference (median / p95, and share of samples kept):
 - The simple fix, discarding samples with a wrong height, removes the worst outliers but keeps the
   bias (rest: 35.8 cm) and throws away up to 45 % of the data. The correction keeps 81–100 % of the
   samples and brings the errors down to the C2 level.
-- C1 corrected and C2 agree: the median differences are within ±4 cm with intervals that include
-  zero, the moving errors differ by 0.1 cm RMS. With 8–22 stops per campaign the intervals are about
-  ±7 cm wide: write "agree within the resolution of the comparison", not "equivalent".
+- C1 corrected and C2 agree: all four differences have Monte Carlo intervals that include zero, and the
+  moving RMS differs by 0.1 cm. The intervals at the stops are 10–15 cm wide (few stops, registration
+  uncertainty): write "agree within the resolution of the comparison", not "equivalent".
 
 ## Table II: uncertainty budget of the comparison
 
@@ -88,7 +115,8 @@ term (it shifts all samples of a recording together) and comes from the scatter 
 offsets used to fit it, mostly through the lever arm. Consequences for the text: differences between
 campaigns and the gross effect of the configuration error (tens of cm) are well resolved; absolute
 offsets at rest of 3–8 cm are of the same order as the registration uncertainty and should be stated
-with it. Precision (Allan deviation) does not depend on the registration.
+with it. Precision (Allan deviation) does not depend on the registration. The same inputs are
+propagated by Monte Carlo below.
 
 ## Monte Carlo propagation of the uncertainty (JCGM 101, GUM Supplement 1)
 
@@ -255,6 +283,16 @@ Note that the offsets are within the registration uncertainty (Table II).
 Error before leaving / after re-entry 5.4 / 4.4 cm (median, 10 re-entries); spread at the outside
 points C 5.8 / 6.9 cm, D 7.6 / 9.6 cm (std x / y, 4 stops each, upper bound). No absolute accuracy
 outside the OptiTrack area.
+
+**Caption.** *Out-and-back test. (a) Marvelmind error over time; grey: outside the OptiTrack area.
+(b) Paths and Marvelmind positions at the outside stops.*
+
+## Fig. 8: Monte Carlo of beacon height errors
+
+`figures/fig8_montecarlo.pdf` — description, numbers and caption in the section "Monte Carlo of
+beacon height errors" above. (a) p95 position error vs |height error| for each beacon (filled: set too
+low, open: too high; dotted: after the correction; star: C1 measured). (b) Median error of the height
+reported for the mobile beacon, with the 10 cm line of the height check.
 
 ---
 
