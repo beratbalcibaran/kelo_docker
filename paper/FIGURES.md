@@ -75,14 +75,21 @@ Per recording (median / p95 of all samples with reference, cm):
 `figures/fig1_setup.pdf`
 
 (a) Floor plan in the Marvelmind map frame: stationary beacons with their heights, area covered by
-OptiTrack, triangle, and the out-and-back path that leaves the OptiTrack area. (b) Robot from above:
-the 13 markers of the rigid body, its pivot, and the hedgehog in the two mountings.
+OptiTrack, triangle, and the out-and-back path that leaves the OptiTrack area. (b) 3D view of the
+rigid body in the robot body frame: two groups of 5 markers on the mast, 3 lower markers 18.5 cm
+below them at the height of the hedgehog, the pivot, and the hedgehog in the two mountings (M1, M2).
+
+Check of the geometry (Motive exports the markers with y as the vertical axis): the hedgehog is 42 cm
+from the lower markers in mounting 1 (tape: 40 cm) and 10 cm from their centre in mounting 2 (tape:
+about 5 cm from the markers); its height, 0.69 m from the floor, matches the 0.70 m reported by
+Marvelmind with the correct map.
 
 **Use.** Section III. Add the photo of the robot as a third panel.
 
 **Caption.** *Experimental setup. (a) Floor plan with the stationary beacons (height above the floor),
-the area covered by OptiTrack, the triangle and the out-and-back path. (b) Top view of the OptiTrack
-rigid body on the robot and position of the Marvelmind hedgehog in the two mountings.*
+the area covered by OptiTrack, the triangle and the out-and-back path. (b) OptiTrack markers on the
+robot, rigid body pivot and position of the Marvelmind hedgehog in the two mountings (robot body
+frame).*
 
 ---
 

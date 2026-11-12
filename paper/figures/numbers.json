@@ -208,6 +208,12 @@
    }
   }
  },
+ "rigid_body": {
+  "low_markers_height_cm": -14.2,
+  "upper_markers_height_cm": 4.3,
+  "mounting1_to_low_markers_cm": 42.3,
+  "mounting2_to_low_markers_cm": 10.1
+ },
  "failed_stops": [
   {
    "rec": "test4_triangle",

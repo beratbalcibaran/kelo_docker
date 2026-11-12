@@ -248,16 +248,29 @@ ax.plot(H4[::12, 0], H4[::12, 1], '.', ms=0.6, color='C1', rasterized=True, labe
 ax.set_aspect('equal'); ax.set_xlabel('x (m)'); ax.set_ylabel('y (m)'); ax.legend(loc='lower right', markerscale=12, fontsize=6.5)
 ax.set_xlim(-0.8, 10.6); ax.set_ylim(-6.1, 0.9)
 ax.set_title('(a) floor plan, Marvelmind map frame', fontsize=8)
-ax2 = fig.add_axes([0.68, 0.12, 0.31, 0.8])
+ax2 = fig.add_axes([0.63, 0.02, 0.37, 0.96], projection='3d')
+# Motive exports the rigid body markers in its Y-up body frame: plan = (x, -z), height = y
 mk = list(csv.DictReader(open(os.path.join(EX, 'KELO_6Tests_Unfiltered', 'settings', 'optitrack_rigid_body_markers.csv'))))
-mxy = np.array([[float(r['x']), float(r['y'])] for r in mk]) * 100
-ax2.plot(mxy[:, 0], mxy[:, 1], 'o', ms=4, mfc='none', color='k', label='markers (13)')
-ax2.plot(0, 0, '+', ms=8, color='k', mew=1.2, label='rigid body pivot')
-ax2.plot(*(LEV_EARLY * 100), 'v', ms=6, color='C1', label='hedgehog, mounting 1')
-ax2.plot(*(LEV_LATE * 100), '^', ms=6, color='C0', label='hedgehog, mounting 2')
-ax2.set_aspect('equal'); ax2.set_xlabel('body x (cm)'); ax2.set_ylabel('body y (cm)')
-ax2.legend(loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=2, fontsize=6.5)
-ax2.set_title('(b) robot, top view', fontsize=8)
+MP = np.array([[float(r['x']), -float(r['z']), float(r['y'])] for r in mk]) * 100
+low = MP[:, 2] < -5                                   # the three markers at the height of the hedgehog
+hz = float(MP[low, 2].mean())                         # hedgehog at the height of the low markers
+zf = hz - 12
+for P_, m_, lab_ in [(MP[~low], 'o', 'upper markers (2 x 5)'), (MP[low], 's', 'lower markers (3)')]:
+    ax2.scatter(P_[:, 0], P_[:, 1], P_[:, 2], marker=m_, s=12, facecolors='none', edgecolors='k', linewidths=0.7, label=lab_, depthshade=False)
+    for q in P_: ax2.plot([q[0], q[0]], [q[1], q[1]], [zf, q[2]], color='0.75', lw=0.4)
+ax2.scatter([0], [0], [0], marker='+', s=40, color='k', label='rigid body pivot', depthshade=False)
+for L_, m_, c_, lab_ in [(LEV_EARLY, 'v', 'C1', 'hedgehog, mounting 1'), (LEV_LATE, '^', 'C0', 'hedgehog, mounting 2')]:
+    ax2.scatter([L_[0] * 100], [L_[1] * 100], [hz], marker=m_, s=30, color=c_, label=lab_, depthshade=False)
+    ax2.plot([L_[0] * 100] * 2, [L_[1] * 100] * 2, [zf, hz], color=c_, lw=0.6, ls='--')
+    ax2.text(L_[0] * 100, L_[1] * 100, hz + 3, 'M1' if m_ == 'v' else 'M2', color=c_, fontsize=7)
+ax2.set_xlabel('x (cm)', labelpad=-6); ax2.set_ylabel('y (cm)', labelpad=-6); ax2.set_zlabel('z (cm)', labelpad=-7)
+ax2.tick_params(labelsize=6, pad=-2)
+ax2.set_zlim(zf, 10); ax2.set_box_aspect((1, 1, 0.55)); ax2.view_init(elev=20, azim=60)
+ax2.legend(loc='upper center', bbox_to_anchor=(0.5, 0.06), ncol=2, fontsize=6, handletextpad=0.3, columnspacing=0.8)
+ax2.set_title('(b) markers and hedgehog, robot body frame', fontsize=8, y=0.97)
+NUM['rigid_body'] = {'low_markers_height_cm': round(hz, 1), 'upper_markers_height_cm': round(float(MP[~low, 2].mean()), 1),
+                     'mounting1_to_low_markers_cm': round(float(np.hypot(*(LEV_EARLY * 100 - MP[low, :2].mean(0)))), 1),
+                     'mounting2_to_low_markers_cm': round(float(np.hypot(*(LEV_LATE * 100 - MP[low, :2].mean(0)))), 1)}
 save(fig, 'fig1_setup')
 
 # ------------------------------------------------------------------ Fig. 2: as recorded vs corrected (slow triangle)
