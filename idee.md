@@ -108,13 +108,17 @@ very small area. These two can be used in the paper with separate alignments, st
   vertices of the triangle: about (3.1, 7.3) m with 13 visits, (4.5, 5.9) m with 11, (5.4, 7.5) m
   with 12, plus 4 single stops. Within a vertex the stops spread over 30–40 cm (joystick).
 - **Run 1 is E2 material**: 5 visits to the start point and 7 different points.
-- **Error at rest**: RMS 4.3 cm (run 1) and 9.8 cm (last 40 points); per-stop jitter median 2–3 cm.
-- **Error while moving** (samples between the stops, OptiTrack speed > 3 cm/s): RMS 7.5 cm, p95
-  10.8 cm (run 1, 66 s); RMS 13.2 cm, p95 27.2 cm (last 40 points, 324 s). Flat up to 0.4 m/s,
-  higher above (19–22 cm, few samples).
+- **Excluded: the red parts of the replays** (error > 25 cm). There the OptiTrack markers fell, so
+  the reference is wrong, not Marvelmind. Run 1 has only 5 red samples; the last 40 points have 1020
+  (34 intervals, the long ones at 270–327 s, 1335–1358 s, 1660–1684 s, 2390–2457 s). All other data
+  are correct. The numbers below exclude them.
+- **Error at rest**: RMS 4.3 cm (run 1) and 8.7 cm (last 40 points); per-stop jitter median 2–3 cm.
+- **Error while moving** (samples between the stops, OptiTrack speed > 3 cm/s): RMS 6.2 cm, p95
+  10.7 cm (run 1, 64 s); RMS 10.5 cm, p95 18.3 cm (last 40 points, 290 s). It grows slowly with
+  speed: about 9 cm below 0.1 m/s, 11.5 cm at 0.3–0.4 m/s, 14 cm at 0.4–0.5 m/s (few samples).
 - **Scale** 0.98–1.006 in every reliable recording: no scale error.
-- **The error at the same vertex does not repeat between visits.** Mean offset per vertex 0–5 cm,
-  spread between visits 4–7 cm. The robot reached the vertices with different headings, but the
+- **The error at the same vertex does not repeat between visits.** Last 40 points: 13, 11 and 11
+  visits per vertex; mean offset per vertex 2–3 cm, spread between visits 4–7 cm per axis. The robot reached the vertices with different headings, but the
   lever arm was fitted on the same data, so the geometric effect is already absorbed: the spread is
   attributed to Marvelmind. The systematic, position-dependent part is small; the random part
   dominates. A position-dependent error map would not help, so the processing chain below targets
