@@ -1,0 +1,29 @@
+recording,system,quantity,value
+Run 1 (tur1_v3),Marvelmind,Duration of recording,813 s
+Run 1 (tur1_v3),Marvelmind,Position packets / valid,4692 / 99.81 %
+Run 1 (tur1_v3),Marvelmind,Mean update rate (valid),5.764 Hz
+Run 1 (tur1_v3),Marvelmind,Inter-arrival time median / p5 / p95 / max,173 / 168 / 179 / 350 ms
+Run 1 (tur1_v3),Marvelmind,Device timestamp step median,171 ms
+Run 1 (tur1_v3),Marvelmind,Device clock drift vs PC clock,0.924 % (9.24 ms/s)
+Run 1 (tur1_v3),Marvelmind,Arrival jitter after drift removal (std),3.9 ms
+Run 1 (tur1_v3),Marvelmind,"Reported z (median, as entered heights)",238.47 m
+Run 1 (tur1_v3),Marvelmind,Stop points / static jitter std median,12 / 2.1 cm
+Run 1 (tur1_v3),Marvelmind,Static offset to OptiTrack (leave-one-out) mean / max,3.8 / 9.5 cm
+Run 1 (tur1_v3),OptiTrack,Frame rate (frame numbers) / received,120.0 / 120.0 Hz
+Run 1 (tur1_v3),OptiTrack,Rigid body tracked,80.8 % of frames
+Run 1 (tur1_v3),OptiTrack,Rigid body mean marker error median / p95,1.06 / 2.58 mm
+Run 1 (tur1_v3),OptiTrack,Static 2D position noise (std) median / max over stops,0.47 / 1.55 mm
+Last 40 points (repeat test),Marvelmind,Duration of recording,2339 s
+Last 40 points (repeat test),Marvelmind,Position packets / valid,13506 / 99.67 %
+Last 40 points (repeat test),Marvelmind,Mean update rate (valid),5.755 Hz
+Last 40 points (repeat test),Marvelmind,Inter-arrival time median / p5 / p95 / max,173 / 167 / 180 / 1033 ms
+Last 40 points (repeat test),Marvelmind,Device timestamp step median,171 ms
+Last 40 points (repeat test),Marvelmind,Device clock drift vs PC clock,0.926 % (9.26 ms/s)
+Last 40 points (repeat test),Marvelmind,Arrival jitter after drift removal (std),14.0 ms
+Last 40 points (repeat test),Marvelmind,"Reported z (median, as entered heights)",238.20 m
+Last 40 points (repeat test),Marvelmind,Stop points / static jitter std median,40 / 2.9 cm
+Last 40 points (repeat test),Marvelmind,Static offset to OptiTrack (leave-one-out) mean / max,7.4 / 17.0 cm
+Last 40 points (repeat test),OptiTrack,Frame rate (frame numbers) / received,120.0 / 116.5 Hz
+Last 40 points (repeat test),OptiTrack,Rigid body tracked,85.4 % of frames
+Last 40 points (repeat test),OptiTrack,Rigid body mean marker error median / p95,0.60 / 14.64 mm
+Last 40 points (repeat test),OptiTrack,Static 2D position noise (std) median / max over stops,0.30 / 12.75 mm

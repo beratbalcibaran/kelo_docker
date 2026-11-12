@@ -1,0 +1,6 @@
+address,role,firmware,hw_type_code,device_id,x_m,y_m,z_m_as_entered,us_frequency_hz,us_periods,rx_amplifier,mics_enabled,radio_base_mhz,radio_profile,battery_v_at_save,rssi_dbm_at_save,manually_located
+1,stationary,8.42.1,56,053641,4.9,4.15,240.0,31000,20,200,1,919.000,4,3.63,-37,0
+2,stationary,8.42.1,56,08251E,9.796,8.347,240.0,25000,20,200,1,919.000,4,3.73,-53,0
+4,stationary,8.42.1,56,084C44,1.126,8.348,240.0,28000,20,200,1,919.000,4,3.69,-42,0
+5,stationary,8.42.1,56,0A5029,9.336,13.301,240.0,19000,20,200,1,919.000,4,4.05,-52,0
+7,mobile (hedgehog),8.42.1,57,051E3D,4.895,4.149,0.0,22000,20,200,1,919.000,4,3.73,-31,0

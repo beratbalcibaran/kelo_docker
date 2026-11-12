@@ -1,0 +1,14 @@
+parameter,value
+System,"OptiTrack V120:Trio (3 imagers in one bar, factory calibrated)"
+Software,"Motive 3.5.1.1; NatNet 4.5 streaming, loopback 127.0.0.1, multicast"
+"Frame rate (live, measured)",120 Hz (from frame numbers)
+Exposure (Motive profile),400 µs
+Up axis (streaming),Z up
+Imager resolution,640 × 480 px
+Field of view from calibration (H × V),56.1° × 43.5°
+Trio baseline (outer imagers),0.502 m
+Mounting height (calibration frame),1.93 m above ground plane
+Point cloud residual setting,5.25 mm
+Max ray length,2.94 m
+Ground plane,Set with L-frame (3 markers) on 12 Nov; Motive saved the calibration at 14:01
+Rigid body at time of export,"""Rigid Body 004"", streaming ID 1, 11 markers (current definition; it was re-created several times during the day)"

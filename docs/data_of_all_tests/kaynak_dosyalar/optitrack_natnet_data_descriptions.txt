@@ -1,0 +1,90 @@
+Data Descriptions:
+ Dataset Count: 6
+  Dataset   0
+  Type: 1 Rigid Body
+    Rigid Body        :
+    Rigid Body Name   : Rigid Body 004
+    Rigid Body ID     : 1
+    Parent ID         : -1
+    Position          : [0.00, 0.00, 0.00]
+    Number of Markers : 11
+      0 Marker Label: 0 Position: [0.01 -0.00 -0.26] Marker 001
+      1 Marker Label: 0 Position: [-0.03 0.05 -0.16] Marker 002
+      2 Marker Label: 0 Position: [0.16 0.02 0.18] Marker 003
+      3 Marker Label: 0 Position: [0.10 0.05 0.16] Marker 004
+      4 Marker Label: 0 Position: [0.08 0.03 0.12] Marker 005
+      5 Marker Label: 0 Position: [-0.01 0.02 -0.24] Marker 006
+      6 Marker Label: 0 Position: [0.07 0.02 0.08] Marker 007
+      7 Marker Label: 0 Position: [0.08 0.00 0.05] Marker 008
+      8 Marker Label: 0 Position: [0.02 0.02 -0.11] Marker 009
+      9 Marker Label: 0 Position: [-0.24 -0.13 0.10] Marker 0010
+      10 Marker Label: 0 Position: [-0.23 -0.09 0.09] Marker 011
+  Dataset   1
+  Type: 0 Markerset
+    Markerset Name: Rigid Body 004
+      Marker Count   : 11
+          0 Marker Name: Marker 001
+          1 Marker Name: Marker 002
+          2 Marker Name: Marker 003
+          3 Marker Name: Marker 004
+          4 Marker Name: Marker 005
+          5 Marker Name: Marker 006
+          6 Marker Name: Marker 007
+          7 Marker Name: Marker 008
+          8 Marker Name: Marker 009
+          9 Marker Name: Marker 0010
+         10 Marker Name: Marker 011
+  Dataset   2
+  Type: 0 Markerset
+    Markerset Name: all
+      Marker Count   : 11
+          0 Marker Name: Rigid Body 004_Marker 001
+          1 Marker Name: Rigid Body 004_Marker 002
+          2 Marker Name: Rigid Body 004_Marker 003
+          3 Marker Name: Rigid Body 004_Marker 004
+          4 Marker Name: Rigid Body 004_Marker 005
+          5 Marker Name: Rigid Body 004_Marker 006
+          6 Marker Name: Rigid Body 004_Marker 007
+          7 Marker Name: Rigid Body 004_Marker 008
+          8 Marker Name: Rigid Body 004_Marker 009
+          9 Marker Name: Rigid Body 004_Marker 0010
+         10 Marker Name: Rigid Body 004_Marker 011
+  Dataset   3
+  Type: 5 Camera
+    Name        : Trio 3 a
+    Position    : [1.80, 1.92, -1.70]
+    Orientation : [-0.10, 0.91, 0.20, 0.34]
+  Dataset   4
+  Type: 5 Camera
+    Name        : Trio 3 b
+    Position    : [1.98, 1.92, -1.52]
+    Orientation : [-0.09, 0.90, 0.20, 0.38]
+  Dataset   5
+  Type: 5 Camera
+    Name        : Trio 3 c
+    Position    : [2.15, 1.93, -1.34]
+    Orientation : [-0.08, 0.88, 0.21, 0.42]
+1
+ MoCap Frame Begin
+-----------------
+Frame #: 956028
+  Markerset Count:  2
+    MarkerData:
+    Model Name : Rigid Body 004
+    Marker Count : 11
+      Marker   0 pos :
+             [x=0.74,y=-1.40,z=0.82]
+      Marker   1 pos :
+             [x=0.67,y=-1.48,z=0.87]
+      Marker   2 pos :
+             [x=0.73,y=-1.86,z=0.83]
+      Marker   3 pos :
+             [x=0.68,y=-1.83,z=0.86]
+      Marker   4 pos :
+             [x=0.67,y=-1.78,z=0.85]
+      Marker   5 pos :
+             [x=0.71,y=-1.41,z=0.84]
+      Marker   6 pos :
+             [x=0.67,y=-1.74,z=0.84]
+      Marker   7 pos :
+             [x=0.69,y=-1.71,z=0.81]

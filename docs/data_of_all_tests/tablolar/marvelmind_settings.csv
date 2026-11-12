@@ -1,0 +1,27 @@
+parameter,value
+Modem firmware,8.42 (Dashboard shows v8.451)
+Modem hardware type code,48
+Location update rate setting (index),6
+Window of averaging,0
+Movement filtering,0
+Update rate boost,0
+Spot filtering,0
+Router extrapolation,0
+High resolution mode,1
+Max deviation for case / conditional / triangle,40 / 100 / 30
+Air temperature setting (°C),23
+TDMA mode,0
+Radio base frequency (MHz),919.000
+Radio profile / modulation (index),4 / 4
+Radio channel bandwidth (kHz),277.792
+Submap beacons,"B1, B2, B4, B5"
+Submap frozen,1
+Navigation 3D,1
+Beacons on top,1
+Submap mirror,0
+Submap rotation (deg),64.13
+Submap shift X/Y (m),4.90 / 4.15
+Service area height top (as entered),240.00
+Maximum distance (m),30
+Default hedge height 2D,0.00
+Hedgehog interface output,"USB virtual COM via modem (COM6), binary protocol, packet 0x0081 (position mm + 64-bit real-time timestamp)"
