@@ -259,16 +259,17 @@ NUM['coupled'] = coup
 fig = plt.figure(figsize=(W1 * 2.05, 3.0))
 ax = fig.add_axes([0.06, 0.2, 0.41, 0.72])                       # (a) and (b): same size
 for k, (x, y, z) in BEACONS.items():
-    ax.plot(x, y, 's', ms=7, color='k'); ax.annotate(f'B{k}\n{z:.2f} m', (x, y), xytext=(6, -2), textcoords='offset points', fontsize=7, va='top')
+    right = x > 5
+    ax.plot(x, y, 's', ms=7, color='k'); ax.annotate(f'B{k}\n{z:.2f} m', (x, y), xytext=(-7 if right else 7, -3), textcoords='offset points', fontsize=7, va='top', ha='right' if right else 'left')
 O = REC['test5_in_out1']['O']; Mi = REC['test5_in_out1']['M']
 Hh = hedge(O['x'], O['y'], O['yaw'], LEV_LATE, TH, TT)
 ax.plot(Mi['x'], Mi['y'], '.', ms=0.6, color='0.6', rasterized=True, label='Marvelmind, out-and-back test')
 ax.plot(Hh[::12, 0], Hh[::12, 1], '.', ms=0.6, color='C0', rasterized=True, label='OptiTrack coverage')
 H4 = hedge(REC['test4_triangle']['O']['x'], REC['test4_triangle']['O']['y'], REC['test4_triangle']['O']['yaw'], LEV_EARLY, TH, TT)
 ax.plot(H4[::12, 0], H4[::12, 1], '.', ms=0.6, color='C1', rasterized=True, label='triangle')
-ax.set_xlim(-0.8, 10.6); ax.set_ylim(-6.1, 0.9); ax.set_aspect('equal', adjustable='datalim')
+ax.set_xlim(-1.0, 10.8); ax.set_ylim(-6.6, 1.0); ax.set_aspect('equal', adjustable='datalim')
 ax.set_xlabel('x (m)'); ax.set_ylabel('y (m)')
-ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=3, markerscale=12, fontsize=6.5)
+ax.legend(loc='lower right', ncol=1, markerscale=12, fontsize=6.5, framealpha=0.9, frameon=True, edgecolor='none')
 ax.set_title('(a) floor plan, Marvelmind map frame', fontsize=8)
 ax2 = fig.add_axes([0.55, 0.2, 0.41, 0.72], projection='3d')
 # Motive exports the rigid body markers in its Y-up body frame: plan = (x, -z), height = y
@@ -288,7 +289,7 @@ for L_, m_, c_, lab_ in [(LEV_EARLY, 'v', 'C1', 'hedgehog, mounting 1'), (LEV_LA
 ax2.set_xlabel('x (cm)', labelpad=-6); ax2.set_ylabel('y (cm)', labelpad=-6); ax2.set_zlabel('z (cm)', labelpad=-7)
 ax2.tick_params(labelsize=6, pad=-2)
 ax2.set_zlim(zf, 10); ax2.set_box_aspect((1, 1, 0.55), zoom=1.25); ax2.view_init(elev=20, azim=60)
-ax2.legend(loc='upper center', bbox_to_anchor=(0.5, -0.04), ncol=3, fontsize=6.5, handletextpad=0.3, columnspacing=0.8)
+ax2.legend(loc='upper center', bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize=6.5, handletextpad=0.3, columnspacing=0.8)
 ax2.set_title('(b) markers and hedgehog, robot body frame', fontsize=8, y=1.0)
 NUM['rigid_body'] = {'low_markers_height_cm': round(hz, 1), 'upper_markers_height_cm': round(float(MP[~low, 2].mean()), 1),
                      'mounting1_to_low_markers_cm': round(float(np.hypot(*(LEV_EARLY * 100 - MP[low, :2].mean(0)))), 1),
@@ -297,7 +298,7 @@ save(fig, 'fig1_setup')
 
 # ------------------------------------------------------------------ Fig. 2: as recorded vs corrected (slow triangle)
 n = 'test4_triangle'; r = REC[n]
-fig, axs = plt.subplots(1, 2, figsize=(W1, 1.9), sharex=True, sharey=True)
+fig, axs = plt.subplots(1, 2, figsize=(W1, 2.2), sharex=True, sharey=True)
 _, _, _, H = errors(n, TAU)
 th0, t0, l0 = r['fit_raw']
 for ax, (M, title, th_, t_, l_) in zip(axs, [(r['Mraw'], '(a) as recorded', th0, t0, l0), (r['M'], '(b) corrected', TH, TT, LEV_EARLY)]):
@@ -313,7 +314,7 @@ for ax, (M, title, th_, t_, l_) in zip(axs, [(r['Mraw'], '(a) as recorded', th0,
     ax.plot(Mxy[:, 0], Mxy[:, 1], '.', ms=0.8, color='k', rasterized=True, label='Marvelmind')
     ax.set_title(title, fontsize=8); ax.set_aspect('equal'); ax.set_xlabel('x (m)')
 axs[0].set_ylabel('y (m)'); axs[0].set_xlim(0.5, 3.5); axs[0].set_ylim(-4.2, -1.0)
-axs[1].legend(loc='upper center', bbox_to_anchor=(-0.1, -0.25), ncol=2, markerscale=6)
+fig.subplots_adjust(bottom=0.27); h_, l_ = axs[1].get_legend_handles_labels(); fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=2, markerscale=6)
 save(fig, 'fig2_correction')
 
 # ------------------------------------------------------------------ Fig. 3: CDF per test type (C1 as recorded, C1 corrected, C2)
@@ -321,7 +322,7 @@ def zf_err(n):
     r = REC[n]; M = r['Mraw']; th0, t0, l0 = r['fit_raw']; keep = (M['z'] > -0.4) & (M['z'] < 0.4)
     px, py, yaw, ok = ot_at(r['O'], M['t'] - TAU); H = hedge(px, py, yaw, l0, th0, t0)
     return (np.hypot(M['x'] - H[:, 0], M['y'] - H[:, 1]) * 100)[ok & keep]
-fig, axs = plt.subplots(1, 3, figsize=(W1, 1.75), sharey=True)
+fig, axs = plt.subplots(1, 3, figsize=(W1, 2.1), sharey=True)
 for ax, (typ, (c1, c2)) in zip(axs, TYPES.items()):
     for data, ls, col, lab in [(np.concatenate([pooled(c1, True), pooled(c1, True, True)]), ':', '0.45', 'C1 as recorded'),
                                (np.concatenate([pooled(c1), pooled(c1, moving=True)]), '-', 'k', 'C1 corrected'),
@@ -329,7 +330,7 @@ for ax, (typ, (c1, c2)) in zip(axs, TYPES.items()):
                                (np.concatenate([zf_err(n) for n in c1]), '-.', 'C0', 'C1 z filter only')]:
         e = np.sort(data); ax.plot(e, np.arange(1, len(e) + 1) / len(e), ls, color=col, label=lab)
     ax.set_title(typ, fontsize=7.5); ax.set_xlim(0, 60 if typ != 'rest' else 40); ax.set_xlabel('error (cm)')
-axs[0].set_ylabel('CDF'); axs[1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.38), ncol=2, fontsize=6.5)
+axs[0].set_ylabel('CDF'); fig.subplots_adjust(bottom=0.36); h_, l_ = axs[1].get_legend_handles_labels(); fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=2, fontsize=6.5)
 save(fig, 'fig3_cdf')
 
 # ------------------------------------------------------------------ Fig. 4: at rest (vertices and heading)
@@ -401,7 +402,7 @@ def allan2d(t, x, y, taus):
         out.append(math.sqrt(0.5 * np.mean(np.diff(ax_) ** 2 + np.diff(ay_) ** 2)))
     return np.array(out)
 tl = np.logspace(np.log10(0.2), np.log10(300), 25)
-fig, ax = plt.subplots(figsize=(W1, 2.0)); NUM['rest'] = {}
+fig, ax = plt.subplots(figsize=(W1, 2.3)); NUM['rest'] = {}
 for i, n in enumerate(['test6_wait', 'denemenew_wait_2040']):
     r = REC[n]; M = r['M']; (a, b) = max(stops(r['O']), key=lambda s: s[1] - s[0])
     sm = (M['t'] >= a) & (M['t'] <= b)
@@ -416,7 +417,8 @@ for i, n in enumerate(['test6_wait', 'denemenew_wait_2040']):
                       'allan_mm_at_1s_10s_60s': [round(float(np.interp(np.log(tt), np.log(tl), ad)), 2) for tt in (1, 10, 60)],
                       'offset_to_reference_cm': round(off, 1)}
 ax.text(0.25, NUM['rest']['test6_wait']['offset_to_reference_cm'] * 10 * 1.15, 'offset to OptiTrack (dotted)', fontsize=6.5)
-ax.set_xlabel(r'averaging time $\tau$ (s)'); ax.set_ylabel('Allan deviation, 2D (mm)'); ax.legend(loc='lower left', fontsize=6.5)
+ax.set_xlabel(r'averaging time $\tau$ (s)'); ax.set_ylabel('Allan deviation, 2D (mm)')
+fig.subplots_adjust(bottom=0.3); h_, l_ = ax.get_legend_handles_labels(); fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=2, fontsize=6.5)
 save(fig, 'fig6_allan')
 
 # ------------------------------------------------------------------ Fig. 7: in/out
@@ -696,7 +698,7 @@ NUM['montecarlo_configuration'] = {'samples_per_case': len(TRUTH), 'range_noise_
                                                                          'as_recorded_p95_cm': [NUM['per_recording'][n]['as_recorded_p95'] for n in ['test2_triangle', 'test4_triangle', 'test5_in_out1']]}}
 
 # Fig. 8: Monte Carlo of the beacon height errors (x: |height error|; filled: beacon set too low, open: too high)
-fig, axs = plt.subplots(1, 2, figsize=(W1, 1.9), gridspec_kw={'wspace': 0.45})
+fig, axs = plt.subplots(1, 2, figsize=(W1, 2.3), gridspec_kw={'wspace': 0.45})
 mks = {1: 'o', 2: 's', 4: '^', 5: 'D'}
 neg = [dh for dh in DH if dh < 0]; pos = [dh for dh in DH if dh > 0]
 for i_, k in enumerate(IDS):
@@ -715,7 +717,7 @@ for ax in axs:
     ax.set_xlabel('|height error| (m)'); ax.set_yscale('log')
 axs[0].set_ylabel('p95 error (cm)'); axs[0].set_title('(a) position error', fontsize=8)
 axs[1].set_ylabel('median |z error| (cm)'); axs[1].set_title('(b) height of the mobile beacon', fontsize=8)
-axs[0].legend(loc='upper center', bbox_to_anchor=(1.2, -0.3), ncol=6, fontsize=6.5, handletextpad=0.2, columnspacing=0.7)
+fig.subplots_adjust(bottom=0.33); h_, l_ = axs[0].get_legend_handles_labels(); fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=3, fontsize=6.5, handletextpad=0.3, columnspacing=1.0)
 save(fig, 'fig8_montecarlo')
 
 json.dump(NUM, open(os.path.join(OUT, 'numbers.json'), 'w'), indent=1, default=float)
