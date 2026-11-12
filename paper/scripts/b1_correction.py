@@ -1,8 +1,8 @@
-"""Correct the Marvelmind positions recorded on 12 November afternoon (beacon 1 height not applied).
+"""Correct the Marvelmind positions of campaign 1 (12 November; beacon 1 height not applied).
 
-During the afternoon session the Marvelmind map used beacon 1 at z = 0 m instead of 2.6 m, so the
+During campaign 1 the Marvelmind map used beacon 1 at z = 0 m instead of 2.6 m, so the
 map (and the positions) were wrong. The distances measured by the hedgehog were fine: with the
-corrected map of 20:24 the four measured distances of a sample shown in the Dashboard agree within
+corrected map (campaign 2) the four measured distances of a sample shown in the Dashboard agree within
 4 mm.
 
 Marvelmind computes each position from three beacons. For each recorded sample this script
@@ -19,7 +19,7 @@ import numpy as np
 
 WRONG = {1: (0.506, -0.004, 0.0), 2: (6.457, -0.013, 2.5), 4: (0.055, -5.052, 2.4), 5: (9.65, -3.83, 2.55)}  # map 17:41
 RIGHT = {1: (0.204, 0.124, 2.6), 2: (6.672, 0.169, 2.5), 4: (0.116, -5.484, 2.4), 5: (9.65, -3.83, 2.55)}    # map 20:24
-HEDGE_Z = 0.70      # hedgehog height in the corrected map (Dashboard sample and evening recordings: 0.65-0.72 m)
+HEDGE_Z = 0.70      # hedgehog height in the corrected map (Dashboard sample and campaign 2 recordings: 0.65-0.72 m)
 Z_TOL = 0.10        # samples whose best triple is further than this from HEDGE_Z are marked invalid
 JUMP_W = 2.0        # weight of the jump between consecutive samples in the continuity cost
 TRIPLES = list(itertools.combinations([1, 2, 4, 5], 3))

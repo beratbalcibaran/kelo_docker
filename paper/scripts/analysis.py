@@ -1,16 +1,18 @@
-"""Figures and numbers for the I2MTC paper, from the recordings of 12 November 2026.
+"""Figures and numbers for the I2MTC paper, from the two measurement campaigns of 12 November 2026.
 
-Data (unzip experiments/archives/2026-11-12/*.zip into experiments/extracted/ first):
-  afternoon: OptiTrack from KELO_6Tests_Unfiltered/data/<rec>_raw.csv,
-             Marvelmind corrected with b1_correction.py (experiments/2026-11-12/afternoon_corrected/)
-             and, for the "as recorded" comparison, Marvelmind from the raw files;
-  evening:   KELO_B1fix_Trials_Unfiltered (rotation x2, triangle) and KELO_Wait_AfterB1Fix_Unfiltered
-             (10 min at rest), recorded with the corrected map.
+Campaign 1 (main test programme): rotation in place x2, triangle fast and slow, out-and-back, 18 min
+  at rest. Recorded with beacon 1 at 0 m instead of 2.6 m in the Marvelmind map; positions recomputed
+  with b1_correction.py (experiments/2026-11-12/campaign1_corrected/). OptiTrack and the as-recorded
+  Marvelmind data from KELO_6Tests_Unfiltered/data/<rec>_raw.csv.
+Campaign 2 (reference configuration, corrected map): rotation in place x2, triangle, 10 min at rest
+  at the same robot poses (KELO_B1fix_Trials_Unfiltered, KELO_Wait_AfterB1Fix_Unfiltered).
+Unzip experiments/archives/2026-11-12/*.zip into experiments/extracted/ first.
 
-Alignment (OptiTrack -> Marvelmind map): rotation, translation and hedgehog lever arm estimated
-ONLY on the stops of the three evening trials. The hedgehog was moved between test4 and test5,
-so the lever arm of test1..test4 is estimated on the rotations in place (test1, test2) alone, with
-rotation and translation fixed; triangles, in/out and the long rests are never used for fitting.
+Alignment (OptiTrack -> Marvelmind map): rotation, translation and hedgehog lever arm fitted ONLY on
+the stops of campaign 2 (rotations and triangle). The hedgehog was remounted during campaign 1
+(mounting 1: rotations and triangles; mounting 2: out-and-back, rests and campaign 2); the lever arm
+of mounting 1 is fitted on the campaign 1 rotations with rotation and translation fixed. Triangles,
+out-and-back and rests are never used for fitting.
 
 Usage: python analysis.py <repo root>    (needs numpy, scipy, matplotlib)
 Writes paper/figures/*.pdf|png and paper/figures/numbers.json.
@@ -24,17 +26,22 @@ import matplotlib.pyplot as plt
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else '.'
 EX = os.path.join(ROOT, 'experiments', 'extracted')
-COR = os.path.join(ROOT, 'experiments', '2026-11-12', 'afternoon_corrected')
+COR = os.path.join(ROOT, 'experiments', '2026-11-12', 'campaign1_corrected')
 OUT = os.path.join(ROOT, 'paper', 'figures'); os.makedirs(OUT, exist_ok=True)
 NUM = {}
 
-AFTERNOON = {'test1': 'rotation 1', 'test2': 'rotation 2', 'test2_triangle': 'triangle, fast',
-             'test4_triangle': 'triangle, slow', 'test5_in_out1': 'in/out', 'test6_wait': 'rest, 18 min'}
-EARLY = ['test1', 'test2', 'test2_triangle', 'test4_triangle']          # before the hedgehog was moved
-EVENING = {'deneme_2025': ('KELO_B1fix_Trials_Unfiltered', 'rotation (evening)'),
-           'deneme_2028': ('KELO_B1fix_Trials_Unfiltered', 'rotation (evening)'),
-           'deneme_triangle_2031': ('KELO_B1fix_Trials_Unfiltered', 'triangle (evening)'),
-           'denemenew_wait_2040': ('KELO_Wait_AfterB1Fix_Unfiltered', 'rest, 10 min (evening)')}
+# Campaign 1: main test programme, recorded with an error in the Marvelmind map (beacon 1 height),
+# corrected afterwards. Campaign 2: the same robot poses with the corrected map (reference configuration).
+CAMPAIGN1 = {'test1': 'C1 rotation 1', 'test2': 'C1 rotation 2', 'test2_triangle': 'C1 triangle, fast',
+             'test4_triangle': 'C1 triangle, slow', 'test5_in_out1': 'C1 out-and-back', 'test6_wait': 'C1 rest, 18 min'}
+EARLY = ['test1', 'test2', 'test2_triangle', 'test4_triangle']          # hedgehog mounting 1 (then remounted)
+CAMPAIGN2 = {'deneme_2025': ('KELO_B1fix_Trials_Unfiltered', 'C2 rotation 1'),
+             'deneme_2028': ('KELO_B1fix_Trials_Unfiltered', 'C2 rotation 2'),
+             'deneme_triangle_2031': ('KELO_B1fix_Trials_Unfiltered', 'C2 triangle'),
+             'denemenew_wait_2040': ('KELO_Wait_AfterB1Fix_Unfiltered', 'C2 rest, 10 min')}
+TYPES = {'rotation in place': (['test1', 'test2'], ['deneme_2025', 'deneme_2028']),
+         'triangle': (['test2_triangle', 'test4_triangle'], ['deneme_triangle_2031']),
+         'rest': (['test6_wait'], ['denemenew_wait_2040'])}
 BEACONS = {1: (0.204, 0.124, 2.6), 2: (6.672, 0.169, 2.5), 4: (0.116, -5.484, 2.4), 5: (9.65, -3.83, 2.55)}
 MAX_MARKER_ERR = 0.003   # m: OptiTrack frames with a larger mean marker error are discarded
 FAILED_CM = 100          # corrected samples further than this from the reference count as a failed correction (reported, excluded from RMS per bin and per vertex)
@@ -72,13 +79,13 @@ def read_corrected(path):
     return {k: np.array(v) for k, v in M.items()}
 
 REC = {}
-for n, lab in AFTERNOON.items():
+for n, lab in CAMPAIGN1.items():
     O, Mraw = read_raw(os.path.join(EX, 'KELO_6Tests_Unfiltered', 'data', n + '_raw.csv'))
     REC[n] = dict(label=lab, O=O, M=read_corrected(os.path.join(COR, n + '_corrected.csv')), Mraw=Mraw,
-                  lever='early' if n in EARLY else 'late', session='afternoon')
-for n, (folder, lab) in EVENING.items():
+                  lever='early' if n in EARLY else 'late', session='campaign 1')
+for n, (folder, lab) in CAMPAIGN2.items():
     O, M = read_raw(os.path.join(EX, folder, 'data', n + '_raw.csv'))
-    REC[n] = dict(label=lab, O=O, M=M, Mraw=None, lever='late', session='evening')
+    REC[n] = dict(label=lab, O=O, M=M, Mraw=None, lever='late', session='campaign 2')
 
 # ------------------------------------------------------------------ OptiTrack helpers
 def ot_at(O, t, max_gap=0.05):
@@ -146,12 +153,12 @@ ST = {n: stop_table(n) for n in REC}
 TH, TT, LEV_LATE = fit(ST['deneme_2025'] + ST['deneme_2028'] + ST['deneme_triangle_2031'])
 _, _, LEV_EARLY = fit(ST['test1'] + ST['test2'], TH, TT)
 LEV = {'early': LEV_EARLY, 'late': LEV_LATE}
-NUM['alignment'] = {'fitted_on': 'evening trials (rotation x2, triangle) + afternoon rotations for the early lever arm',
+NUM['alignment'] = {'fitted_on': 'campaign 2 stops (rotation x2, triangle); lever arm of mounting 1 on the campaign 1 rotations',
                     'rotation_deg': round(math.degrees(TH), 2), 'translation_m': [round(v, 3) for v in TT],
                     'lever_arm_after_move_m': [round(v, 3) for v in LEV_LATE], 'lever_arm_before_move_m': [round(v, 3) for v in LEV_EARLY],
                     'hedgehog_moved_by_m': round(float(np.hypot(*(LEV_LATE - LEV_EARLY))), 3)}
 
-# delay of Marvelmind with respect to OptiTrack, estimated on the evening triangle only
+# delay of Marvelmind with respect to OptiTrack, estimated on the campaign 2 triangle only
 def errors(n, tau=0.0, use_raw=False, th=None, t=None, lev=None):
     r = REC[n]; M = r['Mraw'] if use_raw else r['M']; O = r['O']
     px, py, yaw, ok = ot_at(O, M['t'] - tau)
@@ -164,7 +171,7 @@ mov = lambda n, tau: (lambda e, ok, v, H: e[ok & (v > 0.05)])(*errors(n, tau))
 rms = lambda a: float(np.sqrt(np.mean(np.square(a))))
 tr = [rms(mov('deneme_triangle_2031', tau)) for tau in taus]
 TAU = float(taus[int(np.argmin(tr))])
-NUM['delay_s'] = {'estimated_on': 'evening triangle', 'tau': TAU}
+NUM['delay_s'] = {'estimated_on': 'campaign 2 triangle', 'tau': TAU}
 
 # ------------------------------------------------------------------ per-recording summary
 summ = {}
@@ -175,8 +182,8 @@ for n, r in REC.items():
     if len(rest): d.update(rest_median=round(float(np.median(rest)), 1), rest_p95=round(float(np.percentile(rest, 95)), 1))
     if len(moving) > 20: d.update(moving_median=round(float(np.median(moving)), 1), moving_rms=round(rms(moving), 1), moving_p95=round(float(np.percentile(moving, 95)), 1))
     if r['Mraw'] is not None:
-        # as recorded: give the wrong map its best case, a rigid alignment fitted on all afternoon stops of the same mounting
-        grp = [k for k in AFTERNOON if REC[k]['lever'] == r['lever']]
+        # as recorded: give the wrong map its best case, a rigid alignment fitted on all campaign 1 stops of the same mounting
+        grp = [k for k in CAMPAIGN1 if REC[k]['lever'] == r['lever']]
         th0, t0, l0 = fit(sum([stop_table(k, use_raw=True) for k in grp], []))
         e0, ok0, v0, _ = errors(n, TAU, use_raw=True, th=th0, t=t0, lev=l0)
         d.update(as_recorded_median=round(float(np.median(e0[ok0])), 1), as_recorded_p95=round(float(np.percentile(e0[ok0], 95)), 1))
@@ -186,6 +193,47 @@ for n, r in REC.items():
     summ[n] = d
 NUM['per_recording'] = summ
 
+# ------------------------------------------------------------------ coupled comparison by test type
+def stop_offsets(n, use_raw=False):
+    r = REC[n]; out = []
+    if use_raw:
+        th0, t0, l0 = r['fit_raw']
+    for s in (stop_table(n, use_raw=True) if use_raw else ST[n]):
+        H = hedge(np.array([s['px']]), np.array([s['py']]), np.array([s['yaw']]),
+                  l0 if use_raw else LEV[r['lever']], th0 if use_raw else TH, t0 if use_raw else TT)[0]
+        out.append(float(np.hypot(s['mx'] - H[0], s['my'] - H[1]) * 100))
+    return np.array(out)
+def pooled(names, use_raw=False, moving=False):
+    out = []
+    for n in names:
+        r = REC[n]
+        if use_raw:
+            th0, t0, l0 = r['fit_raw']; e, ok, v, _ = errors(n, TAU, use_raw=True, th=th0, t=t0, lev=l0)
+        else:
+            e, ok, v, _ = errors(n, TAU)
+        out.append(e[ok & ((v > 0.05) if moving else (v < 0.02))])
+    return np.concatenate(out)
+rng = np.random.default_rng(1)
+def med_diff_ci(a, b, nb=4000):
+    d = [np.median(rng.choice(a, len(a))) - np.median(rng.choice(b, len(b))) for _ in range(nb)]
+    return float(np.median(a) - np.median(b)), [float(np.percentile(d, 2.5)), float(np.percentile(d, 97.5))]
+coup = {}
+for typ, (c1, c2) in TYPES.items():
+    so1r = np.concatenate([stop_offsets(n, True) for n in c1]); so1 = np.concatenate([stop_offsets(n) for n in c1]); so2 = np.concatenate([stop_offsets(n) for n in c2])
+    so1 = so1[so1 < 50]   # failed correction (reported separately)
+    d = {'stops_c1': int(len(so1)), 'stops_c2': int(len(so2)),
+         'stop_offset_median_cm': {'c1_as_recorded': round(float(np.median(so1r)), 1), 'c1_corrected': round(float(np.median(so1)), 1), 'c2': round(float(np.median(so2)), 1)},
+         'stop_offset_p95_cm': {'c1_as_recorded': round(float(np.percentile(so1r, 95)), 1), 'c1_corrected': round(float(np.percentile(so1, 95)), 1), 'c2': round(float(np.percentile(so2, 95)), 1)}}
+    if len(so1) > 1 and len(so2) > 1:
+        md, ci = med_diff_ci(so1, so2); d['c1_corrected_minus_c2_median_cm'] = round(md, 1); d['ci95_cm'] = [round(x, 1) for x in ci]
+    if typ == 'triangle':
+        m1r, m1, m2 = pooled(c1, True, True), pooled(c1, moving=True), pooled(c2, moving=True)
+        m1 = m1[m1 < FAILED_CM]
+        d['moving_rms_cm'] = {'c1_as_recorded': round(rms(m1r), 1), 'c1_corrected': round(rms(m1), 1), 'c2': round(rms(m2), 1)}
+        d['moving_p95_cm'] = {'c1_as_recorded': round(float(np.percentile(m1r, 95)), 1), 'c1_corrected': round(float(np.percentile(m1, 95)), 1), 'c2': round(float(np.percentile(m2, 95)), 1)}
+    coup[typ] = d
+NUM['coupled'] = coup
+
 # ------------------------------------------------------------------ Fig. 1: setup (floor plan + rigid body)
 fig = plt.figure(figsize=(W1 * 2.05, 2.6))
 ax = fig.add_axes([0.0, 0.0, 0.62, 1.0])
@@ -193,7 +241,7 @@ for k, (x, y, z) in BEACONS.items():
     ax.plot(x, y, 's', ms=7, color='k'); ax.annotate(f'B{k}\n{z:.2f} m', (x, y), xytext=(6, -2), textcoords='offset points', fontsize=7, va='top')
 O = REC['test5_in_out1']['O']; Mi = REC['test5_in_out1']['M']
 Hh = hedge(O['x'], O['y'], O['yaw'], LEV_LATE, TH, TT)
-ax.plot(Mi['x'], Mi['y'], '.', ms=0.6, color='0.6', rasterized=True, label='Marvelmind, in/out test')
+ax.plot(Mi['x'], Mi['y'], '.', ms=0.6, color='0.6', rasterized=True, label='Marvelmind, out-and-back test')
 ax.plot(Hh[::12, 0], Hh[::12, 1], '.', ms=0.6, color='C0', rasterized=True, label='OptiTrack coverage')
 H4 = hedge(REC['test4_triangle']['O']['x'], REC['test4_triangle']['O']['y'], REC['test4_triangle']['O']['yaw'], LEV_EARLY, TH, TT)
 ax.plot(H4[::12, 0], H4[::12, 1], '.', ms=0.6, color='C1', rasterized=True, label='triangle')
@@ -205,8 +253,8 @@ mk = list(csv.DictReader(open(os.path.join(EX, 'KELO_6Tests_Unfiltered', 'settin
 mxy = np.array([[float(r['x']), float(r['y'])] for r in mk]) * 100
 ax2.plot(mxy[:, 0], mxy[:, 1], 'o', ms=4, mfc='none', color='k', label='markers (13)')
 ax2.plot(0, 0, '+', ms=8, color='k', mew=1.2, label='rigid body pivot')
-ax2.plot(*(LEV_EARLY * 100), 'v', ms=6, color='C1', label='hedgehog, test1-4')
-ax2.plot(*(LEV_LATE * 100), '^', ms=6, color='C0', label='hedgehog, later')
+ax2.plot(*(LEV_EARLY * 100), 'v', ms=6, color='C1', label='hedgehog, mounting 1')
+ax2.plot(*(LEV_LATE * 100), '^', ms=6, color='C0', label='hedgehog, mounting 2')
 ax2.set_aspect('equal'); ax2.set_xlabel('body x (cm)'); ax2.set_ylabel('body y (cm)')
 ax2.legend(loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=2, fontsize=6.5)
 ax2.set_title('(b) robot, top view', fontsize=8)
@@ -233,40 +281,43 @@ axs[0].set_ylabel('y (m)'); axs[0].set_xlim(0.5, 3.5); axs[0].set_ylim(-4.2, -1.
 axs[1].legend(loc='upper center', bbox_to_anchor=(-0.1, -0.25), ncol=2, markerscale=6)
 save(fig, 'fig2_correction')
 
-# ------------------------------------------------------------------ Fig. 3: CDF before/after correction
-fig, ax = plt.subplots(figsize=(W1, 2.0))
-for i, n in enumerate(['test1', 'test2_triangle', 'test4_triangle', 'test5_in_out1', 'test6_wait']):
-    r = REC[n]; e, ok, v, _ = errors(n, TAU); e = np.sort(e[ok])
-    ax.plot(e, np.arange(1, len(e) + 1) / len(e), '-', color=f'C{i}', label=r['label'])
-    th0, t0, l0 = r['fit_raw']; e0, ok0, _, _ = errors(n, TAU, use_raw=True, th=th0, t=t0, lev=l0); e0 = np.sort(e0[ok0])
-    ax.plot(e0, np.arange(1, len(e0) + 1) / len(e0), ':', color=f'C{i}')
-ax.set_xlim(0, 80); ax.set_xlabel('2D error (cm)'); ax.set_ylabel('CDF')
-ax.plot([], [], 'k-', label='corrected'); ax.plot([], [], 'k:', label='as recorded')
-ax.legend(loc='lower right', ncol=1, fontsize=6.5)
+# ------------------------------------------------------------------ Fig. 3: CDF per test type (C1 as recorded, C1 corrected, C2)
+fig, axs = plt.subplots(1, 3, figsize=(W1, 1.75), sharey=True)
+for ax, (typ, (c1, c2)) in zip(axs, TYPES.items()):
+    for data, ls, col, lab in [(np.concatenate([pooled(c1, True), pooled(c1, True, True)]), ':', '0.45', 'C1 as recorded'),
+                               (np.concatenate([pooled(c1), pooled(c1, moving=True)]), '-', 'k', 'C1 corrected'),
+                               (np.concatenate([pooled(c2), pooled(c2, moving=True)]), '--', 'C3', 'C2 reference')]:
+        e = np.sort(data); ax.plot(e, np.arange(1, len(e) + 1) / len(e), ls, color=col, label=lab)
+    ax.set_title(typ, fontsize=7.5); ax.set_xlim(0, 60 if typ != 'rest' else 40); ax.set_xlabel('error (cm)')
+axs[0].set_ylabel('CDF'); axs[1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.38), ncol=3, fontsize=6.5)
 save(fig, 'fig3_cdf')
 
 # ------------------------------------------------------------------ Fig. 4: at rest (vertices and heading)
 fig, axs = plt.subplots(1, 2, figsize=(W1, 2.0), gridspec_kw={'width_ratios': [1, 1.25], 'wspace': 0.55})
 rows = []
-for n in ['test2_triangle', 'test4_triangle']:
-    for s in ST[n]:
-        Hs = hedge(np.array([s['px']]), np.array([s['py']]), np.array([s['yaw']]), LEV_EARLY, TH, TT)[0]
-        rows.append((n, Hs, (s['mx'] - Hs[0]) * 100, (s['my'] - Hs[1]) * 100, s['jit'], math.degrees(s['yaw'])))
-cent = []
+for n in ['test2_triangle', 'test4_triangle', 'deneme_triangle_2031']:
+    for s_ in ST[n]:
+        Hs = hedge(np.array([s_['px']]), np.array([s_['py']]), np.array([s_['yaw']]), LEV[REC[n]['lever']], TH, TT)[0]
+        rows.append((n, np.array([s_['px'], s_['py']]), (s_['mx'] - Hs[0]) * 100, (s_['my'] - Hs[1]) * 100, s_['jit'], math.degrees(s_['yaw'])))
 NUM['failed_stops'] = [{'rec': r_[0], 'offset_cm': round(float(np.hypot(r_[2], r_[3])), 1)} for r_ in rows if np.hypot(r_[2], r_[3]) > 50]
 rows = [r_ for r_ in rows if np.hypot(r_[2], r_[3]) <= 50]
-for row in rows:
+cent = []
+for row in rows:                      # vertices = same robot pose (pivot), common to both campaigns
     for c in cent:
         if np.hypot(*(row[1] - c[0][1])) < 0.45: c.append(row); break
     else: cent.append([row])
 vert = []
 for k, c in enumerate(sorted([c for c in cent if len(c) >= 3], key=lambda c: c[0][1][0])):
-    d = np.array([[x[2], x[3]] for x in c])
-    axs[0].plot(d[:, 0], d[:, 1], 'osd^'[k % 4], ms=3, mfc='none', mew=0.7, color=f'C{k}')
-    axs[0].plot(*d.mean(0), 'osd^'[k % 4], ms=6, color=f'C{k}', mec='k', mew=0.5)
-    vert.append({'stops': len(c), 'mean_offset_cm': round(float(np.hypot(*d.mean(0))), 1), 'std_cm': [round(float(v), 1) for v in d.std(0, ddof=1)],
-                 'jitter_cm': round(float(np.mean([x[4] for x in c])), 2)})
+    for camp, filled in [('C1', False), ('C2', True)]:
+        d = np.array([[x[2], x[3]] for x in c if (x[0] == 'deneme_triangle_2031') == filled])
+        if not len(d): continue
+        axs[0].plot(d[:, 0], d[:, 1], 'osd^'[k % 4], ms=3.2, mfc=(f'C{k}' if filled else 'none'), mew=0.7, color=f'C{k}')
+        vert.append({'vertex': k + 1, 'campaign': camp, 'stops': len(d), 'mean_offset_cm': round(float(np.hypot(*d.mean(0))), 1),
+                     'mean_cm': [round(float(v), 1) for v in d.mean(0)],
+                     'std_cm': [round(float(v), 1) for v in d.std(0, ddof=1)] if len(d) > 1 else None})
 NUM['vertices'] = vert
+axs[0].plot([], [], 'o', color='0.3', mfc='none', ms=3.2, label='C1 corrected'); axs[0].plot([], [], 'o', color='0.3', ms=3.2, label='C2')
+axs[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.45), ncol=1, fontsize=6.5)
 axs[0].axhline(0, color='k', lw=0.4); axs[0].axvline(0, color='k', lw=0.4); axs[0].set_aspect('equal')
 axs[0].set_xlabel(r'$\Delta x$ (cm)'); axs[0].set_ylabel(r'$\Delta y$ (cm)'); axs[0].set_title('(a) triangle vertices', fontsize=8)
 hd = []
@@ -276,7 +327,7 @@ for n, m_, c in [('test1', 'o', 'C0'), ('test2', 's', 'C1'), ('deneme_2025', '^'
         off = np.hypot(s['mx'] - Hs[0], s['my'] - Hs[1]) * 100
         axs[1].plot(math.degrees(s['yaw']), off, m_, color=c, ms=4, mfc='none', mew=0.8)
         hd.append({'rec': n, 'heading_deg': round(math.degrees(s['yaw']), 1), 'offset_cm': round(float(off), 1)})
-for lab, m_, c in [('afternoon 1', 'o', 'C0'), ('afternoon 2', 's', 'C1'), ('evening 1', '^', 'C2'), ('evening 2', 'v', 'C3')]:
+for lab, m_, c in [('C1 run 1', 'o', 'C0'), ('C1 run 2', 's', 'C1'), ('C2 run 1', '^', 'C2'), ('C2 run 2', 'v', 'C3')]:
     axs[1].plot([], [], m_, color=c, mfc='none', label=lab)
 axs[1].set_xlim(-180, 180); axs[1].set_xticks([-180, -90, 0, 90, 180]); axs[1].set_ylim(bottom=0)
 axs[1].set_xlabel('heading (deg)'); axs[1].set_ylabel('offset (cm)'); axs[1].set_title('(b) rotation in place', fontsize=8)
@@ -287,15 +338,15 @@ save(fig, 'fig4_rest')
 # ------------------------------------------------------------------ Fig. 5: error vs speed
 edges = np.array([0, 0.02, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7])
 fig, ax = plt.subplots(figsize=(W1, 1.9)); NUM['error_vs_speed'] = {'edges_m_s': edges.tolist()}
-for i, n in enumerate(['test4_triangle', 'test2_triangle', 'test5_in_out1']):
+for i, n in enumerate(['test4_triangle', 'test2_triangle', 'deneme_triangle_2031', 'test5_in_out1']):
     e, ok, v, _ = errors(n, TAU); xs, ys, ns = [], [], []
     for k in range(len(edges) - 1):
         sel = ok & (v >= edges[k]) & (v < edges[k + 1]) & (e < FAILED_CM)
         if sel.sum() < 30: continue
         xs.append((edges[k] + edges[k + 1]) / 2); ys.append(rms(e[sel])); ns.append(int(sel.sum()))
-    ax.plot(xs, ys, 'o-s^'[i * 1 if i else 0] if False else ['o-', 's--', '^:'][i], ms=3, color=f'C{i}', label=REC[n]['label'])
+    ax.plot(xs, ys, 'o-s^'[i * 1 if i else 0] if False else ['o-', 's--', 'D-.', '^:'][i], ms=3, color=f'C{i}', label=REC[n]['label'])
     NUM['error_vs_speed'][n] = {'rms_cm': [round(v_, 1) for v_ in ys], 'n': ns, 'centres': xs}
-ax.set_xlabel('speed from OptiTrack (m/s)'); ax.set_ylabel('RMS error (cm)'); ax.set_ylim(0, 18); ax.legend(loc='lower right', ncol=3, fontsize=6.5)
+ax.set_xlabel('speed from OptiTrack (m/s)'); ax.set_ylabel('RMS error (cm)'); ax.set_ylim(0, 18); ax.legend(loc='lower right', ncol=2, fontsize=6.5)
 save(fig, 'fig5_speed')
 
 # ------------------------------------------------------------------ Fig. 6: Allan deviation at rest
