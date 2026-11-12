@@ -235,8 +235,8 @@ for typ, (c1, c2) in TYPES.items():
 NUM['coupled'] = coup
 
 # ------------------------------------------------------------------ Fig. 1: setup (floor plan + rigid body)
-fig = plt.figure(figsize=(W1 * 2.05, 2.6))
-ax = fig.add_axes([0.0, 0.0, 0.62, 1.0])
+fig = plt.figure(figsize=(W1 * 2.05, 3.0))
+ax = fig.add_axes([0.06, 0.2, 0.41, 0.72])                       # (a) and (b): same size
 for k, (x, y, z) in BEACONS.items():
     ax.plot(x, y, 's', ms=7, color='k'); ax.annotate(f'B{k}\n{z:.2f} m', (x, y), xytext=(6, -2), textcoords='offset points', fontsize=7, va='top')
 O = REC['test5_in_out1']['O']; Mi = REC['test5_in_out1']['M']
@@ -245,10 +245,11 @@ ax.plot(Mi['x'], Mi['y'], '.', ms=0.6, color='0.6', rasterized=True, label='Marv
 ax.plot(Hh[::12, 0], Hh[::12, 1], '.', ms=0.6, color='C0', rasterized=True, label='OptiTrack coverage')
 H4 = hedge(REC['test4_triangle']['O']['x'], REC['test4_triangle']['O']['y'], REC['test4_triangle']['O']['yaw'], LEV_EARLY, TH, TT)
 ax.plot(H4[::12, 0], H4[::12, 1], '.', ms=0.6, color='C1', rasterized=True, label='triangle')
-ax.set_aspect('equal'); ax.set_xlabel('x (m)'); ax.set_ylabel('y (m)'); ax.legend(loc='lower right', markerscale=12, fontsize=6.5)
-ax.set_xlim(-0.8, 10.6); ax.set_ylim(-6.1, 0.9)
+ax.set_xlim(-0.8, 10.6); ax.set_ylim(-6.1, 0.9); ax.set_aspect('equal', adjustable='datalim')
+ax.set_xlabel('x (m)'); ax.set_ylabel('y (m)')
+ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=3, markerscale=12, fontsize=6.5)
 ax.set_title('(a) floor plan, Marvelmind map frame', fontsize=8)
-ax2 = fig.add_axes([0.63, 0.02, 0.37, 0.96], projection='3d')
+ax2 = fig.add_axes([0.55, 0.2, 0.41, 0.72], projection='3d')
 # Motive exports the rigid body markers in its Y-up body frame: plan = (x, -z), height = y
 mk = list(csv.DictReader(open(os.path.join(EX, 'KELO_6Tests_Unfiltered', 'settings', 'optitrack_rigid_body_markers.csv'))))
 MP = np.array([[float(r['x']), -float(r['z']), float(r['y'])] for r in mk]) * 100
@@ -265,9 +266,9 @@ for L_, m_, c_, lab_ in [(LEV_EARLY, 'v', 'C1', 'hedgehog, mounting 1'), (LEV_LA
     ax2.text(L_[0] * 100, L_[1] * 100, hz + 3, 'M1' if m_ == 'v' else 'M2', color=c_, fontsize=7)
 ax2.set_xlabel('x (cm)', labelpad=-6); ax2.set_ylabel('y (cm)', labelpad=-6); ax2.set_zlabel('z (cm)', labelpad=-7)
 ax2.tick_params(labelsize=6, pad=-2)
-ax2.set_zlim(zf, 10); ax2.set_box_aspect((1, 1, 0.55)); ax2.view_init(elev=20, azim=60)
-ax2.legend(loc='upper center', bbox_to_anchor=(0.5, 0.06), ncol=2, fontsize=6, handletextpad=0.3, columnspacing=0.8)
-ax2.set_title('(b) markers and hedgehog, robot body frame', fontsize=8, y=0.97)
+ax2.set_zlim(zf, 10); ax2.set_box_aspect((1, 1, 0.55), zoom=1.25); ax2.view_init(elev=20, azim=60)
+ax2.legend(loc='upper center', bbox_to_anchor=(0.5, -0.04), ncol=3, fontsize=6.5, handletextpad=0.3, columnspacing=0.8)
+ax2.set_title('(b) markers and hedgehog, robot body frame', fontsize=8, y=1.0)
 NUM['rigid_body'] = {'low_markers_height_cm': round(hz, 1), 'upper_markers_height_cm': round(float(MP[~low, 2].mean()), 1),
                      'mounting1_to_low_markers_cm': round(float(np.hypot(*(LEV_EARLY * 100 - MP[low, :2].mean(0)))), 1),
                      'mounting2_to_low_markers_cm': round(float(np.hypot(*(LEV_LATE * 100 - MP[low, :2].mean(0)))), 1)}
@@ -306,7 +307,7 @@ axs[0].set_ylabel('CDF'); axs[1].legend(loc='upper center', bbox_to_anchor=(0.5,
 save(fig, 'fig3_cdf')
 
 # ------------------------------------------------------------------ Fig. 4: at rest (vertices and heading)
-fig, axs = plt.subplots(1, 2, figsize=(W1, 2.0), gridspec_kw={'width_ratios': [1, 1.25], 'wspace': 0.55})
+fig, axs = plt.subplots(1, 2, figsize=(W1, 2.0), gridspec_kw={'wspace': 0.45})
 rows = []
 for n in ['test2_triangle', 'test4_triangle', 'deneme_triangle_2031']:
     for s_ in ST[n]:
@@ -330,8 +331,8 @@ for k, c in enumerate(sorted([c for c in cent if len(c) >= 3], key=lambda c: c[0
                      'std_cm': [round(float(v), 1) for v in d.std(0, ddof=1)] if len(d) > 1 else None})
 NUM['vertices'] = vert
 axs[0].plot([], [], 'o', color='0.3', mfc='none', ms=3.2, label='C1 corrected'); axs[0].plot([], [], 'o', color='0.3', ms=3.2, label='C2')
-axs[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.45), ncol=1, fontsize=6.5)
-axs[0].axhline(0, color='k', lw=0.4); axs[0].axvline(0, color='k', lw=0.4); axs[0].set_aspect('equal')
+axs[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.32), ncol=1, fontsize=6.5)
+axs[0].axhline(0, color='k', lw=0.4); axs[0].axvline(0, color='k', lw=0.4); axs[0].set_aspect('equal', adjustable='datalim')
 axs[0].set_xlabel(r'$\Delta x$ (cm)'); axs[0].set_ylabel(r'$\Delta y$ (cm)'); axs[0].set_title('(a) triangle vertices', fontsize=8)
 hd = []
 for n, m_, c in [('test1', 'o', 'C0'), ('test2', 's', 'C1'), ('deneme_2025', '^', 'C2'), ('deneme_2028', 'v', 'C3')]:
@@ -344,7 +345,7 @@ for lab, m_, c in [('C1 run 1', 'o', 'C0'), ('C1 run 2', 's', 'C1'), ('C2 run 1'
     axs[1].plot([], [], m_, color=c, mfc='none', label=lab)
 axs[1].set_xlim(-180, 180); axs[1].set_xticks([-180, -90, 0, 90, 180]); axs[1].set_ylim(bottom=0)
 axs[1].set_xlabel('heading (deg)'); axs[1].set_ylabel('offset (cm)'); axs[1].set_title('(b) rotation in place', fontsize=8)
-axs[1].legend(loc='upper center', bbox_to_anchor=(0.45, -0.3), ncol=2, fontsize=6.5)
+axs[1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.32), ncol=2, fontsize=6.5)
 NUM['rotation_in_place'] = hd
 save(fig, 'fig4_rest')
 
@@ -417,7 +418,7 @@ reent = []
 for a, b in gaps:
     pre = e[ok & (M['t'] > a - 8) & (M['t'] < a)]; post = e[ok & (M['t'] > b) & (M['t'] < b + 8)]
     if len(pre) > 5 and len(post) > 5: reent.append((float(np.median(pre)), float(np.median(post))))
-fig, axs = plt.subplots(2, 1, figsize=(W1, 3.3), gridspec_kw={'height_ratios': [1, 1.4], 'hspace': 0.75})
+fig, axs = plt.subplots(2, 1, figsize=(W1, 3.4), gridspec_kw={'hspace': 0.6})
 for a, b in gaps: axs[0].axvspan(a, b, color='0.88', lw=0)
 axs[0].plot(M['t'][ok], e[ok], '.', ms=0.8, color='k', rasterized=True)
 axs[0].set_xlim(0, M['t'][-1]); axs[0].set_ylim(0, 40); axs[0].set_xlabel('time (s)'); axs[0].set_ylabel('error (cm)')
@@ -431,7 +432,8 @@ for k, c in enumerate(clusters[:2]):
     axs[1].plot(P[:, 0], P[:, 1], 'x', ms=3, color=f'C{k + 3}', label=f"outside point {'CD'[k]} ({len(P)} stops)")
     NUM['in_out']['outside_points'].append({'point': 'CD'[k], 'stops': len(P), 'std_cm': [round(float(s_), 1) for s_ in sd],
                                             'max_from_mean_cm': round(float(np.hypot(*(P - P.mean(0)).T).max() * 100), 1)})
-axs[1].set_aspect('equal'); axs[1].set_xlabel('x (m)'); axs[1].set_ylabel('y (m)'); axs[1].legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), markerscale=2, fontsize=6.5)
+axs[1].set_aspect('equal', adjustable='datalim'); axs[1].set_xlabel('x (m)'); axs[1].set_ylabel('y (m)')
+axs[1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.3), ncol=2, markerscale=3, fontsize=6.5)
 axs[1].set_title('(b) path', fontsize=8)
 save(fig, 'fig7_inout')
 
