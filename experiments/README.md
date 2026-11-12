@@ -36,17 +36,20 @@ fits the corrected map within 4 mm); only the map was wrong. For each sample the
 distances to each triple of beacons, recomputes the position with the corrected map, and keeps the
 triple that gives the known hedgehog height (0.70 m in the corrected map) with a continuous track.
 Results in `2026-11-12/afternoon_corrected/<recording>_corrected.csv` (`valid` = 0 when no triple
-gives a plausible height: 0-10 % of the samples).
+gives a height within 10 cm of the expected one: 0-19 % of the samples).
 
-Check against OptiTrack (alignment estimated only on the evening recordings):
+Check against OptiTrack (alignment fitted on the evening recordings; numbers and figures in
+`paper/FIGURES.md`, made by `paper/scripts/analysis.py`), median / p95 in cm:
 
-| Recording | Before (median) | After correction (median / p95) |
+| Recording | As recorded | Corrected |
 |---|---|---|
-| `test6_wait` (18 min at rest) | 35 cm | 3.5 / 3.9 cm |
-| `test1`, `test2` (rotation) | 26-32 cm | 4-9 / 12-17 cm |
-| `test2_triangle`, `test4_triangle` | 42 cm | 6-11 / 24-56 cm |
-| `test5_in_out1` | 7 cm (lever) / 28 cm (common fit) | 7 / 21 cm |
+| `test6_wait` (18 min at rest) | 35.8 / 36.3 | 2.6 / 3.1 |
+| `test1`, `test2` (rotation) | 6.6-19.9 / 17.8-129.5 | 3.5-4.9 / 11.8-13.6 |
+| `test2_triangle`, `test4_triangle` | 17.1-23.5 / 50.9-140.6 | 7.0-10.3 / 9.9-20.6 |
+| `test5_in_out1` | 13.4 / 150.9 | 6.4 / 20.2 |
+
+One stop of `test4_triangle` (318 s, 39 samples) is corrected wrongly (167 cm).
 
 **The hedgehog was moved between `test4_triangle` (18:29) and `test5_in_out1` (18:51).** Lever arm
-with respect to the rigid body pivot, estimated from the data: (−0.114, −0.155) m for `test1`–`test4`,
-(0.210, 0.246) m from `test5` on (evening). The difference is 51 cm; the tape gave about 45 cm.
+with respect to the rigid body pivot, estimated from the data: (−0.144, −0.141) m for `test1`–`test4`,
+(0.214, 0.241) m from `test5` on (evening). The difference is 52 cm; the tape gave about 45 cm.
