@@ -170,13 +170,22 @@ the one fitted on the campaign~1 stops with the same hedgehog mounting; the leve
 mounting is fitted on the other rotation run. Delay: median of the per-recording estimates,
 \SI{0.105 +- 0.036}{s}.}
 
+\subsection{Monte Carlo of beacon height errors}
+\todo{With the true beacon geometry and the true hedgehog trajectories (C1 slow triangle and
+out-and-back, 3009 samples), each beacon height is offset by $\pm$0.05 to $-2.6$\,m; the map the
+Marvelmind software would build from the true beacon distances with that height is recomputed; ranges
+get \SI{3}{mm} noise; the solver uses a random triple (pessimistic). Outputs: position error after
+rigid registration, error of the reported hedgehog height, and the result of the correction.}
+
 \subsection{Data selection and metrics}
 \todo{Stops: OptiTrack speed below \SI{2}{cm/s} and rotation below \SI{3}{\degree/s} for at least
 \SI{10}{s}; frames with marker error above \SI{3}{mm} discarded. Metrics: 2D error, median, RMS, p95,
 CDF, per-stop offset and jitter, Allan deviation~\cite{allan1966statistics}.}
 
-\subsection{Uncertainty budget}
-\todo{Table~\ref{tab:budget}~\cite{gum2008}. The OptiTrack instrument is not the limit; the
+\subsection{Uncertainty budget and Monte Carlo propagation}
+\todo{Table~\ref{tab:budget}~\cite{gum2008}. The intervals of Table~\ref{tab:summary} come from a
+Monte Carlo propagation~\cite{jcgm101}: 300 draws of the registration (stop bootstrap), the delay
+($\mathcal{N}(0.105, 0.036)$\,s), OptiTrack noise and a resampling of the stops. The OptiTrack instrument is not the limit; the
 registration is, mainly through the lever arm (bootstrap over the stops). It is a common-mode term:
 differences between campaigns and the effect of the configuration error are well resolved, absolute
 offsets of a few cm at rest are not. Temperature acts on Marvelmind, not on the reference.}
@@ -212,8 +221,8 @@ offsets of a few cm at rest are not. Temperature acts on Marvelmind, not on the 
 3--10. Discarding the samples with a wrong height removes the worst outliers but keeps the bias (rest
 \SI{35.8}{cm}) and only 55--88\,\% of the samples. After the correction (81--100\,\% of the samples
 kept) campaign~1 agrees with campaign~2 within the resolution of the comparison: median differences
-$-4.0$ and \SI{2.0}{cm} with 95\,\% bootstrap intervals that include zero, moving RMS 11.0 vs
-\SI{11.1}{cm}. One stop out of 23 failed the correction (\SI{167}{cm}). Sensitivity: median error
+$-4.0$ and \SI{2.0}{cm}, moving RMS 11.0 vs \SI{11.1}{cm}, all with 95\,\% Monte Carlo intervals
+that include zero. One stop out of 23 failed the correction (\SI{167}{cm}). Sensitivity: median error
 stable within \SI{1}{cm} for an assumed hedgehog height $\pm$\SI{5}{cm}, height tolerance
 7--\SI{15}{cm}, with or without the continuity term.}
 
@@ -221,19 +230,19 @@ stable within \SI{1}{cm} for an assumed hedgehog height $\pm$\SI{5}{cm}, height 
   \centering
   \caption{Marvelmind error (cm): campaign 1 as recorded (C1 rec.), with the height filter only
   (C1 filt.), corrected (C1 corr.), and campaign 2 (C2). Stops: median / p95 of the per-stop offset;
-  moving: RMS / p95; all: median / p95 of all samples. Last column: difference of the medians
-  C1 corr.\ $-$ C2 with 95\,\% bootstrap interval.}
+  moving: RMS / p95; all: median / p95 of all samples. Last column: difference C1 corr.\ $-$ C2 with
+  the 95\,\% Monte Carlo interval.}
   \label{tab:summary}
   \setlength{\tabcolsep}{1.8pt}
   \begin{tabular}{lccccc}
     \toprule
     Test & C1 rec. & C1 filt. & C1 corr. & C2 & C1 corr.\ $-$ C2 \\
     \midrule
-    Rotation, stops  & 16.6 / 85.8  & --          & 4.3 / 14.0  & 8.4 / 16.1  & $-4.0$ [$-11.8$, 3.1] \\
-    Triangle, stops  & 20.7 / 126.7 & --          & 7.8 / 14.2  & 5.8 / 14.2  & 2.0 [$-4.3$, 7.1] \\
-    Triangle, moving & 65.6 / 141.5 & 20.4 (RMS)  & 11.0 / 21.1 & 11.1 / 23.4 & -- \\
+    Rotation, stops  & 16.6 / 85.8  & --          & 4.3 / 14.0  & 8.4 / 16.1  & $-4.0$ [$-12.8$, 2.4] \\
+    Triangle, stops  & 20.7 / 126.7 & --          & 7.8 / 14.2  & 5.8 / 14.2  & 2.0 [$-3.9$, 10.6] \\
+    Triangle, moving & 65.6 / 141.5 & 20.4 (RMS)  & 11.0 / 21.1 & 11.1 / 23.4 & $-0.1$ [$-2.4$, 3.7] \\
     Triangle, all    & --           & 12.4 / 50.4 & 7.7 / 19.9  & --          & -- \\
-    Rest             & 35.9         & 35.8        & 2.6         & 5.5         & -- \\
+    Rest             & 35.9         & 35.8        & 2.6         & 5.5         & $-2.9$ [$-7.4$, 7.3] \\
     \midrule
     Kept samples     & 100\,\%     & 55--100\,\% & 81--100\,\% & 100\,\%   & \\
     \bottomrule
@@ -257,6 +266,25 @@ stable within \SI{1}{cm} for an assumed hedgehog height $\pm$\SI{5}{cm}, height 
   (line), (a) as recorded with the wrong height of beacon~1, (b) after the correction.
   \todo{optional}}
   \label{fig:correction}
+\end{figure}
+
+\subsection{Tolerance to beacon height errors (simulation)}
+\todo{Fig.~\ref{fig:mc}. Check: B1 at $-2.6$\,m gives p95 \SI{181}{cm} and 58\,\% wrong 3D
+solutions, same order as campaign~1 (p95 51--\SI{151}{cm}, 4--49\,\%). Height errors up to
+$\pm$\SI{0.1}{m} add at most about \SI{5}{cm} (p95) and hardly show in $z$; between 0.1 and
+\SI{0.5}{m} the position error is already 5--\SI{30}{cm} but only part of the samples show a height
+error above \SI{10}{cm}; above \SI{0.5}{m} the height check reveals it almost always. The
+correction restores the no-error level in every simulated case (p95 1.2--\SI{1.5}{cm}). Advice:
+measure beacon heights within $\pm$\SI{5}{cm} and check the hedgehog height before recording.}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig8_montecarlo.pdf}
+  \caption{Monte Carlo of a wrong beacon height, for each beacon. (a) p95 position error against the
+  height error (filled: beacon set too low in the map, open: too high; dotted: after the correction;
+  star: campaign~1 measured). (b) Median error of the height reported for the mobile beacon; dashed:
+  \SI{10}{cm}.}
+  \label{fig:mc}
 \end{figure}
 
 \subsection{At rest}

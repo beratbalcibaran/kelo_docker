@@ -93,6 +93,14 @@ All archives are in `experiments/archives/2026-11-12/`, described in `experiment
 - **Why the heading matters.** The beacon left out of the position solution depends strongly on the
   heading and is preferentially on one side/rear of the robot: consistent with shading by the robot
   body and mast.
+- **Monte Carlo (JCGM 101) of the comparison.** 300 draws of registration, delay, OptiTrack noise and
+  stop resampling: all differences C1 corrected − C2 have 95 % intervals that include zero (rotation
+  −4.0 [−12.8, 2.4], triangle 2.0 [−3.9, 10.6], moving RMS −0.1 [−2.4, 3.7] cm).
+- **Monte Carlo of beacon height errors (Fig. 8).** With the true geometry and trajectories: ±0.1 m
+  adds ≤ 5 cm (p95) and is hardly visible in z; 0.1–0.5 m gives 5–30 cm with only part of the samples
+  showing a height error above 10 cm ("silent" errors); above 0.5 m the z check almost always reveals
+  it. The simulation reproduces the real case (B1 −2.6 m: p95 181 cm vs 51–151 cm measured) and the
+  correction restores the no-error level in every case. Advice: beacon heights within ±5 cm.
 - **Sensitivity.** Median error stable within 1 cm for hedgehog height ±5 cm, tolerance 7–15 cm, with
   or without the continuity term.
 - **While moving (Fig. 5).** About 11 cm RMS, p95 18–23 cm in both campaigns; no clear dependence on
@@ -122,6 +130,9 @@ All archives are in `experiments/archives/2026-11-12/`, described in `experiment
    delay spread × speed; synchronisation jitter; temperature simulated on the beacon geometry.
 7. **Supporting analyses**: height filter alone vs correction; beacon left out vs heading; sensitivity
    of the correction to its settings.
+8. **Monte Carlo**: (a) propagation of the uncertainty of the comparison (JCGM 101); (b) simulation of
+   beacon height errors (each beacon, ±0.05 to −2.6 m) with the true geometry and trajectories: effect,
+   detectability through the hedgehog height, and success of the correction.
 
 Temporal filters (Kalman, RTS smoother) were tried on the Experiment 0 data and gained at most 1 cm
 because the error is a slow bias: one sentence in the paper, no figure.
@@ -136,7 +147,7 @@ because the error is a slow bias: one sentence in the paper, no figure.
 | II. Related work | Evaluations of Marvelmind and similar systems, motion capture as reference, trajectory metrics (ATE) | 0.5 |
 | III. Experimental setup | Room and beacons, OptiTrack, KELO, rigid body and hedgehog mountings, logging, **the two campaigns**. **Fig. 1** | 1 |
 | IV. Method | Correction of the map error, cross-campaign registration, delay, data selection, metrics, uncertainty budget (**Table II**) | 1 |
-| V. Results | A. configuration error and correction: C1 as recorded / height filter / corrected vs C2 (**Table I**, Fig. 3), sensitivity; B. at rest (Fig. 4, 6) and the heading effect (beacon left out); C. while moving (Fig. 5 or one sentence); D. outside the OptiTrack area (Fig. 7) | 2 |
+| V. Results | A. configuration error and correction: C1 as recorded / height filter / corrected vs C2 (**Table I**, Fig. 3), sensitivity; tolerance to beacon height errors by Monte Carlo (Fig. 8); B. at rest (Fig. 4, 6) and the heading effect (beacon left out); C. while moving (Fig. 5 or one sentence); D. outside the OptiTrack area (Fig. 7) | 2 |
 | VI. Discussion and conclusion | Lessons for users (check the hedgehog height in z, log raw distances), limits: one room, 2D, joystick paths, small OptiTrack area | 0.5 |
 | References | about 15 entries | 0.25 |
 

@@ -605,5 +605,118 @@ for lab_, hz_, zt_, jw_ in grid:
 B1.HEDGE_Z, B1.JUMP_W = 0.70, 2.0
 NUM['correction_sensitivity'] = {'recordings': SENS_RECS, 'results': sens}
 
+# ================================================================== Monte Carlo
+# ---------- (E) GUM Supplement 1 style propagation (JCGM 101): registration, delay and OptiTrack noise
+# are drawn together with a resampling of the stops; every draw recomputes the metrics of Table I.
+def metrics_with(parA, parB, tau, rs):
+    def P_(n):
+        if n in CAMPAIGN2: return parB[0], parB[1], parB[2]
+        if n in ('test1', 'test2'): return parA[0], parA[1], parA[2]
+        return parA[0], parA[1], parA[2] if REC[n]['lever'] == 'early' else parA[3]
+    def stop_off(n):
+        th_, t_, l_ = P_(n); rows = ST[n]
+        if not rows: return np.array([])
+        P = np.array([[r['px'], r['py'], r['yaw']] for r in rows]) + rs.normal(0, 0.0011, (len(rows), 3)) * [1, 1, 0]
+        H = hedge(P[:, 0], P[:, 1], P[:, 2], l_, th_, t_)
+        return np.hypot(np.array([r['mx'] for r in rows]) - H[:, 0], np.array([r['my'] for r in rows]) - H[:, 1]) * 100
+    def mov_err(n):
+        th_, t_, l_ = P_(n); r = REC[n]; M = r['M']
+        px, py, yaw, ok = ot_at(r['O'], M['t'] - tau); v = speed_at(r['O'], M['t'] - tau)
+        H = hedge(px, py, yaw, l_, th_, t_); e = np.hypot(M['x'] - H[:, 0], M['y'] - H[:, 1]) * 100
+        return e[ok & (v > 0.05) & (e < FAILED_CM)]
+    out = {}
+    for typ, (c1, c2) in TYPES.items():
+        a = np.concatenate([stop_off(n) for n in c1]); a = a[a < 50]; b = np.concatenate([stop_off(n) for n in c2])
+        a = rs.choice(a, len(a)); b = rs.choice(b, len(b))          # resampling of the stops
+        out[typ + ' c1'] = np.median(a); out[typ + ' c2'] = np.median(b); out[typ + ' diff'] = np.median(a) - np.median(b)
+    out['triangle moving rms c1'] = rms(np.concatenate([mov_err(n) for n in TYPES['triangle'][0]]))
+    out['triangle moving rms c2'] = rms(np.concatenate([mov_err(n) for n in TYPES['triangle'][1]]))
+    out['triangle moving rms diff'] = out['triangle moving rms c1'] - out['triangle moving rms c2']
+    return out
+rsm = np.random.default_rng(11)
+draws = []
+for i in range(len(BPA)):
+    tau_i = max(0.0, rsm.normal(TAU, u_tau))
+    draws.append(metrics_with(BPA[i], BPB[i], tau_i, rsm))
+keys = draws[0].keys()
+NUM['montecarlo_uncertainty'] = {'draws': len(draws), 'method': 'JCGM 101 style: registration from the stop bootstrap, delay N(0.105, 0.036) s, OptiTrack noise 1.1 mm, stops resampled',
+                                 'metrics_cm': {k: {'mean': round(float(np.mean([d[k] for d in draws])), 2),
+                                                    'ci95': [round(float(np.percentile([d[k] for d in draws], 2.5)), 2), round(float(np.percentile([d[k] for d in draws], 97.5)), 2)]} for k in keys}}
+
+# ---------- (F) Monte Carlo of beacon height errors: effect, detectability and correction
+TRUE = {k: np.array(v) for k, v in B1.RIGHT.items()}
+IDS = [1, 2, 4, 5]
+D3 = {(a, b): float(np.linalg.norm(TRUE[a] - TRUE[b])) for a, b in _it.combinations(IDS, 2)}
+def wrong_map(k, dh):
+    """Map that the Marvelmind software would build from the true beacon distances with beacon k at
+    height h_k + dh (horizontal positions re-solved, as happened in campaign 1)."""
+    H = {i: TRUE[i][2] + (dh if i == k else 0.0) for i in IDS}
+    hor = {ab: math.sqrt(max(d ** 2 - (H[ab[0]] - H[ab[1]]) ** 2, 0.0)) for ab, d in D3.items()}
+    x0 = np.concatenate([TRUE[i][:2] for i in IDS])
+    res = least_squares(lambda x: [np.hypot(*(x[2 * IDS.index(a):2 * IDS.index(a) + 2] - x[2 * IDS.index(b):2 * IDS.index(b) + 2])) - hv
+                                   for (a, b), hv in hor.items()] + list(0.01 * (x - x0)), x0)
+    return {i: np.r_[res.x[2 * j:2 * j + 2], H[i]] for j, i in enumerate(IDS)}
+def tri_solve(Bmap, tri, d):
+    return trilat3([Bmap[k] for k in tri], d)
+def rigid_err(E, T):
+    """2D error after the best rigid registration of the estimate on the truth (as done with real data)."""
+    mE, mT = E.mean(0), T.mean(0); U, S_, Vt = np.linalg.svd((E - mE).T @ (T - mT)); Rm = (U @ Vt).T
+    if np.linalg.det(Rm) < 0: Vt[-1] *= -1; Rm = (U @ Vt).T
+    return np.hypot(*((E - mE) @ Rm.T + mT - T).T) * 100
+# true hedgehog trajectories from the real recordings (slow triangle and out-and-back), z = 0.70 m
+TRUTH = []
+for n in ['test4_triangle', 'test5_in_out1']:
+    e_, ok_, v_, H_ = errors(n, TAU); TRUTH.append(np.c_[H_[ok_], np.full(ok_.sum(), 0.70)])
+TRUTH = np.vstack(TRUTH)[::3]
+SIG_D = 0.003                  # range noise (m), consistent with the 3-4 mm jitter at rest
+rsf = np.random.default_rng(5)
+TRI = list(_it.combinations(IDS, 3))
+DH = [-2.6, -2.0, -1.5, -1.0, -0.5, -0.25, -0.1, -0.05, 0.05, 0.1, 0.25, 0.5]
+def simulate(k, dh):
+    Wm = wrong_map(k, dh)
+    D = np.linalg.norm(TRUTH[:, None, :] - np.array([TRUE[i] for i in IDS])[None], axis=2) + rsf.normal(0, SIG_D, (len(TRUTH), 4))
+    pick = rsf.integers(0, 4, len(TRUTH))                 # triple used by the solver: uniform model
+    est = np.array([tri_solve(Wm, TRI[pick[j]], [D[j, IDS.index(i)] for i in TRI[pick[j]]]) for j in range(len(TRUTH))])
+    e_raw = rigid_err(est[:, :2], TRUTH[:, :2]); dz = np.abs(est[:, 2] - TRUTH[:, 2]) * 100
+    B1.W, B1.Rt, B1.HEDGE_Z, B1.JUMP_W = Wm, TRUE, 0.70, 2.0
+    X, s_, zd = B1.correct(est); keep = zd < 0.10
+    e_cor = rigid_err(X[keep, :2], TRUTH[keep, :2])
+    return {'raw_median': float(np.median(e_raw)), 'raw_p95': float(np.percentile(e_raw, 95)), 'wrong_z_pct': float(np.mean(dz > 40) * 100),
+            'median_abs_dz_cm': float(np.median(dz)), 'detected_pct': float(np.mean(dz > 10) * 100),
+            'corrected_median': float(np.median(e_cor)), 'corrected_p95': float(np.percentile(e_cor, 95)), 'kept_pct': float(keep.mean() * 100)}
+SIM = {}
+for k in IDS:
+    for dh in DH:
+        SIM[f'B{k} {dh:+.2f}'] = {kk: round(v, 2) for kk, v in simulate(k, dh).items()}
+base = simulate(1, 0.0)
+B1.W = {k: np.array(v) for k, v in B1.WRONG.items()}; B1.Rt = {k: np.array(v) for k, v in B1.RIGHT.items()}
+NUM['montecarlo_configuration'] = {'samples_per_case': len(TRUTH), 'range_noise_m': SIG_D, 'triple_model': 'uniform random triple',
+                                   'no_error': {kk: round(v, 2) for kk, v in base.items()}, 'cases': SIM,
+                                   'measured_campaign1_for_comparison': {'as_recorded_median_cm': [NUM['per_recording'][n]['as_recorded_median'] for n in ['test2_triangle', 'test4_triangle', 'test5_in_out1']],
+                                                                         'as_recorded_p95_cm': [NUM['per_recording'][n]['as_recorded_p95'] for n in ['test2_triangle', 'test4_triangle', 'test5_in_out1']]}}
+
+# Fig. 8: Monte Carlo of the beacon height errors (x: |height error|; filled: beacon set too low, open: too high)
+fig, axs = plt.subplots(1, 2, figsize=(W1, 1.9), gridspec_kw={'wspace': 0.45})
+mks = {1: 'o', 2: 's', 4: '^', 5: 'D'}
+neg = [dh for dh in DH if dh < 0]; pos = [dh for dh in DH if dh > 0]
+for i_, k in enumerate(IDS):
+    for grp, filled in [(neg, True), (pos, False)]:
+        xs = np.abs(grp); r_ = [SIM[f'B{k} {dh:+.2f}'] for dh in grp]
+        kw = dict(ms=2.8, lw=0.8, color=f'C{i_}', mfc=(f'C{i_}' if filled else 'none'))
+        axs[0].plot(xs, [q['raw_p95'] for q in r_], mks[k] + ('-' if filled else '--'), label=(f'B{k}' if filled else None), **kw)
+        axs[1].plot(xs, [q['median_abs_dz_cm'] for q in r_], mks[k] + ('-' if filled else '--'), **kw)
+    r_ = [SIM[f'B{k} {dh:+.2f}'] for dh in neg]
+    axs[0].plot(np.abs(neg), [q['corrected_p95'] for q in r_], ':', lw=0.8, color=f'C{i_}')
+axs[0].plot([], [], 'k:', lw=0.8, label='corrected')
+axs[0].plot([2.6], [max(NUM['montecarlo_configuration']['measured_campaign1_for_comparison']['as_recorded_p95_cm'])], '*', ms=7, color='k', label='C1 measured')
+axs[1].axhline(10, color='k', lw=0.6, ls='--')
+for ax in axs:
+    ax.set_xscale('log'); ax.set_xticks([0.05, 0.25, 1, 2.6]); ax.set_xticklabels(['0.05', '0.25', '1', '2.6']); ax.minorticks_off()
+    ax.set_xlabel('|height error| (m)'); ax.set_yscale('log')
+axs[0].set_ylabel('p95 error (cm)'); axs[0].set_title('(a) position error', fontsize=8)
+axs[1].set_ylabel('median |z error| (cm)'); axs[1].set_title('(b) height of the mobile beacon', fontsize=8)
+axs[0].legend(loc='upper center', bbox_to_anchor=(1.2, -0.3), ncol=6, fontsize=6.5, handletextpad=0.2, columnspacing=0.7)
+save(fig, 'fig8_montecarlo')
+
 json.dump(NUM, open(os.path.join(OUT, 'numbers.json'), 'w'), indent=1, default=float)
 print(json.dumps(NUM, indent=1, default=float))

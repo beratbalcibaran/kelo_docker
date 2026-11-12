@@ -90,6 +90,63 @@ campaigns and the gross effect of the configuration error (tens of cm) are well 
 offsets at rest of 3–8 cm are of the same order as the registration uncertainty and should be stated
 with it. Precision (Allan deviation) does not depend on the registration.
 
+## Monte Carlo propagation of the uncertainty (JCGM 101, GUM Supplement 1)
+
+300 draws; in each draw the registration parameters come from the stop bootstrap, the delay from
+N(0.105 s, 0.036 s), the OptiTrack position gets 1.1 mm noise, and the stops are resampled; all
+metrics of Table I are recomputed. 95 % coverage intervals (cm):
+
+| Metric | Point value | MC 95 % interval |
+|---|---|---|
+| Rotation, median stop offset C1 corrected / C2 | 4.3 / 8.4 | [1.6, 11.2] / [5.5, 16.7] |
+| Rotation, C1 corr. − C2 | −4.0 | [−12.8, 2.4] |
+| Triangle, median stop offset C1 corrected / C2 | 7.8 / 5.8 | [5.1, 14.9] / [2.1, 12.3] |
+| Triangle, C1 corr. − C2 | 2.0 | [−3.9, 10.6] |
+| Rest offset C1 / C2 | 2.6 / 5.5 | [0.6, 12.0] / [2.9, 10.0] |
+| Rest, C1 − C2 | −2.9 | [−7.4, 7.3] |
+| Triangle moving RMS C1 / C2 | 11.0 / 11.1 | [10.4, 15.2] / [10.2, 13.6] |
+| Triangle moving RMS, C1 − C2 | −0.1 | [−2.4, 3.7] |
+
+**Message.** All differences between the campaigns contain zero; the moving RMS agrees within ±3 cm.
+These intervals replace the stop-only bootstrap intervals in Table I: they include the registration
+and delay uncertainty.
+
+## Monte Carlo of beacon height errors (Fig. 8)
+
+Simulation with the true beacon geometry (correct map) and the true hedgehog trajectories of the C1
+slow triangle and out-and-back (3009 samples, z = 0.70 m). For each beacon and each height error
+(±0.05 … −2.6 m) the map that the Marvelmind software would build is recomputed from the true
+beacon-to-beacon distances with the wrong height (as happened in C1: the other beacons move in plan).
+Ranges get 3 mm Gaussian noise; the solver uses a random triple of beacons (uniform: a pessimistic
+model, the real solver avoided the wrong beacon more often). Errors after the best rigid registration,
+as for the real data. Then the correction of `b1_correction.py` is applied.
+
+| Beacon height error | p95 position error | median \|z error\| | samples with \|z error\| > 10 cm |
+|---|---|---|---|
+| ±0.05 m | 1.8–2.8 cm | 0.9–2.0 cm | 0 % |
+| ±0.10 m | 2.7–5.1 cm | 2.0–3.9 cm | 0–13 % |
+| ±0.25 m | 5.7–12.7 cm | 5.3–10.2 cm | 24–51 % |
+| −0.5 m | 11–19 cm | 11–20 cm | 55–67 % |
+| −1.0 m | 22–46 cm | 22–38 cm | 66–81 % |
+| −2.6 m | 60–191 cm | 56–81 cm | 75–100 % |
+| no error | 1.3 cm | 0.4 cm | 0 % |
+
+- **Check against the real case**: B1 −2.6 m gives p95 181 cm and 58 % wrong 3D solutions; C1 as
+  recorded had p95 51–151 cm and 4–49 % wrong solutions. Same order; the uniform-triple model is
+  pessimistic.
+- **Correction**: in every simulated case the correction brings the error back to the no-error level
+  (p95 1.2–1.5 cm) and keeps 99.6–100 % of the samples. In the real data it keeps 81–100 % and one stop
+  out of 23 fails: the real solver does not always follow the three-beacon model.
+- **Practical tolerance**: height errors up to ±0.1 m add at most about 5 cm (p95) and are hardly
+  visible in z; between 0.1 and 0.5 m the error is already 5–30 cm but only part of the samples show
+  a z error above 10 cm ("silent" errors); above 0.5 m the z check reveals the error almost always.
+  **Advice: measure beacon heights within ±5 cm and check the hedgehog z before recording.**
+
+**Caption.** *Monte Carlo of a wrong beacon height, for each beacon. (a) p95 position error as a function
+of the height error (filled: beacon set too low in the map, open: too high; dotted: after the
+correction; star: campaign 1 measured). (b) Median error of the height reported for the mobile
+beacon; dashed line: 10 cm.*
+
 ## Beacon triple vs robot heading (text, maybe a small table)
 
 For every corrected C1 sample the correction tells which beacon was **not** used (inferred from the
@@ -203,5 +260,6 @@ outside the OptiTrack area.
 
 ## Which figures and tables in 6 pages
 
-Recommended: Fig. 1 (with the photo), 3, 4, 6, 7, Table I (with the z-filter column) and Table II.
-Triple vs heading and sensitivity in the text. Fig. 2 and Fig. 5 only if space allows.
+Recommended: Fig. 1 (with the photo), 3, 4, 6, 7, 8, Table I (with the z-filter column and the Monte
+Carlo intervals) and Table II. Triple vs heading and sensitivity in the text. Fig. 2 and Fig. 5 only if
+space allows.
