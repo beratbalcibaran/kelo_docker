@@ -16,3 +16,6 @@ data/models/
 data/incidents/
 data/camera_tilt.yaml
 data/robot.env
+
+# local unzip of experiments/archives (see experiments/README.md)
+experiments/extracted/

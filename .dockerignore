@@ -3,3 +3,6 @@ data/
 **/*.pyc
 .git
 .DS_Store
+
+# experiment archives: large, not needed in the image
+experiments/
