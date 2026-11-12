@@ -129,6 +129,38 @@ very small area. These two can be used in the paper with separate alignments, st
 These numbers were computed from the data embedded in the reports, with the alignment fitted on the
 same stops: they are indicative and must be recomputed with the final processing.
 
+### First test of the processing chain (12 November data)
+
+Tuned on one recording, tested on the other (run 1 ↔ last 40 points). Error RMS in cm.
+
+| Step | Rest, run 1 | Moving, run 1 | Rest, last 40 | Moving, last 40 |
+|---|---|---|---|---|
+| Raw | 4.5 | 6.2 | 8.7 | 10.5 |
+| + jump rejection | 4.5 | 6.2 | 9.0 | 10.5 |
+| + moving average (causal) | 4.5 | 6.9 | 9.0 | 11.5 |
+| + Kalman, constant velocity (causal) | 4.5 | 6.1 | 9.0 | 10.4 |
+| + Kalman + RTS smoother (offline) | 4.4 | 5.5 | 8.7 | 9.8 |
+| + Kalman with delay compensation | 4.6 | 6.1 | 9.1 | 9.8 |
+
+- **Filtering in time gains at most 1 cm.** At rest the error is mostly a **per-stop offset** (RMS
+  3.9 cm in run 1, 7.6 cm in the last 40 points) that stays constant during the stop and changes
+  from one visit to the next; the jitter around the stop mean is only 2.4 / 4.9 cm. A filter cannot
+  remove a slow error.
+- **Effective delay of the raw data: 0.14 s (run 1), 0.24 s (last 40 points).** Compensating it
+  flattens the error vs speed a little (run 1, 0.3–0.4 m/s: 7.2 → 6.1 cm), but the tuned delay is
+  not the same in the two recordings (0.16 vs 0.08 s).
+- Jump rejection does nothing here: after removing the red parts there are almost no jumps.
+
+**Consequence for the paper.** The main result is the **structure of the error**: a slow component
+that is constant within a stop, not repeatable between visits and not position-dependent, larger
+than the jitter. Averaging longer does not reduce it: show it with the Allan deviation of the long
+stops (Allan 1966). The processing chain gives a small gain and should be reported as such.
+
+**Open question: why does the offset change between visits?** The robot reached each vertex with a
+different heading. With the Motive heading at each stop: if the offset follows the heading (the
+robot body shading the hedgehog from some beacons), the cause is found. Quick test: one vertex,
+4 headings (0°, 90°, 180°, 270°), 30 s each, twice.
+
 ---
 
 ## Analysis

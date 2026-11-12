@@ -1,0 +1,175 @@
+% I2MTC 2027 paper: Marvelmind vs OptiTrack on the KELO.
+% Limit: 6 pages including references. Plan and numbers: ../idee.md.
+% Build: needs IEEEtran.cls (in TeX Live / MiKTeX, or upload this folder to Overleaf).
+%   pdflatex main && bibtex main && pdflatex main && pdflatex main
+% Check the I2MTC 2027 author instructions (template, PDF eXpress) before submission.
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\graphicspath{{figures/}}
+
+% \todo{...}: open points, remove all of them before submission.
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\begin{document}
+
+\title{Metrological Characterisation and Motion-Capture-Based Calibration of a Low-Cost Ultrasonic
+Indoor Positioning System on a Mobile Robot\\
+\todo{working title}}
+
+\author{
+\IEEEauthorblockN{Berat Baran Balci, \todo{co-authors}}
+\IEEEauthorblockA{\textit{Department of Engineering, University of Ferrara}, Ferrara, Italy\\
+\todo{e-mail addresses}}
+}
+
+\maketitle
+
+% ---------------------------------------------------------------------------------------------------
+\begin{abstract}
+\todo{150--200 words, write last. One sentence each: problem (low-cost indoor positioning, reference
+available only in part of the area); what was done (Marvelmind on the KELO vs OptiTrack, N runs);
+main numbers (error at rest, while moving, delay); effect of the processing; result outside the
+OptiTrack area.}
+\end{abstract}
+
+\begin{IEEEkeywords}
+indoor positioning, ultrasonic positioning, motion capture, measurement uncertainty, mobile robots
+\end{IEEEkeywords}
+
+% ---------------------------------------------------------------------------------------------------
+\section{Introduction}
+% ~0.75 page
+\todo{Low-cost indoor positioning systems (IPS) for mobile robots; why their accuracy must be
+measured on the robot and not on a static stand.}
+
+\todo{Motion capture gives sub-millimetre reference positions, but only in a small volume. Question:
+how good is the IPS where the reference is available, and how well does a calibration made there
+hold where it is not.}
+
+Contributions:
+\begin{itemize}
+  \item \todo{characterisation of Marvelmind on the KELO against OptiTrack: at rest, while moving,
+        vs speed, repeatability over repeated visits of the same points;}
+  \item \todo{processing chain tuned with OptiTrack and validated with leave-one-run-out;}
+  \item \todo{error outside the OptiTrack area (floor checkpoints, re-entry).}
+\end{itemize}
+
+% ---------------------------------------------------------------------------------------------------
+\section{Related Work}
+% ~0.5 page
+\todo{Indoor positioning technologies and surveys~\cite{mautz2012indoor,zafari2019survey}.}
+\todo{Published evaluations of Marvelmind and other ultrasonic IPS: search IEEE Xplore and add.}
+\todo{Motion capture as reference and its own accuracy~\cite{merriaux2017vicon}.}
+\todo{Trajectory error metrics (ATE)~\cite{sturm2012benchmark}; uncertainty
+evaluation~\cite{gum2008}.}
+
+% ---------------------------------------------------------------------------------------------------
+\section{Experimental Setup}
+% ~1 page
+\subsection{Room and Marvelmind installation}
+\todo{Room, 4 stationary beacons (heights, positions, quadrilateral area \SI{39.7}{m^2}), hedgehog
+\#7, firmware 8.42, update rate \SI{5.76}{Hz}, filters off, temperature setting vs measured
+temperature. The OptiTrack area is in a corner of the beacon quadrilateral: say it.}
+
+\subsection{Reference: OptiTrack}
+\todo{V120:Trio, \SI{120}{Hz}, Motive 3.5, covered area about \SI{2.7 x 2.7}{m}, calibration
+residual, rigid body (markers, pivot), static noise at the stops.}
+
+\subsection{Robot and mounting}
+\todo{KELO driven with a joystick; hedgehog and marker positions; lever arm (measured and estimated).
+Fig.~\ref{fig:setup}.}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox[c][4cm][c]{0.9\columnwidth}{\centering \todo{photo of the robot + floor plan with
+  beacons, OptiTrack area, triangle and floor checkpoints}}}
+  % \includegraphics[width=\columnwidth]{setup.pdf}
+  \caption{Experimental setup. \todo{caption}}
+  \label{fig:setup}
+\end{figure}
+
+\subsection{Data logging and synchronisation}
+\todo{Both systems logged on the same PC (\texttt{record.py}); Marvelmind device clock drift
+(\SI{0.92}{\percent}) corrected; residual.}
+
+% ---------------------------------------------------------------------------------------------------
+\section{Method}
+% ~1 page
+\subsection{Frames and registration}
+\todo{2D rigid transform (x, y, yaw) + z offset between OptiTrack and Marvelmind frames, lever arm
+applied with the OptiTrack heading; estimated on calibration runs only~\cite{umeyama1991least}.
+Note the mirrored Marvelmind map if not fixed.}
+
+\subsection{Data selection}
+\todo{Stop detection (OptiTrack speed below \SI{3}{cm/s} for at least \SI{10}{s}); exclusion of
+frames with fallen or occluded markers, based on the Motive data.}
+
+\subsection{Metrics}
+\todo{At rest: per-stop offset and jitter. While moving: RMSE, 95th percentile, CDF, error vs speed,
+effective delay. Outlier rate.}
+
+\subsection{Processing chain}
+\todo{(1) registration; (2) jump rejection; (3) temporal filter / delay compensation (Kalman,
+constant velocity~\cite{kalman1960new}; offline smoother~\cite{rauch1965maximum}); (4) optional
+beacon refinement. Leave-one-run-out.}
+
+\subsection{Uncertainty budget}
+\todo{OptiTrack, lever arm, synchronisation residual $\times$ speed, temperature
+(speed of sound, about \SI{0.17}{\percent/\celsius})~\cite{gum2008}.}
+
+% ---------------------------------------------------------------------------------------------------
+\section{Results}
+% ~2 pages
+\subsection{At rest}
+\todo{Offset and jitter at the stops; repeated visits of the triangle vertices: systematic vs
+per-visit part.}
+
+\subsection{While moving}
+\todo{RMSE, p95, error vs speed, delay. Fig.~\ref{fig:speed}.}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox[c][3.5cm][c]{0.9\columnwidth}{\centering \todo{error vs speed}}}
+  \caption{Marvelmind error vs speed. \todo{caption}}
+  \label{fig:speed}
+\end{figure}
+
+\subsection{Processing chain}
+\todo{CDF for each step on the test runs; table.}
+
+\begin{table}[t]
+  \centering
+  \caption{Error on the test runs (leave-one-run-out). \todo{fill}}
+  \label{tab:summary}
+  \begin{tabular}{lcccc}
+    \toprule
+    Step & Rest RMS & Moving RMS & Moving p95 & Delay \\
+         & (cm) & (cm) & (cm) & (s) \\
+    \midrule
+    Raw (registration only) & -- & -- & -- & -- \\
+    + jump rejection        & -- & -- & -- & -- \\
+    + filter / delay comp.  & -- & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Outside the OptiTrack area}
+\todo{Error on the floor checkpoints and at re-entry.}
+
+% ---------------------------------------------------------------------------------------------------
+\section{Discussion and Conclusion}
+% ~0.5 page
+\todo{Limits: one room, 2D only, joystick paths, fixed beacon geometry, OptiTrack area in a corner
+of the beacon area. Main numbers in one paragraph.}
+
+% ---------------------------------------------------------------------------------------------------
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}
