@@ -47,8 +47,8 @@ Contributions:
 - Keep every recording used for a result, and write in a small table which recording produced which
   figure (see `paper/FIGURES.md`).
 - Analysis runs **offline**, with scripts that anyone can run again (`paper/scripts/`).
-- **Never fit and test on the same data.** The alignment is fitted on campaign 2 only (and the lever
-  arm of mounting 1 on the campaign 1 rotations); triangles, out-and-back and rests are test data.
+- **Never fit and test on the same data.** Cross-campaign registration: each campaign is evaluated
+  with the alignment fitted on the other one; no recording is evaluated with parameters fitted on itself.
 - Every figure must be readable in black and white and at column width.
 - In the paper, call the two campaigns **Campaign 1 (main test programme)** and **Campaign 2
   (reference configuration)**.
@@ -66,7 +66,7 @@ All archives are in `experiments/archives/2026-11-12/`, described in `experiment
 | Rest | 18 min | 10 min |
 | Out-and-back (leaves the OptiTrack area) | 10 laps, 5 slow + 5 fast | – |
 | Marvelmind map | beacon 1 height not applied (0 m instead of 2.6 m), corrected afterwards | correct |
-| Role | characterisation, effect of the configuration error | alignment fit, validation of the correction |
+| Role | characterisation, effect of the configuration error | validation of the correction (the two campaigns register each other) |
 
 - The **robot poses are the same** in the two campaigns (vertices and headings), so the campaigns can
   be compared stop by stop.
@@ -75,19 +75,29 @@ All archives are in `experiments/archives/2026-11-12/`, described in `experiment
   each mounting (52 cm apart; tape about 45 cm). Describe it as part of the setup.
 - The Experiment 0 data (`docs/data_of_all_tests/`) are not used.
 
-## Main results (details, figures and numbers in `paper/FIGURES.md`)
+## Main results (details, figures, tables and numbers in `paper/FIGURES.md`)
 
-- **Configuration error and correction (Table I, Fig. 3).** Stop offset median as recorded / corrected
-  / C2: rotation 16.6 / 4.0 / 7.4 cm, triangle 20.7 / 7.8 / 4.9 cm; triangle moving RMS 65.4 / 11.1 /
-  10.8 cm, p95 142 / 21.2 / 21.6 cm. Differences C1 corrected − C2 of the median offsets: −3.4 cm
-  [−10.1, 2.2] and 2.8 cm [−5.1, 5.4] (95 % bootstrap): no significant difference. 81–100 % of the
-  samples remain valid; one stop out of 23 failed (167 cm) and is reported.
+- **Configuration error and correction (Table I, Fig. 3).** Median stop offset as recorded / corrected
+  / C2: rotation 16.6 / 4.3 / 8.4 cm, triangle 20.7 / 7.8 / 5.8 cm; triangle moving RMS 65.6 / 11.0 /
+  11.1 cm. C1 corrected − C2: −4.0 cm [−11.8, 3.1] and 2.0 cm [−4.3, 7.1] (95 % bootstrap): the two
+  campaigns agree within the resolution of the comparison. One stop out of 23 failed (167 cm).
+- **The simple fix is not enough.** Discarding samples with a wrong height keeps 55–88 % of the data
+  and leaves the bias (rest 35.8 cm, triangle p95 50 cm); the correction keeps 81–100 % with errors at
+  the C2 level.
+- **Uncertainty (Table II).** OptiTrack 0.1 cm; registration (rotation, translation, lever arm)
+  3.1–5.4 cm, the dominant term; delay 1.1 cm at 0.3 m/s; combined 5.4 cm (U = 11 cm, k = 2).
+  Temperature effect on Marvelmind 1.8 cm.
 - **At rest (Fig. 4, 6).** Same noise in both campaigns: jitter 4 mm, Allan deviation 1.6 mm at 1 s and
-  0.2 mm at 60 s; offset to the reference 2.6 and 7.4 cm. Offset per vertex 1–10 cm, spread between
-  visits 3–9 cm; repeatable heading effect in both campaigns (−44°: 0.4–4.7 cm, −134°: 10–14 cm).
-- **While moving (Fig. 5).** RMS 9–16 cm, p95 18–22 cm in both campaigns, no clear dependence on the
-  speed up to 0.6 m/s. Delay 0.09 s.
-- **Out-and-back (Fig. 7).** Error before leaving 5.3 cm, after re-entry 4.3 cm (median, 10
+  0.2 mm at 60 s; offsets 2.6 and 5.5 cm, within the registration uncertainty. Repeatable heading effect
+  in both campaigns (−44°: 2.6–5.5 cm, −134°: 12.9–16.5 cm).
+- **Why the heading matters.** The beacon left out of the position solution depends strongly on the
+  heading and is preferentially on one side/rear of the robot: consistent with shading by the robot
+  body and mast.
+- **Sensitivity.** Median error stable within 1 cm for hedgehog height ±5 cm, tolerance 7–15 cm, with
+  or without the continuity term.
+- **While moving (Fig. 5).** About 11 cm RMS, p95 18–23 cm in both campaigns; no clear dependence on
+  the speed up to 0.6 m/s. Delay 0.105 ± 0.036 s.
+- **Out-and-back (Fig. 7).** Error before leaving 5.4 cm, after re-entry 4.4 cm (median, 10
   re-entries); spread at the outside points 6–10 cm (upper bound).
 
 ---
@@ -98,18 +108,20 @@ All archives are in `experiments/archives/2026-11-12/`, described in `experiment
    the recorded position and the wrong map, recompute with the correct map, keep the triple that gives
    the known hedgehog height with a continuous track (dynamic programming). The reference is not used.
    Check: the four distances of a sample shown in the Dashboard fit the correct map within 4 mm.
-2. **Alignment** OptiTrack → Marvelmind: 2D rotation, translation and lever arm, robust least squares,
-   fitted on the campaign 2 stops only; lever arm of mounting 1 on the campaign 1 rotations with
-   rotation and translation fixed.
-3. **Delay**: 0.09 s, fitted on the campaign 2 triangle.
+2. **Cross-campaign registration** OptiTrack → Marvelmind (2D rotation, translation, lever arm, robust
+   least squares on stop medians): C1 is evaluated with the registration fitted on C2; C2 with the one
+   fitted on the C1 stops with the same mounting; the lever arm of mounting 1 is fitted on the other C1
+   rotation run. No recording is evaluated with parameters fitted on itself.
+3. **Delay**: median of the per-recording estimates, 0.105 ± 0.036 s.
 4. **Data selection**: OptiTrack frames with mean marker error > 3 mm discarded; stops = speed
    < 2 cm/s and rotation < 3 °/s for at least 10 s, 2 s trimmed at both ends.
 5. **Metrics**: 2D error to the OptiTrack hedgehog position; median, RMS, p95, CDF; per-stop offset and
    jitter; Allan deviation; error vs speed; error before leaving / after re-entry; differences between
    campaigns with bootstrap intervals.
-6. **Uncertainty budget**: OptiTrack (static noise below 0.1 mm, marker error about 1 mm), lever arm,
-   delay residual × speed, temperature (speed of sound about 0.17 %/°C; Dashboard setting 23 °C, room
-   temperature not measured).
+6. **Uncertainty budget** (Table II): OptiTrack marker error; registration by bootstrap over the stops;
+   delay spread × speed; synchronisation jitter; temperature simulated on the beacon geometry.
+7. **Supporting analyses**: height filter alone vs correction; beacon left out vs heading; sensitivity
+   of the correction to its settings.
 
 Temporal filters (Kalman, RTS smoother) were tried on the Experiment 0 data and gained at most 1 cm
 because the error is a slow bias: one sentence in the paper, no figure.
@@ -123,8 +135,8 @@ because the error is a slow bias: one sentence in the paper, no figure.
 | I. Introduction | Low-cost indoor positioning on robots, why configuration matters, contributions | 0.75 |
 | II. Related work | Evaluations of Marvelmind and similar systems, motion capture as reference, trajectory metrics (ATE) | 0.5 |
 | III. Experimental setup | Room and beacons, OptiTrack, KELO, rigid body and hedgehog mountings, logging, **the two campaigns**. **Fig. 1** | 1 |
-| IV. Method | Correction of the map error, alignment, delay, data selection, metrics, uncertainty | 1 |
-| V. Results | A. configuration error and correction: C1 as recorded vs corrected vs C2 (**Table I**, Fig. 3); B. at rest (Fig. 4, 6); C. while moving (Fig. 5 or one sentence); D. outside the OptiTrack area (Fig. 7) | 2 |
+| IV. Method | Correction of the map error, cross-campaign registration, delay, data selection, metrics, uncertainty budget (**Table II**) | 1 |
+| V. Results | A. configuration error and correction: C1 as recorded / height filter / corrected vs C2 (**Table I**, Fig. 3), sensitivity; B. at rest (Fig. 4, 6) and the heading effect (beacon left out); C. while moving (Fig. 5 or one sentence); D. outside the OptiTrack area (Fig. 7) | 2 |
 | VI. Discussion and conclusion | Lessons for users (check the hedgehog height in z, log raw distances), limits: one room, 2D, joystick paths, small OptiTrack area | 0.5 |
 | References | about 15 entries | 0.25 |
 

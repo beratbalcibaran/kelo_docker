@@ -153,7 +153,25 @@ ST = {n: stop_table(n) for n in REC}
 TH, TT, LEV_LATE = fit(ST['deneme_2025'] + ST['deneme_2028'] + ST['deneme_triangle_2031'])
 _, _, LEV_EARLY = fit(ST['test1'] + ST['test2'], TH, TT)
 LEV = {'early': LEV_EARLY, 'late': LEV_LATE}
-NUM['alignment'] = {'fitted_on': 'campaign 2 stops (rotation x2, triangle); lever arm of mounting 1 on the campaign 1 rotations',
+
+# Cross-campaign evaluation: every recording is evaluated with an alignment that did not use it.
+# Campaign 1 recordings: alignment fitted on the campaign 2 stops (C1 rotations: lever arm of mounting 1
+# fitted on the other rotation run). Campaign 2 recordings: alignment fitted on the campaign 1 stops
+# with the same hedgehog mounting (out-and-back and rest, corrected data).
+C2FIT = ['deneme_2025', 'deneme_2028', 'deneme_triangle_2031']
+C1M2FIT = ['test5_in_out1', 'test6_wait']
+TH_B, TT_B, LEV_B = fit(sum([ST[k] for k in C1M2FIT], []))
+PARAMS = {}
+for n in REC:
+    if n in CAMPAIGN2:
+        PARAMS[n] = (TH_B, TT_B, LEV_B)
+    elif n in ('test1', 'test2'):
+        PARAMS[n] = fit(ST['test2' if n == 'test1' else 'test1'], TH, TT)
+    else:
+        PARAMS[n] = (TH, TT, LEV[REC[n]['lever']])
+NUM['out_of_fit_parameters'] = {n: {'rotation_deg': round(math.degrees(q[0]), 2), 'translation_m': [round(v, 3) for v in q[1]],
+                                    'lever_arm_m': [round(v, 3) for v in q[2]]} for n, q in PARAMS.items() if n in list(CAMPAIGN2) + ['test1', 'test2']}
+NUM['alignment'] = {'fitted_on': 'for campaign 1: campaign 2 stops (rotation x2, triangle), lever arm of mounting 1 on the C1 rotations (other run); for campaign 2: C1 out-and-back and rest stops',
                     'rotation_deg': round(math.degrees(TH), 2), 'translation_m': [round(v, 3) for v in TT],
                     'lever_arm_after_move_m': [round(v, 3) for v in LEV_LATE], 'lever_arm_before_move_m': [round(v, 3) for v in LEV_EARLY],
                     'hedgehog_moved_by_m': round(float(np.hypot(*(LEV_LATE - LEV_EARLY))), 3)}
@@ -162,16 +180,19 @@ NUM['alignment'] = {'fitted_on': 'campaign 2 stops (rotation x2, triangle); leve
 def errors(n, tau=0.0, use_raw=False, th=None, t=None, lev=None):
     r = REC[n]; M = r['Mraw'] if use_raw else r['M']; O = r['O']
     px, py, yaw, ok = ot_at(O, M['t'] - tau)
-    H = hedge(px, py, yaw, LEV[r['lever']] if lev is None else lev, TH if th is None else th, TT if t is None else t)
+    th_, t_, l_ = PARAMS[n]
+    H = hedge(px, py, yaw, l_ if lev is None else lev, th_ if th is None else th, t_ if t is None else t)
     e = np.hypot(M['x'] - H[:, 0], M['y'] - H[:, 1]) * 100
     return e, ok, speed_at(O, M['t'] - tau), H
 
 taus = np.arange(0, 0.41, 0.01)
 mov = lambda n, tau: (lambda e, ok, v, H: e[ok & (v > 0.05)])(*errors(n, tau))
 rms = lambda a: float(np.sqrt(np.mean(np.square(a))))
-tr = [rms(mov('deneme_triangle_2031', tau)) for tau in taus]
-TAU = float(taus[int(np.argmin(tr))])
-NUM['delay_s'] = {'estimated_on': 'campaign 2 triangle', 'tau': TAU}
+def best_tau(n):
+    return float(taus[int(np.argmin([rms((lambda e, ok, v, H: e[ok & (v > 0.05) & (e < FAILED_CM)])(*errors(n, tau))) for tau in taus]))])
+tau_each = {n: best_tau(n) for n in ['deneme_triangle_2031', 'test2_triangle', 'test4_triangle', 'test5_in_out1']}
+TAU = float(np.median(list(tau_each.values())))
+NUM['delay_s'] = {'estimated_on': 'median of the best delay of the four recordings with motion', 'per_recording': tau_each, 'tau': TAU}
 
 # ------------------------------------------------------------------ per-recording summary
 summ = {}
@@ -200,7 +221,7 @@ def stop_offsets(n, use_raw=False):
         th0, t0, l0 = r['fit_raw']
     for s in (stop_table(n, use_raw=True) if use_raw else ST[n]):
         H = hedge(np.array([s['px']]), np.array([s['py']]), np.array([s['yaw']]),
-                  l0 if use_raw else LEV[r['lever']], th0 if use_raw else TH, t0 if use_raw else TT)[0]
+                  l0 if use_raw else PARAMS[n][2], th0 if use_raw else PARAMS[n][0], t0 if use_raw else PARAMS[n][1])[0]
         out.append(float(np.hypot(s['mx'] - H[0], s['my'] - H[1]) * 100))
     return np.array(out)
 def pooled(names, use_raw=False, moving=False):
@@ -296,14 +317,19 @@ axs[1].legend(loc='upper center', bbox_to_anchor=(-0.1, -0.25), ncol=2, markersc
 save(fig, 'fig2_correction')
 
 # ------------------------------------------------------------------ Fig. 3: CDF per test type (C1 as recorded, C1 corrected, C2)
+def zf_err(n):
+    r = REC[n]; M = r['Mraw']; th0, t0, l0 = r['fit_raw']; keep = (M['z'] > -0.4) & (M['z'] < 0.4)
+    px, py, yaw, ok = ot_at(r['O'], M['t'] - TAU); H = hedge(px, py, yaw, l0, th0, t0)
+    return (np.hypot(M['x'] - H[:, 0], M['y'] - H[:, 1]) * 100)[ok & keep]
 fig, axs = plt.subplots(1, 3, figsize=(W1, 1.75), sharey=True)
 for ax, (typ, (c1, c2)) in zip(axs, TYPES.items()):
     for data, ls, col, lab in [(np.concatenate([pooled(c1, True), pooled(c1, True, True)]), ':', '0.45', 'C1 as recorded'),
                                (np.concatenate([pooled(c1), pooled(c1, moving=True)]), '-', 'k', 'C1 corrected'),
-                               (np.concatenate([pooled(c2), pooled(c2, moving=True)]), '--', 'C3', 'C2 reference')]:
+                               (np.concatenate([pooled(c2), pooled(c2, moving=True)]), '--', 'C3', 'C2 reference'),
+                               (np.concatenate([zf_err(n) for n in c1]), '-.', 'C0', 'C1 z filter only')]:
         e = np.sort(data); ax.plot(e, np.arange(1, len(e) + 1) / len(e), ls, color=col, label=lab)
     ax.set_title(typ, fontsize=7.5); ax.set_xlim(0, 60 if typ != 'rest' else 40); ax.set_xlabel('error (cm)')
-axs[0].set_ylabel('CDF'); axs[1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.38), ncol=3, fontsize=6.5)
+axs[0].set_ylabel('CDF'); axs[1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.38), ncol=2, fontsize=6.5)
 save(fig, 'fig3_cdf')
 
 # ------------------------------------------------------------------ Fig. 4: at rest (vertices and heading)
@@ -311,7 +337,7 @@ fig, axs = plt.subplots(1, 2, figsize=(W1, 2.0), gridspec_kw={'wspace': 0.45})
 rows = []
 for n in ['test2_triangle', 'test4_triangle', 'deneme_triangle_2031']:
     for s_ in ST[n]:
-        Hs = hedge(np.array([s_['px']]), np.array([s_['py']]), np.array([s_['yaw']]), LEV[REC[n]['lever']], TH, TT)[0]
+        Hs = hedge(np.array([s_['px']]), np.array([s_['py']]), np.array([s_['yaw']]), PARAMS[n][2], PARAMS[n][0], PARAMS[n][1])[0]
         rows.append((n, np.array([s_['px'], s_['py']]), (s_['mx'] - Hs[0]) * 100, (s_['my'] - Hs[1]) * 100, s_['jit'], math.degrees(s_['yaw'])))
 NUM['failed_stops'] = [{'rec': r_[0], 'offset_cm': round(float(np.hypot(r_[2], r_[3])), 1)} for r_ in rows if np.hypot(r_[2], r_[3]) > 50]
 rows = [r_ for r_ in rows if np.hypot(r_[2], r_[3]) <= 50]
@@ -337,7 +363,7 @@ axs[0].set_xlabel(r'$\Delta x$ (cm)'); axs[0].set_ylabel(r'$\Delta y$ (cm)'); ax
 hd = []
 for n, m_, c in [('test1', 'o', 'C0'), ('test2', 's', 'C1'), ('deneme_2025', '^', 'C2'), ('deneme_2028', 'v', 'C3')]:
     for s in ST[n]:
-        Hs = hedge(np.array([s['px']]), np.array([s['py']]), np.array([s['yaw']]), LEV[REC[n]['lever']], TH, TT)[0]
+        Hs = hedge(np.array([s['px']]), np.array([s['py']]), np.array([s['yaw']]), PARAMS[n][2], PARAMS[n][0], PARAMS[n][1])[0]
         off = np.hypot(s['mx'] - Hs[0], s['my'] - Hs[1]) * 100
         axs[1].plot(math.degrees(s['yaw']), off, m_, color=c, ms=4, mfc='none', mew=0.8)
         hd.append({'rec': n, 'heading_deg': round(math.degrees(s['yaw']), 1), 'offset_cm': round(float(off), 1)})
@@ -436,6 +462,148 @@ axs[1].set_aspect('equal', adjustable='datalim'); axs[1].set_xlabel('x (m)'); ax
 axs[1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.3), ncol=2, markerscale=3, fontsize=6.5)
 axs[1].set_title('(b) path', fontsize=8)
 save(fig, 'fig7_inout')
+
+# ================================================================== additional analyses
+C1_ALL = list(CAMPAIGN1)
+
+# ---------- (A) uncertainty budget of the reference position
+rngb = np.random.default_rng(7)
+def boot_params(nb=300):
+    """Bootstrap over stops of the two registrations. A (for campaign 1): C2 stops -> rotation,
+    translation, lever arm 2; C1 rotation stops -> lever arm 1. B (for campaign 2): C1 mounting-2 stops."""
+    c2 = sum([ST[k] for k in C2FIT], []); c1r = ST['test1'] + ST['test2']; c1m2 = sum([ST[k] for k in C1M2FIT], []); A, Bb = [], []
+    for _ in range(nb):
+        th_, t_, l2 = fit([c2[i] for i in rngb.integers(0, len(c2), len(c2))])
+        _, _, l1 = fit([c1r[i] for i in rngb.integers(0, len(c1r), len(c1r))], th_, t_)
+        A.append((th_, t_, l1, l2))
+        Bb.append(fit([c1m2[i] for i in rngb.integers(0, len(c1m2), len(c1m2))]))
+    return A, Bb
+BPA, BPB = boot_params()
+def ref_spread(rows, BP, lever_idx):
+    """2D standard uncertainty of the reference hedgehog position at the given stops, over the bootstrap."""
+    P = np.array([[r['px'], r['py'], r['yaw']] for r in rows])
+    H = np.array([hedge(P[:, 0], P[:, 1], P[:, 2], b[lever_idx], b[0], b[1]) for b in BP])   # nb x n x 2
+    return float(np.sqrt(np.mean(np.sum(H.var(0), axis=1)))) * 100
+u_align_m1 = ref_spread(ST['test2_triangle'] + ST['test4_triangle'], BPA, 2)
+u_align_m2 = ref_spread(ST['test5_in_out1'] + ST['test6_wait'], BPA, 3)
+u_align_c2 = ref_spread(sum([ST[k] for k in CAMPAIGN2], []), BPB, 2)
+lev1 = np.array([b[2] for b in BPA]) * 100; lev2 = np.array([b[3] for b in BPA]) * 100
+# OptiTrack: mean marker error and static noise during the long rests
+ot_err = float(np.mean([np.mean(REC[n]['O']['err']) for n in REC])) * 1000
+ot_static = []
+for n in ['test6_wait', 'denemenew_wait_2040']:
+    O = REC[n]['O']; (a, b) = max(stops(O), key=lambda s_: s_[1] - s_[0]); so = (O['t'] >= a) & (O['t'] <= b)
+    ot_static.append(float(np.hypot(O['x'][so].std(), O['y'][so].std())) * 1000)
+# delay: standard uncertainty of the median of the four per-recording estimates
+u_tau = float(np.std(list(tau_each.values()), ddof=1) / math.sqrt(len(tau_each)))
+V_REF = 0.3   # m/s, typical speed
+u_delay = u_tau * V_REF * 100
+# synchronisation: Marvelmind transport jitter (device time stamp vs PC arrival) from the recording summaries
+u_sync = 0.005 * V_REF * 100
+# temperature (affects Marvelmind, not the reference): +-3 C rectangular around the 23 C setting
+import itertools as _it
+Bc = {k: np.array(v) for k, v in BEACONS.items()}
+def trilat3(B, d):
+    p1, p2, p3 = B; ex = (p2 - p1) / np.linalg.norm(p2 - p1); i_ = ex @ (p3 - p1)
+    ey = p3 - p1 - i_ * ex; ey /= np.linalg.norm(ey); ez = np.cross(ex, ey); D = np.linalg.norm(p2 - p1); j_ = ey @ (p3 - p1)
+    x = (d[0] ** 2 - d[1] ** 2 + D ** 2) / (2 * D); y = (d[0] ** 2 - d[2] ** 2 + i_ ** 2 + j_ ** 2) / (2 * j_) - i_ * x / j_
+    z = np.sqrt(max(d[0] ** 2 - x ** 2 - y ** 2, 0)); a_, b_ = p1 + x * ex + y * ey + z * ez, p1 + x * ex + y * ey - z * ez
+    return a_ if a_[2] < b_[2] else b_
+uT = 3 / math.sqrt(3); eps = 0.0017 * uT
+shifts = []
+for px_ in np.linspace(0.8, 3.0, 5):
+    for py_ in np.linspace(-3.8, -1.2, 5):
+        p0 = np.array([px_, py_, 0.70])
+        for tri in _it.combinations([1, 2, 4, 5], 3):
+            d = [np.linalg.norm(p0 - Bc[k]) * (1 + eps) for k in tri]
+            shifts.append(np.hypot(*(trilat3([Bc[k] for k in tri], d)[:2] - p0[:2])) * 100)
+u_temp = float(np.sqrt(np.mean(np.square(shifts))))
+u_ref_rest = math.sqrt((ot_err / 10) ** 2 + max(u_align_m1, u_align_m2, u_align_c2) ** 2)
+u_ref_moving = math.sqrt(u_ref_rest ** 2 + u_delay ** 2 + u_sync ** 2)
+NUM['uncertainty'] = {
+    'optitrack_mean_marker_error_mm': round(ot_err, 2), 'optitrack_static_std_mm': [round(v, 3) for v in ot_static],
+    'alignment_and_lever_arm_cm': {'C1_mounting_1': round(u_align_m1, 2), 'C1_mounting_2': round(u_align_m2, 2), 'C2': round(u_align_c2, 2)},
+    'lever_arm_std_cm': {'mounting_1': [round(float(v), 2) for v in lev1.std(0)], 'mounting_2': [round(float(v), 2) for v in lev2.std(0)]},
+    'delay_s': TAU, 'delay_per_recording_s': tau_each, 'u_delay_s': round(u_tau, 3), 'u_delay_at_0.3_m_s_cm': round(u_delay, 2),
+    'u_sync_at_0.3_m_s_cm': round(u_sync, 2), 'temperature_effect_on_marvelmind_cm': round(u_temp, 2),
+    'u_reference_rest_cm': round(u_ref_rest, 2), 'U_reference_rest_k2_cm': round(2 * u_ref_rest, 2),
+    'u_reference_moving_cm': round(u_ref_moving, 2), 'U_reference_moving_k2_cm': round(2 * u_ref_moving, 2),
+    'lever_arm_tape_check_cm': {'mounting_1_to_low_markers_data_vs_tape': [NUM['rigid_body']['mounting1_to_low_markers_cm'], 40],
+                                'move_data_vs_tape': [round(float(np.hypot(*(LEV_LATE - LEV_EARLY))) * 100, 1), 45]}}
+
+# ---------- (B) z filter only vs correction (campaign 1)
+def zfilter_errors(n, moving=None):
+    r = REC[n]; M = r['Mraw']; th0, t0, l0 = r['fit_raw']
+    keep = (M['z'] > -0.4) & (M['z'] < 0.4)
+    px, py, yaw, ok = ot_at(r['O'], M['t'] - TAU); H = hedge(px, py, yaw, l0, th0, t0)
+    e = np.hypot(M['x'] - H[:, 0], M['y'] - H[:, 1]) * 100; v = speed_at(r['O'], M['t'] - TAU)
+    sel = ok & keep if moving is None else ok & keep & ((v > 0.05) if moving else (v < 0.02))
+    return e[sel], float(keep.mean() * 100)
+zc = {}
+for typ, (c1, _) in TYPES.items():
+    ez = np.concatenate([zfilter_errors(n)[0] for n in c1]); kz = float(np.mean([zfilter_errors(n)[1] for n in c1]))
+    ec = np.concatenate([errors(n, TAU)[0][errors(n, TAU)[1]] for n in c1])
+    kc = float(np.mean([100 * len(REC[n]['M']['t']) / len(REC[n]['Mraw']['t']) for n in c1]))
+    zc[typ] = {'z_filter': {'kept_pct': round(kz, 1), 'median_cm': round(float(np.median(ez)), 1), 'p95_cm': round(float(np.percentile(ez, 95)), 1)},
+               'correction': {'kept_pct': round(kc, 1), 'median_cm': round(float(np.median(ec)), 1), 'p95_cm': round(float(np.percentile(ec, 95)), 1)}}
+    if typ == 'triangle':
+        mz = np.concatenate([zfilter_errors(n, True)[0] for n in c1]); zc[typ]['z_filter']['moving_rms_cm'] = round(rms(mz), 1)
+        zc[typ]['correction']['moving_rms_cm'] = NUM['coupled']['triangle']['moving_rms_cm']['c1_corrected']
+ez = zfilter_errors('test5_in_out1')
+zc['out-and-back'] = {'z_filter': {'kept_pct': round(ez[1], 1), 'median_cm': round(float(np.median(ez[0])), 1), 'p95_cm': round(float(np.percentile(ez[0], 95)), 1)},
+                      'correction': {'kept_pct': NUM['per_recording']['test5_in_out1']['valid_after_correction_pct'],
+                                     'median_cm': NUM['per_recording']['test5_in_out1']['corrected_median'], 'p95_cm': NUM['per_recording']['test5_in_out1']['corrected_p95']}}
+NUM['zfilter_vs_correction'] = zc
+
+# ---------- (C) beacon triple used by the correction vs robot heading (campaign 1)
+inv = lambda xy: (np.asarray(xy) - TT) @ rot(TH)            # Marvelmind map -> OptiTrack frame
+B_ot = {k: inv(np.array(v[:2])) for k, v in BEACONS.items()}
+trip_rows = []
+for n in C1_ALL:
+    rows = [r_ for r_ in csv.DictReader(open(os.path.join(COR, n + '_corrected.csv'))) if r_['valid'] == '1']
+    t = np.array([float(r_['t']) for r_ in rows]); px, py, yaw, ok = ot_at(REC[n]['O'], t)
+    for r_, a_, b_, y_, o_ in zip(rows, px, py, yaw, ok):
+        if not o_: continue
+        used = set(int(k) for k in r_['triple'].split('-')); excl = ({1, 2, 4, 5} - used).pop()
+        hb = np.array([a_, b_]); bear = {k: (math.degrees(math.atan2(*(B_ot[k] - hb)[::-1]) - y_) + 180) % 360 - 180 for k in B_ot}
+        trip_rows.append((n, math.degrees(y_), excl, bear[excl], bear))
+hd = np.array([((r_[1] + 180) % 360) - 180 for r_ in trip_rows]); ex_ = np.array([r_[2] for r_ in trip_rows])
+bins = [(-180, -90), (-90, 0), (0, 90), (90, 180)]
+tab = {}
+for lo, hi in bins:
+    sel = (hd >= lo) & (hd < hi)
+    if sel.sum() < 50: continue
+    tab[f'{lo}..{hi} deg'] = {'samples': int(sel.sum()), 'excluded_beacon_share_pct': {f'B{k}': round(float(np.mean(ex_[sel] == k) * 100), 1) for k in [1, 2, 4, 5]}}
+rel_ex = np.array([r_[3] for r_ in trip_rows]); rel_all = np.array([v_ for r_ in trip_rows for v_ in r_[4].values()])
+hist_ex = np.histogram(rel_ex, bins=8, range=(-180, 180))[0]; hist_all = np.histogram(rel_all, bins=8, range=(-180, 180))[0]
+NUM['triple_vs_heading'] = {'note': 'triple inferred by the correction (closest hedgehog height), campaign 1, samples with reference',
+                            'by_heading': tab,
+                            'excluded_beacon_relative_bearing_hist': {'bin_edges_deg': list(range(-180, 181, 45)),
+                                                                      'excluded_pct': [round(float(v) * 100 / hist_ex.sum(), 1) for v in hist_ex],
+                                                                      'all_beacons_pct': [round(float(v) * 100 / hist_all.sum(), 1) for v in hist_all]}}
+
+# ---------- (D) sensitivity of the correction to its settings
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location('b1c', os.path.join(ROOT, 'paper', 'scripts', 'b1_correction.py')); B1 = _ilu.module_from_spec(_spec); _spec.loader.exec_module(B1)
+def run_correction(n, hz, ztol, jw):
+    B1.HEDGE_Z, B1.JUMP_W = hz, jw
+    M = REC[n]['Mraw']; P = np.c_[M['x'], M['y'], M['z']]
+    X, s_, zd = B1.correct(P); keep = zd < ztol
+    px, py, yaw, ok = ot_at(REC[n]['O'], M['t'] - TAU); th_, t_, l_ = PARAMS[n]; H = hedge(px, py, yaw, l_, th_, t_)
+    e = np.hypot(X[:, 0] - H[:, 0], X[:, 1] - H[:, 1]) * 100
+    return float(keep.mean() * 100), e[ok & keep]
+SENS_RECS = ['test2_triangle', 'test4_triangle', 'test5_in_out1']
+grid = [('nominal', 0.70, 0.10, 2.0), ('hedgehog height 0.65 m', 0.65, 0.10, 2.0), ('hedgehog height 0.75 m', 0.75, 0.10, 2.0),
+        ('tolerance 0.07 m', 0.70, 0.07, 2.0), ('tolerance 0.15 m', 0.70, 0.15, 2.0), ('no continuity term', 0.70, 0.10, 0.0),
+        ('continuity weight 5', 0.70, 0.10, 5.0)]
+sens = {}
+for lab_, hz_, zt_, jw_ in grid:
+    res = [run_correction(n, hz_, zt_, jw_) for n in SENS_RECS]
+    e_all = np.concatenate([r_[1] for r_ in res])
+    sens[lab_] = {'kept_pct': round(float(np.mean([r_[0] for r_ in res])), 1), 'median_cm': round(float(np.median(e_all)), 1),
+                  'p95_cm': round(float(np.percentile(e_all, 95)), 1), 'share_above_50cm_pct': round(float(np.mean(e_all > 50) * 100), 2)}
+B1.HEDGE_Z, B1.JUMP_W = 0.70, 2.0
+NUM['correction_sensitivity'] = {'recordings': SENS_RECS, 'results': sens}
 
 json.dump(NUM, open(os.path.join(OUT, 'numbers.json'), 'w'), indent=1, default=float)
 print(json.dumps(NUM, indent=1, default=float))

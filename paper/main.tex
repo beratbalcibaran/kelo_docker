@@ -50,9 +50,10 @@ marcello.bonfe@unife.it}
 reference only in part of the area. What was done: Marvelmind on a KELO robot against OptiTrack in two
 campaigns at the same robot poses (rotations, triangles at two speeds, rests; out-and-back test).
 Main numbers: precision \SI{1.6}{mm} (Allan, \SI{1}{s}) vs accuracy 3--7\,cm at rest; about 11\,cm
-RMS while moving. A wrong height of one beacon raised the p95 error up to 1.4\,m; recomputing the
-recorded positions with the correct map, without the reference, made the first campaign
-indistinguishable from the second one, recorded with the correct configuration.}
+RMS while moving; comparison uncertainty dominated by the registration (5\,cm). A wrong height of one
+beacon raised the p95 error up to 1.4\,m; discarding inconsistent samples is not enough; recomputing
+the recorded positions with the correct map, without the reference, made the first campaign agree
+with the second one, recorded with the correct configuration.}
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -121,14 +122,15 @@ and 3 markers \SI{18.5}{cm} lower, at the height of the hedgehog (\SI{0.69}{m} f
 
 \subsection{Logging and synchronisation}
 \todo{Both systems on the same PC (\texttt{record.py}); Marvelmind device clock drift corrected;
-residual delay \SI{0.09}{s}.}
+residual delay \SI{0.105}{s} (Section~IV-B).}
 
 \subsection{Test campaigns}
 \todo{Two campaigns at the same robot poses (Table~\ref{tab:campaigns}). Campaign~1 is the main test
 programme; it was recorded with an error in the Marvelmind map (the height of beacon~1, \SI{2.6}{m},
 was not applied and the map used \SI{0}{m}), found afterwards from the height reported for the
 mobile beacon. Campaign~2 repeats the rotations, the triangle and the rest with the correct map: it is
-used to fit the alignment and as the reference for the correction of campaign~1.}
+the reference for the correction of campaign~1, and the two campaigns register each other
+(Section~IV-B).}
 
 \begin{table}[t]
   \centering
@@ -144,7 +146,7 @@ used to fit the alignment and as the reference for the correction of campaign~1.
     Rest                          & 18 min & 10 min \\
     Out-and-back, 10 laps         & yes & -- \\
     Marvelmind map                & B1 height wrong & correct \\
-    Use                           & characterisation & alignment, validation \\
+    Use                           & characterisation & validation \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -160,11 +162,13 @@ term between samples (dynamic programming). The reference is not used. Checks: t
 one sample shown by the Marvelmind software fit the corrected map within \SI{4}{mm}; the corrected
 campaign~1 is compared with campaign~2 (Section~V-A).}
 
-\subsection{Alignment and delay}
-\todo{2D rotation, translation and lever arm, robust least squares~\cite{umeyama1991least}, fitted on
-the stops of campaign~2 only (lever arm of the first mounting on the campaign~1 rotations, with
-rotation and translation fixed); delay fitted on the campaign~2 triangle. Triangles, out-and-back
-and rests of campaign~1 are test data.}
+\subsection{Cross-campaign registration and delay}
+\todo{2D rotation, translation and lever arm between the OptiTrack and Marvelmind frames, robust
+least squares on the stop medians~\cite{umeyama1991least}. No recording is evaluated with parameters
+fitted on itself: campaign~1 is evaluated with the registration fitted on campaign~2; campaign~2 with
+the one fitted on the campaign~1 stops with the same hedgehog mounting; the lever arm of the first
+mounting is fitted on the other rotation run. Delay: median of the per-recording estimates,
+\SI{0.105 +- 0.036}{s}.}
 
 \subsection{Data selection and metrics}
 \todo{Stops: OptiTrack speed below \SI{2}{cm/s} and rotation below \SI{3}{\degree/s} for at least
@@ -172,33 +176,66 @@ and rests of campaign~1 are test data.}
 CDF, per-stop offset and jitter, Allan deviation~\cite{allan1966statistics}.}
 
 \subsection{Uncertainty budget}
-\todo{OptiTrack, lever arm, delay residual $\times$ speed, temperature (speed of sound, about
-\SI{0.17}{\percent/\celsius})~\cite{gum2008}.}
+\todo{Table~\ref{tab:budget}~\cite{gum2008}. The OptiTrack instrument is not the limit; the
+registration is, mainly through the lever arm (bootstrap over the stops). It is a common-mode term:
+differences between campaigns and the effect of the configuration error are well resolved, absolute
+offsets of a few cm at rest are not. Temperature acts on Marvelmind, not on the reference.}
+
+\begin{table}[t]
+  \centering
+  \caption{Uncertainty budget of the reference position (2D, standard uncertainties).}
+  \label{tab:budget}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lc}
+    \toprule
+    Contribution & $u$ (cm) \\
+    \midrule
+    OptiTrack position (mean marker error)            & 0.11 \\
+    Registration: rotation, translation, lever arm    & 3.1--5.4 \\
+    \quad of which lever arm (per axis)               & 1.8--2.9 \\
+    Delay, \SI{0.105 +- 0.036}{s} at \SI{0.3}{m/s}   & 1.1 \\
+    Synchronisation jitter at \SI{0.3}{m/s}           & 0.15 \\
+    \midrule
+    Combined, at rest / moving                        & 5.4 / 5.5 \\
+    Expanded ($k=2$), at rest / moving                & 10.8 / 11.0 \\
+    \midrule
+    Temperature $\pm$\SI{3}{\celsius} (on Marvelmind) & 1.8 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 % ---------------------------------------------------------------------------------------------------
 \section{Results}
 % ~2 pages
 \subsection{Effect of the configuration error and its correction}
 \todo{Table~\ref{tab:summary}, Fig.~\ref{fig:cdf}: the configuration error multiplies the errors by
-3--10; after the correction campaign~1 matches campaign~2 (differences of the median offsets with
-95\,\% bootstrap intervals that include zero; moving errors equal within \SI{0.4}{cm}). 81--100\,\%
-of the samples remain valid; one stop out of 23 failed the correction (\SI{167}{cm}).}
+3--10. Discarding the samples with a wrong height removes the worst outliers but keeps the bias (rest
+\SI{35.8}{cm}) and only 55--88\,\% of the samples. After the correction (81--100\,\% of the samples
+kept) campaign~1 agrees with campaign~2 within the resolution of the comparison: median differences
+$-4.0$ and \SI{2.0}{cm} with 95\,\% bootstrap intervals that include zero, moving RMS 11.0 vs
+\SI{11.1}{cm}. One stop out of 23 failed the correction (\SI{167}{cm}). Sensitivity: median error
+stable within \SI{1}{cm} for an assumed hedgehog height $\pm$\SI{5}{cm}, height tolerance
+7--\SI{15}{cm}, with or without the continuity term.}
 
 \begin{table}[t]
   \centering
-  \caption{Marvelmind error (cm): campaign 1 as recorded (C1 rec.), campaign 1 corrected (C1 corr.)
-  and campaign 2 (C2). Stops: median / p95 of the per-stop offset; moving: RMS / p95. Last column:
-  difference of the medians C1 corr.\ $-$ C2 with 95\,\% bootstrap interval.}
+  \caption{Marvelmind error (cm): campaign 1 as recorded (C1 rec.), with the height filter only
+  (C1 filt.), corrected (C1 corr.), and campaign 2 (C2). Stops: median / p95 of the per-stop offset;
+  moving: RMS / p95; all: median / p95 of all samples. Last column: difference of the medians
+  C1 corr.\ $-$ C2 with 95\,\% bootstrap interval.}
   \label{tab:summary}
-  \setlength{\tabcolsep}{2.5pt}
-  \begin{tabular}{lcccc}
+  \setlength{\tabcolsep}{1.8pt}
+  \begin{tabular}{lccccc}
     \toprule
-    Test & C1 rec. & C1 corr. & C2 & C1 corr.\ $-$ C2 \\
+    Test & C1 rec. & C1 filt. & C1 corr. & C2 & C1 corr.\ $-$ C2 \\
     \midrule
-    Rotation, stops  & 16.6 / 85.8  & 4.0 / 12.1  & 7.4 / 13.5  & $-3.4$ [$-10.1$, 2.2] \\
-    Triangle, stops  & 20.7 / 126.7 & 7.8 / 14.2  & 4.9 / 13.3  & 2.8 [$-5.1$, 5.4] \\
-    Triangle, moving & 65.4 / 142.2 & 11.1 / 21.2 & 10.8 / 21.6 & -- \\
-    Rest             & 35.9         & 2.6         & 7.4         & -- \\
+    Rotation, stops  & 16.6 / 85.8  & --          & 4.3 / 14.0  & 8.4 / 16.1  & $-4.0$ [$-11.8$, 3.1] \\
+    Triangle, stops  & 20.7 / 126.7 & --          & 7.8 / 14.2  & 5.8 / 14.2  & 2.0 [$-4.3$, 7.1] \\
+    Triangle, moving & 65.6 / 141.5 & 20.4 (RMS)  & 11.0 / 21.1 & 11.1 / 23.4 & -- \\
+    Triangle, all    & --           & 12.4 / 50.4 & 7.7 / 19.9  & --          & -- \\
+    Rest             & 35.9         & 35.8        & 2.6         & 5.5         & -- \\
+    \midrule
+    Kept samples     & 100\,\%     & 55--100\,\% & 81--100\,\% & 100\,\%   & \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -206,8 +243,9 @@ of the samples remain valid; one stop out of 23 failed the correction (\SI{167}{
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig3_cdf.pdf}
-  \caption{Error distribution per test type: campaign 1 as recorded (dotted), campaign 1 after the
-  correction (solid) and campaign 2 with the correct configuration (dashed).}
+  \caption{Error distribution per test type: campaign 1 as recorded (dotted), with the height filter
+  only (dash-dot), after the correction (solid), and campaign 2 with the correct configuration
+  (dashed).}
   \label{fig:cdf}
 \end{figure}
 
@@ -224,9 +262,13 @@ of the samples remain valid; one stop out of 23 failed the correction (\SI{167}{
 \subsection{At rest}
 \todo{Precision vs accuracy (Fig.~\ref{fig:allan}): same noise in both campaigns, jitter
 \SI{4}{mm}, Allan deviation \SI{1.6}{mm} at \SI{1}{s} and \SI{0.2}{mm} at \SI{60}{s}; offset 2.6
-and 7.4\,cm. Repeated visits (Fig.~\ref{fig:rest}a): offset per vertex 1--10\,cm, spread between
-visits 3--9\,cm, jitter within a stop \SI{1.4}{mm}. Heading (Fig.~\ref{fig:rest}b): the same pattern in
-both campaigns ($-44^\circ$: 0.4--4.7\,cm; $-134^\circ$: 10--14\,cm), so it belongs to the system.}
+and 5.5\,cm, within the registration uncertainty. Repeated visits (Fig.~\ref{fig:rest}a): offset per
+vertex 2--10\,cm, spread between visits 1--9\,cm, jitter within a stop \SI{1.4}{mm}. Heading
+(Fig.~\ref{fig:rest}b): the same pattern in both campaigns ($-44^\circ$: 2.6--5.5\,cm; $-134^\circ$:
+12.9--16.5\,cm), so it belongs to the system. Cause: the beacon left out of the position solution
+depends strongly on the heading (e.g.\ B1 in 62\,\% of the samples with heading 90--180$^\circ$,
+1\,\% with $-90$--90$^\circ$) and lies preferentially on one side/rear of the robot, consistent with
+shading by the robot body and mast (the triple is inferred by the correction, campaign~1).}
 
 \begin{figure}[t]
   \centering
@@ -246,9 +288,9 @@ both campaigns ($-44^\circ$: 0.4--4.7\,cm; $-134^\circ$: 10--14\,cm), so it belo
 \end{figure}
 
 \subsection{While moving}
-\todo{RMS about 11\,cm and p95 about 21\,cm in both campaigns (Table~\ref{tab:summary}); no clear
-dependence on the speed up to \SI{0.6}{m/s} (Fig.~\ref{fig:speed}); delay \SI{0.09}{s}. Temporal
-filters gained at most \SI{1}{cm}.}
+\todo{RMS 11.0 and \SI{11.1}{cm}, p95 21--\SI{23}{cm} in the two campaigns (Table~\ref{tab:summary});
+no clear dependence on the speed up to \SI{0.6}{m/s} (Fig.~\ref{fig:speed}); delay
+\SI{0.105 +- 0.036}{s}. Temporal filters gained at most \SI{1}{cm}.}
 
 % optional, can become one sentence
 \begin{figure}[t]
@@ -259,7 +301,7 @@ filters gained at most \SI{1}{cm}.}
 \end{figure}
 
 \subsection{Outside the OptiTrack area}
-\todo{Campaign~1 out-and-back: error before leaving \SI{5.3}{cm}, after re-entry \SI{4.3}{cm}
+\todo{Campaign~1 out-and-back: error before leaving \SI{5.4}{cm}, after re-entry \SI{4.4}{cm}
 (median, 10 re-entries); spread at the outside points 6--10\,cm, an upper bound
 (Fig.~\ref{fig:inout}).}
 

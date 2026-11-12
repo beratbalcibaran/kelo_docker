@@ -43,7 +43,9 @@ hedgehog height (0.70 m in the correct map) with a continuous track. Results in
 `2026-11-12/campaign1_corrected/<recording>_corrected.csv` (`valid` = 0 when no triple gives a
 height within 10 cm of the expected one: 0–19 % of the samples).
 
-Validation against OptiTrack and against C2 (alignment fitted on C2 only): see `paper/FIGURES.md`,
-Table I. In short, the median stop offset goes from 17–21 cm (as recorded) to 4–8 cm (corrected),
-against 5–7 cm in C2; the differences C1 corrected − C2 are not significant. One stop of
+Validation against OptiTrack and against C2 (cross-campaign registration: each campaign evaluated
+with the alignment fitted on the other one): see `paper/FIGURES.md`, Table I. In short, the median
+stop offset goes from 17–21 cm (as recorded) to 4–8 cm (corrected), against 6–8 cm in C2; the
+differences C1 corrected − C2 are within the resolution of the comparison (registration uncertainty
+about 5 cm, Table II). One stop of
 `test4_triangle` (318 s, 39 samples) is corrected wrongly (167 cm).
