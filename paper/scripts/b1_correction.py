@@ -20,7 +20,7 @@ import numpy as np
 WRONG = {1: (0.506, -0.004, 0.0), 2: (6.457, -0.013, 2.5), 4: (0.055, -5.052, 2.4), 5: (9.65, -3.83, 2.55)}  # map 17:41
 RIGHT = {1: (0.204, 0.124, 2.6), 2: (6.672, 0.169, 2.5), 4: (0.116, -5.484, 2.4), 5: (9.65, -3.83, 2.55)}    # map 20:24
 HEDGE_Z = 0.70      # hedgehog height in the corrected map (Dashboard sample and evening recordings: 0.65-0.72 m)
-Z_TOL = 0.15        # samples whose best triple is further than this from HEDGE_Z are marked invalid
+Z_TOL = 0.10        # samples whose best triple is further than this from HEDGE_Z are marked invalid
 JUMP_W = 2.0        # weight of the jump between consecutive samples in the continuity cost
 TRIPLES = list(itertools.combinations([1, 2, 4, 5], 3))
 W = {k: np.array(v) for k, v in WRONG.items()}; Rt = {k: np.array(v) for k, v in RIGHT.items()}

@@ -1,218 +1,211 @@
 # Figures for the I2MTC paper: what they show and how to use them
 
-Preliminary figures made on 12 November 2026 from the data that are **embedded in the HTML reports**
-(time, x, y already aligned; no Marvelmind z, no robot heading per sample, no Motive marker error).
-They are good enough to decide the story of the paper and to start writing. Every number below must
-be **recomputed from the raw recordings** before submission; the scripts are in `scripts/`, the
-numbers in `figures/figures_numbers.json`. All figures are sized for one IEEE column (3.45 in) and
-readable in black and white.
+Final figures from the recordings of **12 November 2026, afternoon and evening**. They are made by
+`scripts/analysis.py` (run `python paper/scripts/analysis.py .` from the repository root after
+unzipping `experiments/archives/2026-11-12/*.zip` into `experiments/extracted/`). All numbers are
+in `figures/numbers.json`. Figures are sized for one IEEE column (Fig. 1: two columns) and readable
+in black and white.
 
-## Two setups: always say which one
+The morning data (Experiment 0, `docs/data_of_all_tests/`) are **not** used: the Motive rigid body
+was re-created several times, the hedgehog was in another place and the Marvelmind map was different.
 
-| | Setup A (morning) | Setup B (afternoon) |
-|---|---|---|
-| Recordings | run 1 (`tur1_v3`, free path, 12 stops), last 40 points (triangle, about 12 laps) | P1 rotations (`test1`, `test2`), triangle fast (`test2_triangle`), triangle slow (`test4_triangle`), in/out (`test5_in_out1`) |
-| Hedgehog | about 40 cm from the front markers | about 5 cm from the front markers, same height; moved by 45 cm |
-| Marvelmind map | beacon heights entered as 240 m, map mirrored | heights fixed |
-| Motive rigid body | re-created several times (only run 1 and last 40 points usable) | fixed, markers screwed |
-| Wrong 3D solutions (z out of band) | rare (1.8 % jumps) | 4–49 % of the samples |
+## Data and how they were processed
 
-Setup A and setup B are aligned separately. Do not mix their numbers in one statistic.
-
----
-
-## Fig. 1: triangle paths (setup A)
-
-`figures/fig1_triangle_paths.pdf`
-
-**What it shows.** OptiTrack path (black line) and Marvelmind positions (grey dots) for the last 40
-points, about 12 laps of the triangle marked on the floor. A, B, C are the vertices.
-
-**How it was made.** Marvelmind frame; OptiTrack aligned by Berat's analysis on the stops. Parts
-where the OptiTrack markers fell (red in the replay, error > 25 cm) are removed.
-
-**Use in the paper.** Results, at rest / repeatability, or Setup, as an example of the test path.
-Optional if space is short: Fig. 2 carries the result.
-
-**Suggested caption.** *Path of the robot over about 12 laps of the triangle: OptiTrack reference
-(line) and Marvelmind positions (dots). A, B and C are the vertices where the robot stopped.*
-
----
-
-## Fig. 2: offset at each visit of the vertices (setup A)
-
-`figures/fig2_vertex_offsets.pdf`
-
-**What it shows.** Each small marker is one stop: the Marvelmind median minus the OptiTrack position.
-Big markers are the mean per vertex.
-
-| Vertex | Visits | Mean offset | Spread between visits (std x / y) |
+| Recording | Session | What | Hedgehog mount |
 |---|---|---|---|
-| A | 13 | 2.2 cm | 4.0 / 6.7 cm |
-| B | 11 | 2.1 cm | 5.4 / 6.0 cm |
-| C | 11 | 3.1 cm | 5.6 / 6.5 cm |
+| `test1`, `test2` | afternoon | rotation in place, 4 headings, twice | before the move |
+| `test2_triangle` | afternoon | triangle, fast | before the move |
+| `test4_triangle` | afternoon | triangle, slow | before the move |
+| `test5_in_out1` | afternoon | out of the OptiTrack area and back, 10 laps (5 slow, 5 fast) | after the move |
+| `test6_wait` | afternoon | 18 min at rest | after the move |
+| `deneme_2025`, `deneme_2028` | evening | rotation in place, twice | after the move |
+| `deneme_triangle_2031` | evening | triangle | after the move |
+| `denemenew_wait_2040` | evening | 10 min at rest | after the move |
 
-**Message.** The systematic, position-dependent part of the error is small (2–3 cm). The error
-changes from one visit to the next (4–7 cm), but it is constant during a stop (jitter 2–5 cm). So:
-a position-dependent correction map would not help, and averaging longer at a stop does not help
-either. This is the main result at rest.
+1. **Beacon 1 height.** In the afternoon the Marvelmind map used beacon 1 at 0 m instead of 2.6 m
+   (the value shown in the Dashboard had not been applied). The afternoon positions were recomputed
+   with the corrected map by `scripts/b1_correction.py`, **without OptiTrack** (see
+   `experiments/README.md`). The measured distances were fine: a sample shown in the Dashboard fits
+   the corrected map within 4 mm. 81–100 % of the samples remain valid; the others are marked
+   invalid because no triple of beacons gives a plausible hedgehog height.
+2. **Hedgehog moved.** Between `test4_triangle` (18:29) and `test5_in_out1` (18:51) the hedgehog was
+   moved. Lever arm with respect to the rigid body pivot: (−0.144, −0.141) m before, (0.214, 0.241) m
+   after, i.e. 52 cm (tape: about 45 cm).
+3. **Alignment** OptiTrack → Marvelmind map (rotation, translation, lever arm): fitted **only** on the
+   stops of the three evening trials. The lever arm before the move is fitted on the afternoon
+   rotations (`test1`, `test2`) with rotation and translation fixed. Triangles, in/out and the long
+   rests are never used for fitting, so their errors are a fair test.
+4. **Delay** of Marvelmind with respect to OptiTrack: 0.09 s, estimated on the evening triangle and
+   applied to all recordings.
+5. OptiTrack frames with a mean marker error above 3 mm are discarded. Stops: OptiTrack speed below
+   2 cm/s and rotation below 3 °/s for at least 10 s, 2 s trimmed at both ends.
+6. **One stop failed** the correction (`test4_triangle` at 318 s, 39 samples, 167 cm). It is reported
+   and excluded from the per-vertex and per-speed statistics; it stays in the CDF (Fig. 3).
 
-**Caveat.** The alignment was fitted on the same stops, and the robot reached the vertices with
-different headings. Fig. 5 (setup B) shows that the heading matters, so part of this spread may be
-the heading. Recompute with the raw data and the heading of each stop.
+## Summary table (use it as Table I)
 
-**Use in the paper.** Results, A (at rest). Keep.
+Error = 2D distance between Marvelmind and the OptiTrack hedgehog position.
 
-**Suggested caption.** *Marvelmind offset at each stop on the three vertices (small markers) and
-mean per vertex (large markers). The mean is 2–3 cm, the spread between visits 4–7 cm.*
-
----
-
-## Fig. 3: error vs speed (setup A)
-
-`figures/fig3_error_vs_speed.pdf`
-
-**What it shows.** RMS of the Marvelmind error in speed bins (speed from OptiTrack); the first point
-is at rest (< 3 cm/s). Error bars: 95 % bootstrap interval.
-
-| Speed (m/s) | rest | 0.03–0.1 | 0.1–0.2 | 0.2–0.3 | 0.3–0.4 | 0.4–0.55 |
-|---|---|---|---|---|---|---|
-| run 1 (cm) | 4.5 | 5.8 | 5.8 | 6.2 | 7.2 | – |
-| last 40 points (cm) | 8.7 | 8.9 | 10.6 | 11.1 | 11.5 | 14.1 (33 samples) |
-
-**Message.** The error grows slowly with speed, by about 3–5 cm up to 0.4 m/s. The fast and slow
-triangles of setup B were recorded for this figure: add them when the raw data are available.
-
-**Caveat.** Consecutive samples are correlated, so the bootstrap intervals are too narrow. Use blocks
-(for example one block per stop-to-stop segment) in the final version.
-
-**Use in the paper.** Results, B (while moving). Keep.
-
-**Suggested caption.** *RMS error of Marvelmind as a function of the speed measured by OptiTrack.
-The first point of each curve is at rest.*
-
----
-
-## Fig. 4: processing chain, temporal filters (setup A)
-
-`figures/fig4_cdf_processing.pdf`
-
-**What it shows.** CDF of the error on the last 40 points, at rest and while moving, for the raw
-data, a causal constant-velocity Kalman filter and the offline Kalman + RTS smoother. The filter
-parameters were tuned on run 1 and tested here (never tuned and tested on the same recording).
-
-| | Rest RMS / p95 | Moving RMS / p95 |
-|---|---|---|
-| raw | 8.7 / 15.9 cm | 10.5 / 18.3 cm |
-| Kalman, causal | 9.0 / 15.9 cm | 10.4 / 18.0 cm |
-| Kalman + RTS, offline | 8.7 / 15.9 cm | 9.8 / 16.5 cm |
-
-**Message.** Filtering in time gains at most about 1 cm, because the error is slow (Fig. 2). Delay
-compensation was also tried: same result.
-
-**Use in the paper.** Results, C. The figure can be replaced by one sentence or by rows of the
-summary table if space is short.
-
-**Suggested caption.** *Error CDF on the test recording for the raw Marvelmind data and two
-temporal filters tuned on another recording.*
-
----
-
-## Fig. 5: offset vs robot heading (setup B)
-
-`figures/fig5_heading.pdf`
-
-**What it shows.** Offset at each stop against the robot heading from OptiTrack, for all stops of
-the afternoon, with one common alignment (Berat's table `common_alignment_durmalar.csv`, 39 stops,
-lever arm estimated 0.15 m). Circles: P1, rotation in place at one point, two repetitions. Squares
-and triangles: the two vertices used in the triangle and in/out tests.
-
-**Message.** At the same place the error depends strongly on the heading, and it repeats:
-
-| P1 heading | −134° | −44° | +45/47° | +137° |
+| Recording | As recorded, median / p95 | Corrected, median / p95 | Moving, RMS / p95 | Valid after correction |
 |---|---|---|---|---|
-| repetition 1 | 10.0 cm | 7.3 cm | 55.0 cm | 29.4 cm |
-| repetition 2 | 10.0 cm | 4.9 cm | 59.0 cm | 45.7 cm |
+| rotation 1 (`test1`) | 6.6 / 17.8 cm | 4.9 / 13.6 cm | – | 82 % |
+| rotation 2 (`test2`) | 19.9 / 129.5 cm | 3.5 / 11.8 cm | – | 95 % |
+| triangle, fast | 23.5 / 50.9 cm | 7.0 / 9.9 cm | 9.4 / 18.1 cm | 86 % |
+| triangle, slow | 17.1 / 140.6 cm | 10.3 / 20.6 cm | 15.6 / 22.4 cm | 84 % |
+| in/out (inside the OptiTrack area) | 13.4 / 150.9 cm | 6.4 / 20.2 cm | 11.1 / 17.7 cm | 81 % |
+| rest, 18 min | 35.8 / 36.3 cm | 2.6 / 3.1 cm | – | 100 % |
+| evening triangle (correct map) | – | 8.2 / 13.8 cm at rest | 10.8 / 21.6 cm | – |
+| evening rest, 10 min | – | 7.4 / 7.9 cm | – | – |
 
-At the vertex near (0.5, 0.4) m: heading +76° gives 5–6 cm, heading −85…−94° gives 19–41 cm. The most
-likely cause is the robot body hiding the hedgehog from one or more beacons at some headings. This is
-probably the most interesting finding of the day.
-
-**Caveats (important).**
-- The lever arm is estimated from the data, not measured. A wrong lever arm also produces an error
-  that depends on the heading. Measure it and recompute before claiming the effect.
-- At the vertex near (−1.2, −1.2) m, the same heading (about −85°) gives 3–11 cm in the slow triangle
-  and 36–49 cm in the fast triangle and in the in/out test. Either something changed between those
-  recordings, or the effect also depends on the speed or on the path. Check with the raw data.
-
-**Use in the paper.** Results, A or a separate subsection ("effect of the robot heading"). Keep if
-confirmed with the measured lever arm.
-
-**Suggested caption.** *Marvelmind offset at the stops as a function of the robot heading. Circles:
-rotation in place at one point, two repetitions.*
+"As recorded" is computed with the best rigid alignment fitted on the as-recorded data themselves,
+so it is the most favourable view of the wrong map.
 
 ---
 
-## Fig. 6: z consistency check (setup B)
+## Fig. 1: setup (two columns)
 
-`figures/fig6_zcheck.pdf`
+`figures/fig1_setup.pdf`
 
-**What it shows.** Moving error (RMS and 95th percentile) with all samples and after removing the
-samples whose Marvelmind z is outside ±0.4 m of the known hedgehog height. Numbers from Berat's table
-`common_alignment_ozet.csv` (common alignment).
+(a) Floor plan in the Marvelmind map frame: the four stationary beacons with their heights, the
+area covered by OptiTrack (blue), the triangle (orange) and the Marvelmind path of the in/out test
+(grey), which leaves the OptiTrack area to the right. (b) Robot seen from above: the 13 markers of the
+rigid body, its pivot, and the hedgehog before and after it was moved.
 
-| Recording | Removed | RMS all → z check | p95 all → z check |
-|---|---|---|---|
-| triangle, fast | 34 % | 36.3 → 30.0 cm | 54.6 → 50.4 cm |
-| triangle, slow | 49 % | 82.6 → 31.4 cm | 156.7 → 56.4 cm |
-| in/out | 44 % | 50.6 → 34.9 cm | 138.6 → 63.6 cm |
+**Use.** Section III. Add the photo of the robot as a third panel when it is available.
 
-**Message.** The hedgehog height on the robot is fixed, so z is a free integrity check: it removes
-the wrong 3D solutions and cuts the large errors (p95) by about a factor of 2–3. The cost is
-availability: up to half of the samples are removed. Present it as an accuracy vs availability
-trade-off. This is the most useful step of the processing chain.
-
-**Caveat.** The remaining error (30–35 cm RMS) is still dominated by the heading effect and by the
-uncertain alignment of setup B.
-
-**Use in the paper.** Results, C (processing chain). Keep.
-
-**Suggested caption.** *Moving error with all Marvelmind samples and after the z consistency check;
-the labels give the share of samples removed.*
+**Suggested caption.** *Experimental setup. (a) Floor plan with the stationary beacons (height
+above the floor), the area covered by OptiTrack, the triangle path and the in/out path. (b) Top view
+of the OptiTrack rigid body on the robot and position of the Marvelmind hedgehog in the two mountings.*
 
 ---
 
-## Fig. 7: in/out test (setup B)
+## Fig. 2: as recorded vs corrected (slow triangle)
+
+`figures/fig2_correction.pdf`
+
+The slow triangle with the positions as recorded (wrong beacon 1 height) and after the correction,
+both against the OptiTrack path.
+
+**Message.** The wrong map gives scattered, partly wrong positions (wrong 3D solutions); after the
+correction the path follows the reference. Optional if space is short: Fig. 3 carries the numbers.
+
+**Suggested caption.** *Slow triangle: Marvelmind positions (dots) against the OptiTrack reference
+(line), (a) as recorded with the wrong height of beacon 1, (b) after the correction.*
+
+---
+
+## Fig. 3: error CDF before and after the correction
+
+`figures/fig3_cdf.pdf`
+
+**Message.** The correction removes the large errors: the p95 drops from 50–150 cm to 10–20 cm, the
+median from 13–36 cm to 3–10 cm (Table I). It works for all kinds of test, at rest and while moving.
+
+**Use.** Results, "Effect of a configuration error and its correction". Keep.
+
+**Suggested caption.** *Cumulative distribution of the Marvelmind error as recorded (dotted) and after
+the correction of the beacon 1 height (solid).*
+
+---
+
+## Fig. 4: at rest (vertices and rotation in place)
+
+`figures/fig4_rest.pdf`
+
+(a) Offset at each stop on the three triangle vertices (both triangles); large markers: mean per
+vertex. (b) Offset at the stops of the rotation in place against the robot heading, four repetitions
+(two afternoon, two evening).
+
+| Vertex | Stops | Mean offset | Spread between visits (std x / y) | Jitter within a stop |
+|---|---|---|---|---|
+| 1 | 7 | 3.7 cm | 8.9 / 3.5 cm | 1.3 mm |
+| 2 | 8 | 5.8 cm | 3.0 / 3.9 cm | 1.4 mm |
+| 3 | 6 | 10.5 cm | 4.9 / 4.4 cm | 1.4 mm |
+
+Rotation in place: the offset depends on the heading and the pattern repeats: −134° gives
+10–14 cm in three of four runs, −44° gives 0.4–4.7 cm.
+
+**Message.** At rest Marvelmind is very repeatable within a stop (about 1 mm), but the offset changes
+by several cm from one visit to the next and with the heading. The error is a slowly varying bias, not
+noise.
+
+**Use.** Results, at rest. Keep.
+
+**Suggested caption.** *Offset at rest. (a) Offset at each stop on the three triangle vertices (small
+markers) and mean per vertex (large markers). (b) Offset against the robot heading for the rotation
+in place, four repetitions.*
+
+---
+
+## Fig. 5: error vs speed
+
+`figures/fig5_speed.pdf`
+
+RMS error in speed bins (speed from OptiTrack, delay 0.09 s compensated); bins with fewer than 30
+samples are not shown.
+
+**Message.** After the correction there is no clear dependence on the speed up to 0.6 m/s: the
+RMS stays at about 7–14 cm. (The large speed effect seen during the tests was caused by the wrong
+map.) Note: the "fast" triangle has few samples above 0.2 m/s; check the speeds of the two triangles.
+
+**Use.** Results, while moving. Can be replaced by one sentence if space is short.
+
+**Suggested caption.** *RMS error of Marvelmind as a function of the speed measured by OptiTrack.*
+
+---
+
+## Fig. 6: Allan deviation at rest
+
+`figures/fig6_allan.pdf`
+
+Allan deviation (2D) of the Marvelmind position during the two long rests (18 min afternoon, corrected;
+10 min evening), with OptiTrack for comparison. Dotted lines: offset of each rest from the reference.
+
+| | 18 min (afternoon) | 10 min (evening) |
+|---|---|---|
+| Jitter (std, 2D) | 4.0 mm | 4.1 mm |
+| Allan deviation at 1 / 10 / 60 s | 1.6 / 0.5 / 0.23 mm | 1.6 / 0.5 / 0.21 mm |
+| Offset to the reference | 2.6 cm | 7.4 cm |
+
+**Message.** Precision and accuracy differ by more than an order of magnitude: averaging reduces the
+noise to a fraction of a millimetre, but the offset (3–7 cm) stays. Averaging longer does not improve
+the accuracy. Also: the two rests agree, so the correction of the afternoon data does not change the
+noise behaviour.
+
+**Use.** Results, at rest. Keep.
+
+**Suggested caption.** *Allan deviation of the Marvelmind position at rest (two recordings) and of
+OptiTrack. The dotted lines give the offset of each recording from the reference.*
+
+---
+
+## Fig. 7: in/out test
 
 `figures/fig7_inout.pdf`
 
-**What it shows.** Top: Marvelmind error over time (only where OptiTrack is available); grey bands:
-the robot is outside the OptiTrack area. Bottom: OptiTrack path (black) and Marvelmind positions after
-the z check (grey); the robot leaves the OptiTrack area towards the right.
+(a) Error over time where OptiTrack is available; grey bands: the robot is outside the OptiTrack area.
+(b) OptiTrack (blue) and Marvelmind (grey) paths; crosses: Marvelmind position at the stops on the
+outside points C and D.
 
-**Status.** Only a first look. Missing for the paper, both need the raw data:
-- the **error at re-entry** compared with the error before leaving (from the embedded data only 3 of
-  10 re-entries can be evaluated);
-- the **spread of Marvelmind on the outside points C and D** over the 10 laps (the z check removed
-  too many samples there to detect the stops reliably).
+| | Value |
+|---|---|
+| Re-entries evaluated | 10 |
+| Error in the 8 s before leaving / after re-entry (median) | 5.3 / 4.3 cm |
+| Spread at the outside points (std x / y, 4 stops each) | C: 5.8 / 6.9 cm, D: 7.6 / 9.6 cm |
 
-The positions of C and D are only approximate, so the paper reports the re-entry error and the spread
-outside, not an absolute accuracy outside the OptiTrack area.
+**Message.** Leaving the OptiTrack area does not degrade Marvelmind: the error after re-entry is the
+same as before. Outside, the repeatability over the visits is 6–10 cm; this is an upper bound, because
+it also includes how precisely the robot was stopped on the floor marks. There is no absolute accuracy
+outside the OptiTrack area (the floor marks were not surveyed).
 
-**Use in the paper.** Results, D. Redo with the raw data.
+**Use.** Results, outside the OptiTrack area. Keep.
+
+**Suggested caption.** *Out-and-back test. (a) Marvelmind error over time; grey: outside the OptiTrack
+area. (b) Paths and Marvelmind positions at the outside stops.*
 
 ---
 
-## What is needed to make the final figures
+## Which figures in 6 pages
 
-1. Raw recordings (`kayit_20261112_*.csv`) of all afternoon tests, filtered and unfiltered, and P2
-   (10 min at rest, for the Allan deviation).
-2. The Motive rigid body definition of the afternoon (NatNet data descriptions).
-3. The hedgehog position measured with a tape with respect to two markers that can be identified in
-   Motive.
-4. The log of the tests (file → test type, speed, notes).
-
-## Which figures to keep in 6 pages
-
-Recommended: Fig. 2, 3, 5, 6, 7 plus the setup figure (photo and floor plan). Fig. 1 and Fig. 4 only
-if space allows (Fig. 4 can become two rows of the summary table).
+Recommended: Fig. 1 (two columns, with the photo), 3, 4, 6, 7 and Table I. Fig. 2 and Fig. 5 only if
+space allows (Fig. 5 can become one sentence).

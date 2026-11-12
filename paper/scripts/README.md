@@ -1,13 +1,13 @@
-# Scripts for the preliminary figures
+# Scripts for the paper
 
-These scripts read the data **embedded in the HTML reports** (time, x, y already aligned), not the
-raw recordings. They are a first look; the final figures must be made from the raw files.
+Unzip the archives first (from the repository root):
 
-1. `extract.py <reports dir> <out dir>`: writes `run1.json` and `last40.json` from
-   `docs/data_of_all_tests/reports/` (morning of 12 November).
-2. The afternoon data come from the `RECS` block of `KELO_Tests_Report_EN.html` in
-   `KELO_Testleri_12Kasim.zip` (sent by e-mail), saved as `pm_recs.json`, plus the tables in its
-   `tablolar/` folder.
-3. `figures.py <figures dir> <unzipped KELO_Testleri_12Kasim dir>`, run in the folder with the JSON
-   files, writes the PDF/PNG figures and `figures_numbers.json`. Needs numpy and matplotlib.
-`analyse.py` holds the shared functions (loading, jump rejection, Kalman filter, RTS smoother).
+    for z in experiments/archives/*/*.zip; do unzip -q -o "$z" -d experiments/extracted/; done
+
+1. `b1_correction.py <raw csv> <output csv>`: recomputes the afternoon Marvelmind positions of
+   12 November with the corrected beacon 1 height (no OptiTrack). Outputs are already in
+   `experiments/2026-11-12/afternoon_corrected/`.
+2. `analysis.py <repository root>`: alignment, metrics and all figures of the paper; writes
+   `paper/figures/*.pdf|png` and `paper/figures/numbers.json`. Needs numpy, scipy, matplotlib.
+
+What each figure shows and the numbers: `paper/FIGURES.md`.

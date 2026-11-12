@@ -1,0 +1,386 @@
+{
+ "alignment": {
+  "fitted_on": "evening trials (rotation x2, triangle) + afternoon rotations for the early lever arm",
+  "rotation_deg": -182.88,
+  "translation_m": [
+   1.545,
+   -3.054
+  ],
+  "lever_arm_after_move_m": [
+   0.214,
+   0.241
+  ],
+  "lever_arm_before_move_m": [
+   -0.144,
+   -0.141
+  ],
+  "hedgehog_moved_by_m": 0.523
+ },
+ "delay_s": {
+  "estimated_on": "evening triangle",
+  "tau": 0.09
+ },
+ "per_recording": {
+  "test1": {
+   "label": "rotation 1",
+   "session": "afternoon",
+   "samples_with_reference": 897,
+   "failed_samples": 0,
+   "rest_median": 4.9,
+   "rest_p95": 13.6,
+   "as_recorded_median": 6.6,
+   "as_recorded_p95": 17.8,
+   "corrected_median": 4.9,
+   "corrected_p95": 13.6,
+   "valid_after_correction_pct": 82.1
+  },
+  "test2": {
+   "label": "rotation 2",
+   "session": "afternoon",
+   "samples_with_reference": 987,
+   "failed_samples": 0,
+   "rest_median": 3.5,
+   "rest_p95": 11.8,
+   "as_recorded_median": 19.9,
+   "as_recorded_p95": 129.5,
+   "corrected_median": 3.5,
+   "corrected_p95": 11.8,
+   "valid_after_correction_pct": 95.0
+  },
+  "test2_triangle": {
+   "label": "triangle, fast",
+   "session": "afternoon",
+   "samples_with_reference": 2170,
+   "failed_samples": 0,
+   "rest_median": 7.0,
+   "rest_p95": 9.2,
+   "moving_median": 7.3,
+   "moving_rms": 9.4,
+   "moving_p95": 18.1,
+   "as_recorded_median": 23.5,
+   "as_recorded_p95": 50.9,
+   "corrected_median": 7.0,
+   "corrected_p95": 9.9,
+   "valid_after_correction_pct": 86.4
+  },
+  "test4_triangle": {
+   "label": "triangle, slow",
+   "session": "afternoon",
+   "samples_with_reference": 3011,
+   "failed_samples": 46,
+   "rest_median": 10.3,
+   "rest_p95": 20.5,
+   "moving_median": 9.3,
+   "moving_rms": 15.6,
+   "moving_p95": 22.4,
+   "as_recorded_median": 17.1,
+   "as_recorded_p95": 140.6,
+   "corrected_median": 10.3,
+   "corrected_p95": 20.6,
+   "valid_after_correction_pct": 83.9
+  },
+  "test5_in_out1": {
+   "label": "in/out",
+   "session": "afternoon",
+   "samples_with_reference": 6222,
+   "failed_samples": 3,
+   "rest_median": 6.3,
+   "rest_p95": 20.4,
+   "moving_median": 7.9,
+   "moving_rms": 11.1,
+   "moving_p95": 17.7,
+   "as_recorded_median": 13.4,
+   "as_recorded_p95": 150.9,
+   "corrected_median": 6.4,
+   "corrected_p95": 20.2,
+   "valid_after_correction_pct": 81.4
+  },
+  "test6_wait": {
+   "label": "rest, 18 min",
+   "session": "afternoon",
+   "samples_with_reference": 6196,
+   "failed_samples": 0,
+   "rest_median": 2.6,
+   "rest_p95": 3.1,
+   "as_recorded_median": 35.8,
+   "as_recorded_p95": 36.3,
+   "corrected_median": 2.6,
+   "corrected_p95": 3.1,
+   "valid_after_correction_pct": 100.0
+  },
+  "deneme_2025": {
+   "label": "rotation (evening)",
+   "session": "evening",
+   "samples_with_reference": 983,
+   "failed_samples": 0,
+   "rest_median": 10.9,
+   "rest_p95": 14.4
+  },
+  "deneme_2028": {
+   "label": "rotation (evening)",
+   "session": "evening",
+   "samples_with_reference": 870,
+   "failed_samples": 0,
+   "rest_median": 7.2,
+   "rest_p95": 13.2
+  },
+  "deneme_triangle_2031": {
+   "label": "triangle (evening)",
+   "session": "evening",
+   "samples_with_reference": 2460,
+   "failed_samples": 4,
+   "rest_median": 8.2,
+   "rest_p95": 13.8,
+   "moving_median": 6.8,
+   "moving_rms": 10.8,
+   "moving_p95": 21.6
+  },
+  "denemenew_wait_2040": {
+   "label": "rest, 10 min (evening)",
+   "session": "evening",
+   "samples_with_reference": 3580,
+   "failed_samples": 0,
+   "rest_median": 7.4,
+   "rest_p95": 7.9
+  }
+ },
+ "failed_stops": [
+  {
+   "rec": "test4_triangle",
+   "offset_cm": 167.3
+  }
+ ],
+ "vertices": [
+  {
+   "stops": 7,
+   "mean_offset_cm": 3.7,
+   "std_cm": [
+    8.9,
+    3.5
+   ],
+   "jitter_cm": 0.13
+  },
+  {
+   "stops": 8,
+   "mean_offset_cm": 5.8,
+   "std_cm": [
+    3.0,
+    3.9
+   ],
+   "jitter_cm": 0.14
+  },
+  {
+   "stops": 6,
+   "mean_offset_cm": 10.5,
+   "std_cm": [
+    4.9,
+    4.4
+   ],
+   "jitter_cm": 0.14
+  }
+ ],
+ "rotation_in_place": [
+  {
+   "rec": "test1",
+   "heading_deg": 47.4,
+   "offset_cm": 13.2
+  },
+  {
+   "rec": "test1",
+   "heading_deg": -43.5,
+   "offset_cm": 4.7
+  },
+  {
+   "rec": "test1",
+   "heading_deg": 136.3,
+   "offset_cm": 1.1
+  },
+  {
+   "rec": "test2",
+   "heading_deg": 136.3,
+   "offset_cm": 1.1
+  },
+  {
+   "rec": "test2",
+   "heading_deg": 47.0,
+   "offset_cm": 3.3
+  },
+  {
+   "rec": "test2",
+   "heading_deg": -44.5,
+   "offset_cm": 0.4
+  },
+  {
+   "rec": "test2",
+   "heading_deg": -133.6,
+   "offset_cm": 10.1
+  },
+  {
+   "rec": "test2",
+   "heading_deg": 136.6,
+   "offset_cm": 5.8
+  },
+  {
+   "rec": "deneme_2025",
+   "heading_deg": 47.0,
+   "offset_cm": 11.3
+  },
+  {
+   "rec": "deneme_2025",
+   "heading_deg": -44.3,
+   "offset_cm": 4.1
+  },
+  {
+   "rec": "deneme_2025",
+   "heading_deg": -133.6,
+   "offset_cm": 13.9
+  },
+  {
+   "rec": "deneme_2025",
+   "heading_deg": 136.7,
+   "offset_cm": 7.3
+  },
+  {
+   "rec": "deneme_2028",
+   "heading_deg": 46.6,
+   "offset_cm": 5.9
+  },
+  {
+   "rec": "deneme_2028",
+   "heading_deg": -44.2,
+   "offset_cm": 2.4
+  },
+  {
+   "rec": "deneme_2028",
+   "heading_deg": -133.2,
+   "offset_cm": 12.8
+  },
+  {
+   "rec": "deneme_2028",
+   "heading_deg": 136.6,
+   "offset_cm": 7.4
+  }
+ ],
+ "error_vs_speed": {
+  "edges_m_s": [
+   0.0,
+   0.02,
+   0.1,
+   0.2,
+   0.3,
+   0.4,
+   0.5,
+   0.7
+  ],
+  "test4_triangle": {
+   "rms_cm": [
+    11.3,
+    11.1,
+    11.8
+   ],
+   "n": [
+    2651,
+    55,
+    221
+   ],
+   "centres": [
+    0.01,
+    0.060000000000000005,
+    0.35
+   ]
+  },
+  "test2_triangle": {
+   "rms_cm": [
+    6.7,
+    8.2,
+    8.8
+   ],
+   "n": [
+    1950,
+    77,
+    38
+   ],
+   "centres": [
+    0.01,
+    0.060000000000000005,
+    0.15000000000000002
+   ]
+  },
+  "test5_in_out1": {
+   "rms_cm": [
+    10.1,
+    11.6,
+    14.3,
+    10.6,
+    9.5,
+    9.8,
+    9.1
+   ],
+   "n": [
+    5371,
+    267,
+    62,
+    74,
+    243,
+    67,
+    70
+   ],
+   "centres": [
+    0.01,
+    0.060000000000000005,
+    0.15000000000000002,
+    0.25,
+    0.35,
+    0.45,
+    0.6
+   ]
+  }
+ },
+ "rest": {
+  "test6_wait": {
+   "duration_s": 1069.2,
+   "jitter_std_mm": 3.99,
+   "allan_mm_at_1s_10s_60s": [
+    1.61,
+    0.5,
+    0.23
+   ],
+   "offset_to_reference_cm": 2.6
+  },
+  "denemenew_wait_2040": {
+   "duration_s": 600.8,
+   "jitter_std_mm": 4.06,
+   "allan_mm_at_1s_10s_60s": [
+    1.63,
+    0.51,
+    0.21
+   ],
+   "offset_to_reference_cm": 7.4
+  }
+ },
+ "in_out": {
+  "reentries": 10,
+  "error_before_exit_median_cm": 5.3,
+  "error_after_reentry_median_cm": 4.3,
+  "outside_points": [
+   {
+    "point": "C",
+    "stops": 4,
+    "std_cm": [
+     5.8,
+     6.9
+    ],
+    "max_from_mean_cm": 10.8
+   },
+   {
+    "point": "D",
+    "stops": 4,
+    "std_cm": [
+     7.6,
+     9.6
+    ],
+    "max_from_mean_cm": 16.6
+   }
+  ]
+ }
+}

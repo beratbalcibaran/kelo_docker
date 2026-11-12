@@ -1,7 +1,7 @@
 % I2MTC 2027 paper: Marvelmind vs OptiTrack on the KELO.
-% Limit: 6 pages including references. Plan and numbers: ../idee.md.
-% Build: needs IEEEtran.cls (in TeX Live / MiKTeX, or upload this folder to Overleaf).
-%   pdflatex main && bibtex main && pdflatex main && pdflatex main
+% Limit: 6 pages including references. Plan: ../idee.md. Figures and numbers: FIGURES.md,
+% figures/numbers.json (made by scripts/analysis.py).
+% Build: pdflatex main && bibtex main && pdflatex main && pdflatex main (TeX Live, Texifier or Overleaf).
 % Check the I2MTC 2027 author instructions (template, PDF eXpress) before submission.
 \documentclass[conference]{IEEEtran}
 \IEEEoverridecommandlockouts
@@ -18,8 +18,8 @@
 
 \begin{document}
 
-\title{Metrological Characterisation and Motion-Capture-Based Calibration of a Low-Cost Ultrasonic
-Indoor Positioning System on a Mobile Robot\\
+\title{Metrological Characterisation of a Low-Cost Ultrasonic Indoor Positioning System on a Mobile
+Robot and Correction of a Beacon Configuration Error\\
 \todo{working title}}
 
 \author{
@@ -32,10 +32,12 @@ Indoor Positioning System on a Mobile Robot\\
 
 % ---------------------------------------------------------------------------------------------------
 \begin{abstract}
-\todo{150--200 words, write last. One sentence each: problem (low-cost indoor positioning, reference
-available only in part of the area); what was done (Marvelmind on the KELO vs OptiTrack, N runs);
-main numbers (error at rest, while moving, delay); effect of the processing; result outside the
-OptiTrack area.}
+\todo{150--200 words, write last. Problem: low-cost ultrasonic indoor positioning on a mobile robot,
+reference only in part of the area. What was done: Marvelmind on a KELO robot against OptiTrack,
+rotations, triangles at two speeds, out-and-back test, long rests. Main numbers: precision
+\SI{1.6}{mm} (Allan, \SI{1}{s}) vs accuracy 3--7\,cm at rest; 9--16\,cm RMS while moving. A wrong
+height of one beacon raised the p95 error to 50--150\,cm; recomputing the recorded positions with the
+corrected map, without the reference, brought it back to 10--20\,cm.}
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -45,19 +47,19 @@ indoor positioning, ultrasonic positioning, motion capture, measurement uncertai
 % ---------------------------------------------------------------------------------------------------
 \section{Introduction}
 % ~0.75 page
-\todo{Low-cost indoor positioning systems (IPS) for mobile robots; why their accuracy must be
-measured on the robot and not on a static stand.}
+\todo{Low-cost indoor positioning systems (IPS) for mobile robots; their accuracy must be measured on
+the robot. Motion capture gives sub-millimetre reference positions, but only in a small volume.}
 
-\todo{Motion capture gives sub-millimetre reference positions, but only in a small volume. Question:
-how good is the IPS where the reference is available, and how well does a calibration made there
-hold where it is not.}
+\todo{Configuration of ultrasonic IPS (beacon positions and heights) is done by hand; a single wrong
+parameter is easy to miss and degrades the measurement. Can the data be saved afterwards?}
 
 Contributions:
 \begin{itemize}
-  \item \todo{characterisation of Marvelmind on the KELO against OptiTrack: at rest, while moving,
-        vs speed, repeatability over repeated visits of the same points;}
-  \item \todo{processing chain tuned with OptiTrack and validated with leave-one-run-out;}
-  \item \todo{error outside the OptiTrack area (floor checkpoints, re-entry).}
+  \item \todo{characterisation of Marvelmind on a mobile robot against OptiTrack: at rest (precision
+        vs accuracy, repeated visits, heading), while moving, outside the reference area;}
+  \item \todo{effect of a wrong beacon height on the measurement;}
+  \item \todo{a method to recompute the recorded positions with the corrected map, without the
+        reference, using the known height of the mobile beacon as a check.}
 \end{itemize}
 
 % ---------------------------------------------------------------------------------------------------
@@ -67,106 +69,163 @@ Contributions:
 \todo{Published evaluations of Marvelmind and other ultrasonic IPS: search IEEE Xplore and add.}
 \todo{Motion capture as reference and its own accuracy~\cite{merriaux2017vicon}.}
 \todo{Trajectory error metrics (ATE)~\cite{sturm2012benchmark}; uncertainty
-evaluation~\cite{gum2008}.}
+evaluation~\cite{gum2008}; Allan deviation~\cite{allan1966statistics}.}
 
 % ---------------------------------------------------------------------------------------------------
 \section{Experimental Setup}
 % ~1 page
-\subsection{Room and Marvelmind installation}
-\todo{Room, 4 stationary beacons (heights, positions, quadrilateral area \SI{39.7}{m^2}), hedgehog
-\#7, firmware 8.42, update rate \SI{5.76}{Hz}, filters off, temperature setting vs measured
-temperature. The OptiTrack area is in a corner of the beacon quadrilateral: say it.}
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{fig1_setup.pdf}
+  \caption{Experimental setup. (a) Floor plan with the stationary beacons (height above the floor),
+  the area covered by OptiTrack, the triangle path and the out-and-back path. (b) Top view of the
+  OptiTrack rigid body on the robot and position of the Marvelmind hedgehog in the two mountings.
+  \todo{add the photo of the robot}}
+  \label{fig:setup}
+\end{figure*}
+
+\subsection{Marvelmind}
+\todo{Four stationary beacons (B1, B2, B4, B5) at 2.40--2.60\,m, Super-Beacon hardware \todo{check},
+firmware 8.42, 3D navigation, update rate \SI{5.8}{Hz}, filters off, air temperature setting
+\SI{23}{\celsius}. Hedgehog on the robot, read through the modem (binary protocol, device time stamp).
+Fig.~\ref{fig:setup}(a).}
 
 \subsection{Reference: OptiTrack}
-\todo{V120:Trio, \SI{120}{Hz}, Motive 3.5, covered area about \SI{2.7 x 2.7}{m}, calibration
-residual, rigid body (markers, pivot), static noise at the stops.}
+\todo{V120:Trio, \SI{120}{Hz}, Motive 3.5; covered area about \SI{2.5 x 2.5}{m} in a corner of the
+beacon area; rigid body with 13 markers; static noise below \SI{0.1}{mm}, mean marker error about
+\SI{1}{mm}.}
 
 \subsection{Robot and mounting}
-\todo{KELO driven with a joystick; hedgehog and marker positions; lever arm (measured and estimated).
-Fig.~\ref{fig:setup}.}
+\todo{KELO driven with a joystick. Hedgehog lever arm with respect to the rigid body pivot: two
+mountings, (\num{-0.144}, \num{-0.141})\,m and (\num{0.214}, \num{0.241})\,m; the hedgehog was moved
+by \SI{52}{cm} between two recordings (tape: about \SI{45}{cm}). Fig.~\ref{fig:setup}(b).}
 
-\begin{figure}[t]
-  \centering
-  \fbox{\parbox[c][4cm][c]{0.9\columnwidth}{\centering \todo{photo of the robot + floor plan with
-  beacons, OptiTrack area, triangle and floor checkpoints}}}
-  % \includegraphics[width=\columnwidth]{setup.pdf}
-  \caption{Experimental setup. \todo{caption}}
-  \label{fig:setup}
-\end{figure}
-
-\subsection{Data logging and synchronisation}
-\todo{Both systems logged on the same PC (\texttt{record.py}); Marvelmind device clock drift
-(\SI{0.92}{\percent}) corrected; residual.}
+\subsection{Logging, synchronisation and test protocol}
+\todo{Both systems on the same PC (\texttt{record.py}); Marvelmind device clock drift corrected;
+residual delay \SI{0.09}{s}. Tests: rotation in place (4 headings, 4 repetitions), triangle at two
+speeds, out-and-back (10 laps), rests of 18 and 10\,min. Afternoon session with the wrong beacon~1
+height, evening session with the corrected map.}
 
 % ---------------------------------------------------------------------------------------------------
 \section{Method}
 % ~1 page
-\subsection{Frames and registration}
-\todo{2D rigid transform (x, y, yaw) + z offset between OptiTrack and Marvelmind frames, lever arm
-applied with the OptiTrack heading; estimated on calibration runs only~\cite{umeyama1991least}.
-Note the mirrored Marvelmind map if not fixed.}
+\subsection{Correction of the beacon height error}
+\todo{Each Marvelmind position comes from three beacons. From the recorded position and the wrong
+map, the distances to each triple are rebuilt; the position is recomputed with the corrected map for
+every triple; the triple whose height matches the known hedgehog height is kept, with a continuity
+term between samples (dynamic programming). The reference is not used. Validation: the four distances
+of one sample shown by the Marvelmind software fit the corrected map within \SI{4}{mm}.}
 
-\subsection{Data selection}
-\todo{Stop detection (OptiTrack speed below \SI{3}{cm/s} for at least \SI{10}{s}); exclusion of
-frames with fallen or occluded markers, based on the Motive data.}
+\subsection{Alignment and delay}
+\todo{2D rotation, translation and lever arm, robust least squares~\cite{umeyama1991least}, fitted on
+the stops of the evening trials only; delay fitted on the evening triangle. All other recordings are
+test data.}
 
-\subsection{Metrics}
-\todo{At rest: per-stop offset and jitter. While moving: RMSE, 95th percentile, CDF, error vs speed,
-effective delay. Outlier rate.}
-
-\subsection{Processing chain}
-\todo{(1) registration; (2) jump rejection; (3) temporal filter / delay compensation (Kalman,
-constant velocity~\cite{kalman1960new}; offline smoother~\cite{rauch1965maximum}); (4) optional
-beacon refinement. Leave-one-run-out.}
+\subsection{Data selection and metrics}
+\todo{Stops: OptiTrack speed below \SI{2}{cm/s} and rotation below \SI{3}{\degree/s} for at least
+\SI{10}{s}; frames with marker error above \SI{3}{mm} discarded. Metrics: 2D error, median, RMS, p95,
+CDF, per-stop offset and jitter, Allan deviation~\cite{allan1966statistics}.}
 
 \subsection{Uncertainty budget}
-\todo{OptiTrack, lever arm, synchronisation residual $\times$ speed, temperature
-(speed of sound, about \SI{0.17}{\percent/\celsius})~\cite{gum2008}.}
+\todo{OptiTrack, lever arm, delay residual $\times$ speed, temperature (speed of sound, about
+\SI{0.17}{\percent/\celsius})~\cite{gum2008}.}
 
 % ---------------------------------------------------------------------------------------------------
 \section{Results}
 % ~2 pages
-\subsection{At rest}
-\todo{Offset and jitter at the stops; repeated visits of the triangle vertices: systematic vs
-per-visit part.}
-
-\subsection{While moving}
-\todo{RMSE, p95, error vs speed, delay. Fig.~\ref{fig:speed}.}
-
-\begin{figure}[t]
-  \centering
-  \fbox{\parbox[c][3.5cm][c]{0.9\columnwidth}{\centering \todo{error vs speed}}}
-  \caption{Marvelmind error vs speed. \todo{caption}}
-  \label{fig:speed}
-\end{figure}
-
-\subsection{Processing chain}
-\todo{CDF for each step on the test runs; table.}
+\subsection{Effect of the configuration error and its correction}
+\todo{Table~\ref{tab:summary}, Fig.~\ref{fig:cdf}. One stop out of 23 failed the correction
+(\SI{167}{cm}).}
 
 \begin{table}[t]
   \centering
-  \caption{Error on the test runs (leave-one-run-out). \todo{fill}}
+  \caption{Marvelmind error (cm) as recorded and after the correction. Median / p95.}
   \label{tab:summary}
-  \begin{tabular}{lcccc}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lccc}
     \toprule
-    Step & Rest RMS & Moving RMS & Moving p95 & Delay \\
-         & (cm) & (cm) & (cm) & (s) \\
+    Recording & As recorded & Corrected & Valid \\
     \midrule
-    Raw (registration only) & -- & -- & -- & -- \\
-    + jump rejection        & -- & -- & -- & -- \\
-    + filter / delay comp.  & -- & -- & -- & -- \\
+    Rotation 1            & 6.6 / 17.8   & 4.9 / 13.6  & 82\,\% \\
+    Rotation 2            & 19.9 / 129.5 & 3.5 / 11.8  & 95\,\% \\
+    Triangle, fast        & 23.5 / 50.9  & 7.0 / 9.9   & 86\,\% \\
+    Triangle, slow        & 17.1 / 140.6 & 10.3 / 20.6 & 84\,\% \\
+    Out-and-back (inside) & 13.4 / 150.9 & 6.4 / 20.2  & 81\,\% \\
+    Rest, 18 min          & 35.8 / 36.3  & 2.6 / 3.1   & 100\,\% \\
     \bottomrule
   \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig3_cdf.pdf}
+  \caption{Cumulative distribution of the Marvelmind error as recorded (dotted) and after the
+  correction of the beacon~1 height (solid).}
+  \label{fig:cdf}
+\end{figure}
+
+% optional, if space allows
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig2_correction.pdf}
+  \caption{Slow triangle: Marvelmind positions (dots) against the OptiTrack reference (line),
+  (a) as recorded with the wrong height of beacon~1, (b) after the correction. \todo{optional}}
+  \label{fig:correction}
+\end{figure}
+
+\subsection{At rest}
+\todo{Precision vs accuracy (Fig.~\ref{fig:allan}): jitter \SI{4}{mm}, Allan deviation
+\SI{1.6}{mm} at \SI{1}{s} and \SI{0.2}{mm} at \SI{60}{s}, offset 2.6 and 7.4\,cm. Repeated visits
+(Fig.~\ref{fig:rest}a): mean offset per vertex 3.7--10.5\,cm, spread between visits 3--9\,cm, jitter
+within a stop \SI{1.4}{mm}. Heading (Fig.~\ref{fig:rest}b): 0.4--14\,cm, repeatable.}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig6_allan.pdf}
+  \caption{Allan deviation of the Marvelmind position at rest (two recordings) and of OptiTrack. The
+  dotted lines give the offset of each recording from the reference.}
+  \label{fig:allan}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig4_rest.pdf}
+  \caption{Offset at rest. (a) Offset at each stop on the three triangle vertices (small markers) and
+  mean per vertex (large markers). (b) Offset against the robot heading for the rotation in place,
+  four repetitions.}
+  \label{fig:rest}
+\end{figure}
+
+\subsection{While moving}
+\todo{RMS 9--16\,cm, p95 18--22\,cm; no clear dependence on the speed up to \SI{0.6}{m/s}
+(Fig.~\ref{fig:speed}); delay \SI{0.09}{s}. Temporal filters gained at most \SI{1}{cm}.}
+
+% optional, can become one sentence
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig5_speed.pdf}
+  \caption{RMS error of Marvelmind as a function of the speed measured by OptiTrack. \todo{optional}}
+  \label{fig:speed}
+\end{figure}
+
 \subsection{Outside the OptiTrack area}
-\todo{Error on the floor checkpoints and at re-entry.}
+\todo{Error before leaving \SI{5.3}{cm}, after re-entry \SI{4.3}{cm} (median, 10 re-entries); spread
+at the outside points 6--10\,cm, an upper bound (Fig.~\ref{fig:inout}).}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig7_inout.pdf}
+  \caption{Out-and-back test. (a) Marvelmind error over time; grey: outside the OptiTrack area.
+  (b) Paths and Marvelmind positions at the outside stops.}
+  \label{fig:inout}
+\end{figure}
 
 % ---------------------------------------------------------------------------------------------------
 \section{Discussion and Conclusion}
 % ~0.5 page
-\todo{Limits: one room, 2D only, joystick paths, fixed beacon geometry, OptiTrack area in a corner
-of the beacon area. Main numbers in one paragraph.}
+\todo{Lessons for users: check that the mobile beacon reports its real height before recording; log
+the raw distances so that configuration errors can be corrected exactly. Limits: one room, 2D only,
+joystick paths, small OptiTrack area in a corner of the beacon area, temperature not measured.}
 
 % ---------------------------------------------------------------------------------------------------
 \bibliographystyle{IEEEtran}

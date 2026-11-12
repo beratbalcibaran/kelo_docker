@@ -6,32 +6,34 @@ Measurement Technology Conference). **Full paper deadline: 4 December 2026. Maxi
 I2MTC is a measurement conference. Reviewers look for a measurement contribution: characterisation,
 calibration, uncertainty, and comparison against a reference.
 
-This plan replaces the previous one (Marvelmind latency + LiDAR map accuracy, commit `18f4e6e`).
-Now that OptiTrack is available, OptiTrack is the **reference** and Marvelmind is the **instrument
-under test**.
+OptiTrack is the **reference**, Marvelmind is the **instrument under test**. The paper uses only
+Marvelmind data (no KELO odometry). **No more recordings are planned**: the paper is written with the
+data of 12 November (afternoon and evening).
+
+Earlier versions of this plan are in the git history (latency + LiDAR maps: `18f4e6e`; first
+OptiTrack plan and the analysis of the morning data: `92a3a74`).
 
 ---
 
 ## The story in one sentence
 
 *We characterise a low-cost ultrasonic indoor positioning system (Marvelmind) on a mobile robot
-against a motion-capture reference (OptiTrack), calibrate it with the reference where the reference
-is available, and measure how well the calibration holds where it is not.*
+against a motion-capture reference (OptiTrack), show how a single wrong configuration parameter (the
+height of one beacon) turns centimetre errors into errors of tens of centimetres, and correct the
+recorded data afterwards without repeating the measurements.*
 
-Working title: *Metrological Characterisation and Motion-Capture-Based Calibration of a Low-Cost
-Ultrasonic Indoor Positioning System on a Mobile Robot*.
+Working title: *Metrological Characterisation of a Low-Cost Ultrasonic Indoor Positioning System on
+a Mobile Robot and Correction of a Beacon Configuration Error*.
 
 Contributions:
 
-1. Characterisation of Marvelmind on the KELO against OptiTrack: error at rest and while moving,
-   error vs speed, outliers, repeatability over 12 runs of the same path.
-2. A processing chain for the Marvelmind data (registration, outlier rejection, temporal filter,
-   optionally refined beacon positions), tuned with OptiTrack and validated with leave-one-run-out
-   cross-validation. The filter is evaluated as a noise vs lag trade-off as a function of speed.
-3. Use of the processing chain outside the OptiTrack area: error on surveyed floor points and at
-   re-entry.
-
-**Marvelmind data only.** The paper does not use the KELO odometry.
+1. **Characterisation** of Marvelmind on the KELO against OptiTrack: at rest (precision vs accuracy,
+   Allan deviation, offset at repeated visits, effect of the heading), while moving (error vs speed),
+   and when leaving and re-entering the OptiTrack area.
+2. **Effect of a configuration error**: with beacon 1 at 0 m instead of 2.6 m in the map, wrong 3D
+   solutions in 4–49 % of the samples, median errors up to 36 cm and p95 up to 150 cm.
+3. **Correction afterwards**: the recorded positions are recomputed with the corrected map, using the
+   known hedgehog height as a check and **without the reference**; validated against OptiTrack.
 
 ---
 
@@ -40,160 +42,74 @@ Contributions:
 - **Real data only** in the results.
 - Every number needs an uncertainty and a stated number of repetitions.
 - Keep every recording used for a result, and write in a small table which recording produced which
-  figure.
-- Analysis runs **offline**, with scripts that anyone can run again.
-- **Never fit and test on the same data.** Registration and correction are estimated on calibration
-  runs only and evaluated on the other runs.
+  figure (see `paper/FIGURES.md`).
+- Analysis runs **offline**, with scripts that anyone can run again (`paper/scripts/`).
+- **Never fit and test on the same data.** The alignment is fitted on the evening trials only (and the
+  early lever arm on the afternoon rotations); triangles, in/out and long rests are test data.
 - Every figure must be readable in black and white and at column width.
 
-## Setup (before each session)
+---
 
-1. **Fixed mounts.** Hedgehog and OptiTrack marker sets fixed with screws, not velcro, so that their
-   relative position does not change between runs. If this is not possible, measure again at every
-   session.
-2. **Rigid body defined once.** On 12 November the Motive rigid body was re-created several times,
-   also in the middle of recordings (pivot height 0.59, 0.69, 0.71, 0.81 m), so most recordings had
-   to be aligned piece by piece. Define it once, save it, and never re-create it. The current
-   definition has 11 markers, while 13 are mounted: include all of them.
-3. **Lever arm.** Hedgehog position with respect to the rigid body pivot (now the centroid of the
-   markers), in the robot frame. It is applied with the OptiTrack heading to bring the reference to
-   the hedgehog position. Estimated from the data: 15.3 cm (run 1) and 18.5 cm (last 40 points).
-   Tape measure on 12 November: hedgehog 40 cm from the front markers; the upper markers are 20 cm
-   further forward and 23–24 cm higher. This is consistent with the estimate. For an exact value,
-   measure the hedgehog against two markers that can be identified in Motive and use their
-   coordinates in `optitrack_natnet_data_descriptions.txt`.
-4. **Marvelmind Dashboard.** Beacon heights are entered as 240 (m) instead of 2.40, so the reported z
-   is 238 m: measure the real heights and fix them. The Marvelmind map is mirrored with respect to
-   OptiTrack: fix it in the Dashboard or state it in the paper.
-5. **Temperature** of the room at every session (speed of sound: about 0.17 % per °C). The
-   Dashboard setting is 23 °C.
-6. **Marvelmind configuration** (firmware, update rate, filters, IMU fusion on/off): keep it fixed,
-   or change it on purpose and report it.
-7. **OptiTrack calibration residual** from Motive, saved with the data.
-8. **Floor checkpoints outside the OptiTrack area**: 2–3 points, measured once with a laser distance
-   meter with respect to the OptiTrack frame.
-9. **Synchronisation**: both systems are logged on the same PC by `record.py`; the Marvelmind device
-   clock drifts by 0.92 % and is corrected. Describe the method and its residual in the paper.
+## Data (12 November 2026)
+
+All archives are in `experiments/archives/2026-11-12/`, described in `experiments/README.md`.
+
+| Recording | Session | What |
+|---|---|---|
+| `test1`, `test2` | afternoon | rotation in place, 4 headings, twice |
+| `test2_triangle`, `test4_triangle` | afternoon | triangle, fast and slow |
+| `test5_in_out1` | afternoon | out of the OptiTrack area and back, 10 laps (5 slow, 5 fast) |
+| `test6_wait` | afternoon | 18 min at rest |
+| `deneme_2025`, `deneme_2028`, `deneme_triangle_2031` | evening, map corrected | rotation in place twice, triangle |
+| `denemenew_wait_2040` | evening, map corrected | 10 min at rest |
+
+What happened, and has to be described in the paper:
+
+- **Beacon 1 height.** In the afternoon the map used beacon 1 at 0 m instead of 2.6 m (the value shown
+  in the Dashboard had not been applied). Corrected in the evening (map of 20:24).
+- **Hedgehog moved** between `test4_triangle` (18:29) and `test5_in_out1` (18:51), by 52 cm according
+  to the data (about 45 cm with the tape). The two mountings have different lever arms.
+- **Morning data (Experiment 0) are not used**: rigid body re-created several times, other hedgehog
+  position, different map.
+
+## Main results (details and figures in `paper/FIGURES.md`)
+
+- **Correction of the afternoon data** (`paper/scripts/b1_correction.py`): median error from 13–36 cm
+  to 3–10 cm, p95 from 50–150 cm to 10–20 cm; 81–100 % of the samples remain valid. One stop out of 23
+  failed (167 cm) and is reported.
+- **At rest: precision ≪ accuracy.** Jitter about 4 mm, Allan deviation 1.6 mm at 1 s and 0.2 mm at
+  60 s, but offset to the reference 2.6–7.4 cm. Averaging does not improve the accuracy.
+- **Repeated visits**: mean offset per vertex 3.7–10.5 cm, spread between visits 3–9 cm, jitter within a
+  stop about 1.4 mm. The offset also depends on the heading in a repeatable way (rotation in place:
+  0.4–14 cm).
+- **While moving**: RMS 9–16 cm, p95 18–22 cm; no clear dependence on the speed up to 0.6 m/s after
+  the correction. Delay 0.09 s.
+- **In/out**: error before leaving 5.3 cm, after re-entry 4.3 cm (median, 10 re-entries); spread at the
+  outside points 6–10 cm (upper bound, includes the stopping position of the robot).
 
 ---
 
-## Experiments
+## Method
 
-| | Test | Runs | Purpose |
-|---|---|---|---|
-| **E1** | Triangle driven with the joystick, stops of at least 10 s at the vertices | 12 | Error at rest (vertices), error while moving, repeatability |
-| **E2** | Free paths inside the OptiTrack area, with some stops | 12 | Test data for the calibration, generality |
-| **E3** | OptiTrack area → outside (stops on the floor checkpoints) → back inside | about 5 | Calibration used where the reference is not available |
+1. **Correction of the map error** (afternoon only): rebuild the distances to each triple of beacons
+   from the recorded position and the wrong map, recompute with the corrected map, keep the triple
+   that gives the known hedgehog height with a continuous track (dynamic programming). The reference
+   is not used. Validation: a Dashboard sample of the measured distances fits the corrected map within
+   4 mm; the corrected data are compared with OptiTrack.
+2. **Alignment** OptiTrack → Marvelmind: 2D rotation, translation and hedgehog lever arm, fitted on
+   the stops of the evening trials only; lever arm of the first mounting fitted on the afternoon
+   rotations with rotation and translation fixed. Robust least squares (soft L1).
+3. **Delay**: 0.09 s, fitted on the evening triangle.
+4. **Data selection**: OptiTrack frames with mean marker error > 3 mm are discarded; stops = OptiTrack
+   speed < 2 cm/s and rotation < 3 °/s for at least 10 s, 2 s trimmed at both ends.
+5. **Metrics**: 2D error to the OptiTrack hedgehog position; median, RMS, p95, CDF; per-stop offset and
+   jitter; Allan deviation; error vs speed; error before leaving / after re-entry.
+6. **Uncertainty budget**: OptiTrack (static noise below 0.1 mm, marker error about 1 mm), lever arm
+   (from the fit and the tape), delay residual × speed, temperature (speed of sound about 0.17 %/°C;
+   the Dashboard uses 23 °C, the room temperature was not measured).
 
-- The triangles are not identical (joystick): this is fine, Marvelmind is compared with OptiTrack
-  sample by sample, not with a nominal path.
-- Vary the speed on purpose during E1 and E2. The error vs speed is then obtained by binning on the
-  speed measured by OptiTrack, without extra runs.
-- Stops are detected from the OptiTrack speed (below a threshold for at least 10 s). State the
-  thresholds in the paper.
-- The OptiTrack V120:Trio sees up to about 2.9 m, so the covered area is about 2.7 × 2.7 m. The
-  triangle must stay inside it. This area is in a corner of the beacon quadrilateral (about 3 m from
-  beacons 1 and 4, 6 m from beacon 2, 8 m from beacon 5): say so in the paper, and keep it in mind
-  for E3, where the beacon geometry is different.
-
----
-
-## Status on 12 November
-
-Reports in `docs/data_of_all_tests/`. Usable recordings: **run 1** (`tur1_v3`, 12 points) and the
-**last 40 points** (repeat test). The others changed rigid body during the recording or covered a
-very small area. These two can be used in the paper with separate alignments, stated as such.
-
-- **E1 is in practice already recorded.** In the last 40 points the stops fall in three areas, the
-  vertices of the triangle: about (3.1, 7.3) m with 13 visits, (4.5, 5.9) m with 11, (5.4, 7.5) m
-  with 12, plus 4 single stops. Within a vertex the stops spread over 30–40 cm (joystick).
-- **Run 1 is E2 material**: 5 visits to the start point and 7 different points.
-- **Excluded: the red parts of the replays** (error > 25 cm). There the OptiTrack markers fell, so
-  the reference is wrong, not Marvelmind. Run 1 has only 5 red samples; the last 40 points have 1020
-  (34 intervals, the long ones at 270–327 s, 1335–1358 s, 1660–1684 s, 2390–2457 s). All other data
-  are correct. The numbers below exclude them.
-- **Error at rest**: RMS 4.3 cm (run 1) and 8.7 cm (last 40 points); per-stop jitter median 2–3 cm.
-- **Error while moving** (samples between the stops, OptiTrack speed > 3 cm/s): RMS 6.2 cm, p95
-  10.7 cm (run 1, 64 s); RMS 10.5 cm, p95 18.3 cm (last 40 points, 290 s). It grows slowly with
-  speed: about 9 cm below 0.1 m/s, 11.5 cm at 0.3–0.4 m/s, 14 cm at 0.4–0.5 m/s (few samples).
-- **Scale** 0.98–1.006 in every reliable recording: no scale error.
-- **The error at the same vertex does not repeat between visits.** Last 40 points: 13, 11 and 11
-  visits per vertex; mean offset per vertex 2–3 cm, spread between visits 4–7 cm per axis. The robot reached the vertices with different headings, but the
-  lever arm was fitted on the same data, so the geometric effect is already absorbed: the spread is
-  attributed to Marvelmind. The systematic, position-dependent part is small; the random part
-  dominates. A position-dependent error map would not help, so the processing chain below targets
-  the random part.
-- Outliers (> 20 cm from the stop median): 1.8 % of the samples in the last 40 points, most of them
-  at one point.
-
-These numbers were computed from the data embedded in the reports, with the alignment fitted on the
-same stops: they are indicative and must be recomputed with the final processing.
-
-### First test of the processing chain (12 November data)
-
-Tuned on one recording, tested on the other (run 1 ↔ last 40 points). Error RMS in cm.
-
-| Step | Rest, run 1 | Moving, run 1 | Rest, last 40 | Moving, last 40 |
-|---|---|---|---|---|
-| Raw | 4.5 | 6.2 | 8.7 | 10.5 |
-| + jump rejection | 4.5 | 6.2 | 9.0 | 10.5 |
-| + moving average (causal) | 4.5 | 6.9 | 9.0 | 11.5 |
-| + Kalman, constant velocity (causal) | 4.5 | 6.1 | 9.0 | 10.4 |
-| + Kalman + RTS smoother (offline) | 4.4 | 5.5 | 8.7 | 9.8 |
-| + Kalman with delay compensation | 4.6 | 6.1 | 9.1 | 9.8 |
-
-- **Filtering in time gains at most 1 cm.** At rest the error is mostly a **per-stop offset** (RMS
-  3.9 cm in run 1, 7.6 cm in the last 40 points) that stays constant during the stop and changes
-  from one visit to the next; the jitter around the stop mean is only 2.4 / 4.9 cm. A filter cannot
-  remove a slow error.
-- **Effective delay of the raw data: 0.14 s (run 1), 0.24 s (last 40 points).** Compensating it
-  flattens the error vs speed a little (run 1, 0.3–0.4 m/s: 7.2 → 6.1 cm), but the tuned delay is
-  not the same in the two recordings (0.16 vs 0.08 s).
-- Jump rejection does nothing here: after removing the red parts there are almost no jumps.
-
-**Consequence for the paper.** The main result is the **structure of the error**: a slow component
-that is constant within a stop, not repeatable between visits and not position-dependent, larger
-than the jitter. Averaging longer does not reduce it: show it with the Allan deviation of the long
-stops (Allan 1966). The processing chain gives a small gain and should be reported as such.
-
-**Open question: why does the offset change between visits?** The robot reached each vertex with a
-different heading. With the Motive heading at each stop: if the offset follows the heading (the
-robot body shading the hedgehog from some beacons), the cause is found. Quick test: one vertex,
-4 headings (0°, 90°, 180°, 270°), 30 s each, twice.
-
----
-
-## Analysis
-
-1. **Registration**: 2D rigid transform (x, y, yaw) plus a z offset between the OptiTrack and
-   Marvelmind frames, with the lever arm applied. Estimated on calibration runs only. This is needed
-   to compare the two systems at all; it is **not** the correction.
-2. **Baseline error** (after registration):
-   - at rest: bias and standard deviation at each stop point;
-   - while moving: RMSE, 95th percentile, CDF, error vs speed;
-   - rate of outliers and dropouts.
-3. **Processing chain** (Marvelmind data only, each step evaluated on its own):
-   - (1) registration only (baseline);
-   - (2) + outlier rejection (jumps), with a threshold tuned on OptiTrack;
-   - (3) + temporal filter: moving average at rest, or a constant-velocity Kalman filter. It reduces
-     the random part but adds lag while moving. Use OptiTrack to measure this noise vs lag trade-off
-     as a function of speed, and to choose the parameters;
-   - (4) optional: beacon positions refined with OptiTrack. In the Marvelmind map the distance
-     B2–B4 differs by 4.7 cm from the measured one, the other pairs by 0.1 cm. This is a physical
-     correction, so it also holds outside the OptiTrack area.
-
-   Leave-one-run-out on the runs of E1 + E2: tune on all runs but one, test on the one left out,
-   repeat for every run. Report how much each step improves the error on the test runs.
-4. **Outside the OptiTrack area (E3)**: steps (1)–(3) and, if done, (4). Error on the floor
-   checkpoints and at re-entry.
-5. **OptiTrack uncertainty**: the rigid body is one 11-marker set, so use the mean marker error from
-   Motive and the static noise at the stops (median 0.3–0.5 mm on 12 November). Discard frames with a
-   high marker error: in the last 40 points its p95 is 14.6 mm.
-
-**Uncertainty budget.** Combine: OptiTrack uncertainty (point 5), lever arm, synchronisation residual
-× speed, temperature effect on the speed of sound.
-
-Related metric to cite: absolute trajectory error (ATE), TUM RGB-D benchmark, Sturm et al. 2012.
+The temporal filters tried on the morning data (Kalman, RTS smoother) gained at most 1 cm because the
+error is a slow bias; mention it in one sentence, no figure needed.
 
 ---
 
@@ -201,15 +117,15 @@ Related metric to cite: absolute trajectory error (ATE), TUM RGB-D benchmark, St
 
 | Section | Content | Pages |
 |---|---|---|
-| I. Introduction | Low-cost indoor positioning, reference available only in part of the area, contributions as a short list | 0.75 |
-| II. Related work | Evaluations of Marvelmind and similar systems, motion capture as reference, calibration of indoor positioning systems, ATE | 0.5 |
-| III. Experimental setup | Room and beacon geometry, OptiTrack (cameras, calibration residual), KELO, marker sets, hedgehog and lever arm, synchronisation, temperature. **Fig. 1:** photo and floor plan with the OptiTrack area | 1 |
-| IV. Method | Frames and registration, stop detection, metrics, processing chain (1)–(4), leave-one-run-out, uncertainty budget | 1 |
-| V. Results | A. at rest (systematic vs random part at the vertices); B. while moving and vs speed; C. processing chain (CDF for each step, noise vs lag vs speed); D. outside the OptiTrack area. **Figures:** triangles overlaid, CDF, error and lag vs speed, path with the area outside OptiTrack. **One summary table** | 2 |
-| VI. Discussion and conclusion | Limits: one room, 2D only, joystick paths, fixed beacon geometry | 0.5 |
+| I. Introduction | Low-cost indoor positioning on robots, why configuration matters, contributions | 0.75 |
+| II. Related work | Evaluations of Marvelmind and similar systems, motion capture as reference, trajectory metrics (ATE) | 0.5 |
+| III. Experimental setup | Room and beacons, OptiTrack, KELO, rigid body and hedgehog, logging and synchronisation. **Fig. 1** | 1 |
+| IV. Method | Correction of the map error, alignment, delay, data selection, metrics, uncertainty | 1 |
+| V. Results | A. effect of the configuration error and its correction (**Table I**, Fig. 3, opt. Fig. 2); B. at rest (Fig. 4, 6); C. while moving (Fig. 5 or one sentence); D. outside the OptiTrack area (Fig. 7) | 2 |
+| VI. Discussion and conclusion | Lessons for users (check the hedgehog height in z, enable raw distances), limits: one room, 2D, joystick paths, small OptiTrack area | 0.5 |
 | References | about 15 entries | 0.25 |
 
-Write in IEEE conference format (LaTeX template from the conference site).
+The LaTeX file is `paper/main.tex`; the figures are already included.
 
 ---
 
@@ -217,8 +133,17 @@ Write in IEEE conference format (LaTeX template from the conference site).
 
 | Dates | Work |
 |---|---|
-| by 20 Nov | With the rigid body fixed: more E2 runs, E3 (about 5), and E1 again if the 12 November data are not enough |
-| by 27 Nov | Analysis, figures, complete first draft |
+| by 20 Nov | Introduction, related work (find the Marvelmind evaluation papers), setup, method; photos of the robot and the room for Fig. 1 |
+| by 27 Nov | Results and discussion, complete first draft |
 | 1–4 Dec | Review with Andrea, corrections, submission |
 
-Share a short status every few days (what is recorded, what is analysed, first numbers).
+## For future sessions (lessons from 12 November)
+
+- Check in the Dashboard that the **hedgehog z reads its real height** before recording: it reveals a
+  wrong beacon height at once.
+- Turn on the **raw distances** (`COMM_Raw_distances`) and log them, so that any configuration error
+  can be corrected exactly afterwards.
+- Charge the beacons: in the evening beacon 1 was at 2.58 V and sleeping.
+- Define the Motive rigid body once; measure the hedgehog lever arm with a tape and do not move it
+  during a session (or write down when it is moved).
+- Write down the room temperature.
