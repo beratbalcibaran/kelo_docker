@@ -234,10 +234,7 @@ C (2.70, −1.85), D (4.40, −3.30), E (5.10, −1.90) m. Beacons in the photo:
 above the window near the tripod, B2 left wall at the back, B5 on the mural wall near the window corner
 (deduced from the right-handed map frame; to be confirmed by Andrea).
 
-**Caption.** *Test setup: Marvelmind stationary beacons (height above the floor), OptiTrack bar and working area, triangle A–B–C and out-and-back stops D, E. The zoom on the KELO robot shows the OptiTrack markers, the rigid body pivot and the mobile beacon in the mountings M1 and M2.* (Previous longer caption:
-floor), the OptiTrack bar and its working area, the triangle A–B–C and the stops D and E of the
-out-and-back test. The zoom on the KELO robot shows the OptiTrack markers, the rigid body pivot and the
-mobile beacon in the two mountings M1 and M2, in the robot body frame.*
+**Caption.** *Test setup: Marvelmind stationary beacons (height above the floor), OptiTrack bar and working area, triangle A–B–C and out-and-back stops D, E. The zoom on the KELO robot shows the OptiTrack markers, the rigid body pivot and the mobile beacon in the mountings M1 and M2.*
 
 ## Floor plan (single column)
 
