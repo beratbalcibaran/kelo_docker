@@ -97,7 +97,7 @@ label('Marvelmind stationary beacons', (760, 95),
        ((BEAC['B5'][0][0] + 4, BEAC['B5'][0][1] - 16), 0.1), ((BEAC['B4'][0][0] - 6, BEAC['B4'][0][1] - 15), -0.25)])
 label('OptiTrack V120:Trio\n120 Hz, 1.93 m', (1440, 95), [((OPTI[0] + 30, OPTI[1] - 8), -0.3)])
 label('Out-and-back stops D, E\noutside the OptiTrack area', (215, 640),
-      [(((OUT['D'][0] + OUT['E'][0]) / 2, (OUT['D'][1] + OUT['E'][1]) / 2 - 8), 0.3)])
+      [((OUT['E'][0] * 0.3 + OUT['D'][0] * 0.7, OUT['E'][1] * 0.3 + OUT['D'][1] * 0.7 - 6), -0.3)])   # lands between E and D, bowing away from E
 label('Triangle A–B–C', (215, 1120), [((520, 960), -0.25)])
 label('OptiTrack area ≈ 2.5 m × 2.5 m', (745, 1140), [(tuple(area[0] * 0.55 + area[1] * 0.45), 0.25)])
 label('KELO robot: mobile beacon\nand OptiTrack rigid body', (905, 625), [((975, 775), 0.15)])
