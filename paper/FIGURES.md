@@ -90,7 +90,7 @@ All samples with reference (median / p95, and share of samples kept):
 | Rest | 35.8 / 36.3, 100 % kept | 2.6 / 3.1, 100 % kept |
 
 **Messages.**
-- The configuration error multiplies the errors by 3–10 (p95 up to 1.4 m).
+- The configuration error multiplies the errors by 3–10 (p95 up to 1.5 m, out-and-back; 1.4 m in the triangle).
 - The simple fix, discarding samples with a wrong height, removes the worst outliers but keeps the
   bias (rest: 35.8 cm) and throws away up to 45 % of the data. The correction keeps 81–100 % of the
   samples and brings the errors down to the C2 level.
@@ -303,8 +303,8 @@ and after the correction, and campaign 2 with the correct configuration.*
 | B | 9, 5.6 cm, 2.8 / 3.8 cm | 3, 4.2 cm, 7.7 / 4.4 cm |
 | C | 6, 10.5 cm, 4.9 / 4.4 cm | 3, 2.7 cm, 1.2 / 2.6 cm |
 
-Rotation in place, the same pattern in both campaigns: −44° gives 2.6–5.5 cm in all four runs,
-−134° gives 12.9–16.5 cm in the three runs that have it. Jitter within a stop about 1.4 mm.
+Rotation in place: in C2 the two runs repeat (−44°: 2.9–4.5 cm, −134°: 15.4–16.5 cm); in C1 they do
+not (up to 14.6 cm apart at the same heading). See "Heading: registration or IPS?" before writing. Jitter within a stop about 1.4 mm.
 
 **Caption.** *Offset at rest. (a) Offset at each stop on the three triangle vertices, campaign 1
 corrected (open) and campaign 2 (filled). (b) Offset against the robot heading for the rotation in

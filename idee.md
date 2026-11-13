@@ -32,7 +32,7 @@ Contributions:
    Allan deviation, offset at repeated visits, effect of the heading), while moving, and when leaving
    and re-entering the OptiTrack area.
 2. **Effect of a configuration error**: with beacon 1 at 0 m instead of 2.6 m in the map, median
-   errors up to 36 cm and p95 up to 1.4 m.
+   errors up to 36 cm and p95 up to 1.5 m.
 3. **Correction afterwards and its validation**: the recorded positions are recomputed with the
    correct map, using the known hedgehog height as a check and **without the reference**. Validation by
    design: a second campaign at the same robot poses with the correct configuration. The corrected
