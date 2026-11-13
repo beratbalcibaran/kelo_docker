@@ -23,8 +23,8 @@ single wrong configuration parameter (the height of one beacon) multiplies the e
 recompute the recorded positions afterwards, without the reference, so that they match the campaign
 recorded with the correct configuration.*
 
-Working title: *Metrological Characterisation of a Low-Cost Ultrasonic Indoor Positioning System on
-a Mobile Robot and Correction of a Beacon Configuration Error*.
+Title: *Low-Cost Ultrasonic Indoor Positioning on a Mobile Robot: Characterisation and Beacon Map
+Correction*.
 
 Contributions:
 
