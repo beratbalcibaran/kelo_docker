@@ -302,25 +302,28 @@ NUM['rigid_body'] = {'low_markers_height_cm': round(hz, 1), 'upper_markers_heigh
 save(fig, 'fig1_setup')
 
 # ------------------------------------------------------------------ floor plan (single column), names as in the photo
-fig, ax = plt.subplots(figsize=(W1, 2.4))
-for k, (x, y, z) in BEACONS.items():
-    right = x > 5
-    ax.plot(x, y, 's', ms=6, color='#c0392b')
-    ax.annotate(f'B{k}  {z:.2f} m', (x, y), xytext=(-6 if right else 6, -2), textcoords='offset points', fontsize=6.5, va='top', ha='right' if right else 'left')
-ax.plot(Mi['x'], Mi['y'], '.', ms=0.5, color='0.65', rasterized=True, label='Marvelmind, out-and-back')
+fig, ax = plt.subplots(figsize=(W1, 2.6))
+ax.plot(Mi['x'], Mi['y'], '.', ms=0.5, color='0.7', rasterized=True, label='Marvelmind, out-and-back', zorder=1)
 Hall = np.vstack([hedge(REC[n]['O']['x'], REC[n]['O']['y'], REC[n]['O']['yaw'], PARAMS[n][2], TH, TT)[::20] for n in CAMPAIGN1])
-ax.plot(Hall[:, 0], Hall[:, 1], '.', ms=0.5, color='#1f77b4', alpha=0.5, rasterized=True, label='OptiTrack coverage')
+ax.plot(Hall[:, 0], Hall[:, 1], '.', ms=0.5, color='#1f77b4', alpha=0.45, rasterized=True, label='OptiTrack coverage', zorder=1)
 tri = np.array([VERTEX_NAMES[k] for k in 'ABCA'])
-ax.plot(tri[:, 0], tri[:, 1], '-', color='#e67e22', lw=1.2, label='triangle')
+ax.plot(tri[:, 0], tri[:, 1], '-', color='#e67e22', lw=1.2, label='triangle', zorder=2)
+LBOX = dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.9)
+for k, (x, y, z) in BEACONS.items():
+    ax.plot(x, y, 's', ms=6, color='#c0392b', zorder=3)
+    left = k == 5
+    ax.annotate(f'B{k}, {z:.2f} m', (x, y), xytext=(-7 if left else 7, 0), textcoords='offset points', fontsize=6.5,
+                va='center', ha='right' if left else 'left', bbox=LBOX, zorder=4)
+OFF = {'A': (11, -9), 'B': (-12, 2), 'C': (2, 11), 'D': (-12, -3), 'E': (11, 3)}
 for k, (x, y) in {**VERTEX_NAMES, **OUTSIDE_NAMES}.items():
     col = '#e67e22' if k in VERTEX_NAMES else '#8e44ad'
-    ax.plot(x, y, 'o' if k in VERTEX_NAMES else 's', ms=4, color=col, mec='white', mew=0.5)
-    off = {'A': (-11, -8), 'B': (-10, 3), 'C': (4, 4), 'D': (-11, 2), 'E': (5, 3)}[k]
-    ax.annotate(k, (x, y), xytext=off, textcoords='offset points', fontsize=7.5, weight='bold', color=col)
-ax.set_xlim(-1.0, 10.8); ax.set_ylim(-6.3, 1.0); ax.set_aspect('equal', adjustable='datalim')
+    ax.plot(x, y, 'o' if k in VERTEX_NAMES else 's', ms=4, color=col, mec='white', mew=0.5, zorder=3)
+    ax.annotate(k, (x, y), xytext=OFF[k], textcoords='offset points', fontsize=7, weight='bold', color=col,
+                ha='center', va='center', bbox=dict(boxstyle='circle,pad=0.1', fc='white', ec=col, lw=0.5), zorder=4)
+ax.set_xlim(-0.8, 10.6); ax.set_ylim(-6.4, 1.0); ax.set_aspect('equal', adjustable='datalim')
 ax.set_xlabel('x (m)'); ax.set_ylabel('y (m)')
-fig.subplots_adjust(bottom=0.28); h_, l_ = ax.get_legend_handles_labels()
-fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=3, markerscale=10, fontsize=6.5)
+fig.subplots_adjust(bottom=0.26); h_, l_ = ax.get_legend_handles_labels()
+fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=3, markerscale=10, fontsize=6.5, columnspacing=1.0)
 save(fig, 'fig_floorplan')
 
 # ------------------------------------------------------------------ Fig. 2: as recorded vs corrected (slow triangle)
