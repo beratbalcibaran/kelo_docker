@@ -1,12 +1,15 @@
-"""Fig. 1 of Andrea's version: annotated photo of the test room with a lateral zoom on the robot
-(3D view of the OptiTrack rigid body and of the Marvelmind mobile beacon).
+"""Fig. 1: annotated photo of the test room with a lateral zoom on the robot (3D view of the OptiTrack
+rigid body and of the Marvelmind mobile beacon).
 
-Points were placed from Andrea's hand-annotated photo (photos/room_IMG_4706_annotated_by_Andrea.jpg),
-on the clean photo photos/room_IMG_4706.jpg. Beacon IDs follow the Marvelmind map: right-handed frame,
-x from the camera side towards the mural wall, y to the left (B1 near-left, B4 near-right above the
-windows, B2 far-left, B5 on the mural wall near the window corner).
+Style: one label style (cream rounded boxes, thin border, dark sans-serif text), one arrow colour (muted
+red, curved arrows), labels along the edges of the photo, dashed grey zoom lines, light blue backdrop.
 
-Usage (from the draft folder): python scripts/fig_setup_photo.py <rigid body markers csv>
+Points were placed from Andrea's hand-annotated photo (photos/room_IMG_4706_annotated_by_Andrea.jpg, kept
+only in Andrea's draft folder) on the clean photo photos/room_IMG_4706.jpg. Beacon IDs follow the
+Marvelmind map (right-handed frame): B1 near-left on the ceiling, B4 near-right above the window, B2
+far-left, B5 on the mural wall near the window corner.
+
+Usage (from the paper folder): python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv>
 """
 import csv, json, os, sys
 import numpy as np
@@ -18,9 +21,17 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 MARKERS = sys.argv[1]
-plt.rcParams.update({'font.family': 'serif', 'font.size': 7, 'savefig.bbox': 'tight', 'savefig.pad_inches': 0.02})
+plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': ['Helvetica', 'Arial', 'DejaVu Sans'],
+                     'font.size': 6.5, 'savefig.bbox': 'tight', 'savefig.pad_inches': 0.02})
 
-img = Image.open(os.path.join(ROOT, 'photos', 'room_IMG_4706.jpg'))
+# palette (as in the reference figure)
+LABEL_FC, LABEL_EC, TEXT = '#f6efdc', '#dccba1', '#3a3a3a'
+ARROW = '#b5525c'                      # muted red for all arrows and floor marks
+AREA = '#9cc3dd'                       # light blue for the OptiTrack area
+BACK = '#e3eef6'                       # backdrop
+LBOX = dict(boxstyle='round,pad=0.35,rounding_size=0.5', fc=LABEL_FC, ec=LABEL_EC, lw=0.6)
+
+img = Image.open(os.path.join(ROOT, 'photos', 'room_IMG_4706.jpg')).convert('RGB')
 img = img.resize((2400, 1800), Image.LANCZOS); W, H = img.size
 S = W / 1600.0                                         # points below are in the 1600 x 1200 frame
 P = lambda x, y: (x * S, y * S)
@@ -33,78 +44,89 @@ ROBOT_BOX = (895, 735, 1080, 915)                      # x0, y0, x1, y1
 num = json.load(open(os.path.join(ROOT, 'figures', 'numbers.json')))
 LEV1 = np.array(num['alignment']['lever_arm_before_move_m']); LEV2 = np.array(num['alignment']['lever_arm_after_move_m'])
 
-ACC = {'beacon': '#c0392b', 'opti': '#1f77b4', 'tri': '#e67e22', 'out': '#8e44ad', 'robot': '#2c3e50'}
-fig = plt.figure(figsize=(7.16, 2.75))
-ax = fig.add_axes([0.0, 0.0, 0.53, 1.0]); ax.imshow(img); ax.set_axis_off()
-ax.set_xlim(0, W); ax.set_ylim(H, 0)
-# rounded frame around the photo
-clip = FancyBboxPatch((0, 0), W, H, boxstyle='round,pad=0,rounding_size=60', transform=ax.transData, fc='none', ec='0.3', lw=0.8)
-ax.add_patch(clip); ax.images[0].set_clip_path(clip)
+fig = plt.figure(figsize=(7.16, 2.8))
+bg = fig.add_axes([0, 0, 1, 1]); bg.set_axis_off(); bg.set_xlim(0, 1); bg.set_ylim(0, 1)
+bg.add_patch(FancyBboxPatch((0.005, 0.01), 0.99, 0.98, boxstyle='round,pad=0,rounding_size=0.04', fc=BACK, ec='none'))
 
-def callout(xy, text, xytext, color, ha='center'):
-    ax.annotate(text, xy=P(*xy), xytext=P(*xytext), ha=ha, va='center', fontsize=6.3, color='k',
-                bbox=dict(boxstyle='round,pad=0.25,rounding_size=0.4', fc='white', ec=color, lw=0.8, alpha=0.95),
-                arrowprops=dict(arrowstyle='-|>', color=color, lw=0.8, mutation_scale=6, shrinkA=0, shrinkB=2))
+ax = fig.add_axes([0.012, 0.03, 0.525, 0.94]); ax.imshow(img); ax.set_axis_off()
+ax.set_xlim(0, W); ax.set_ylim(H, 0)
+frame = FancyBboxPatch((0, 0), W, H, boxstyle='round,pad=0,rounding_size=70', transform=ax.transData, fc='none', ec='white', lw=1.2)
+ax.add_patch(frame); ax.images[0].set_clip_path(frame)
+
+def label(text, xy_text, targets, ha='center'):
+    """One cream label with one or more curved arrows to the targets."""
+    t = ax.text(*P(*xy_text), text, ha=ha, va='center', fontsize=6.5, color=TEXT, bbox=LBOX, zorder=6)
+    for xy, r in targets:
+        ax.annotate('', xy=P(*xy), xytext=P(*xy_text), zorder=5,
+                    arrowprops=dict(arrowstyle='-|>', color=ARROW, lw=0.9, mutation_scale=7, shrinkA=0, shrinkB=3,
+                                    connectionstyle=f'arc3,rad={r}', patchA=t.get_bbox_patch()))
+    return t
+
+def tag(xy, text, dx, dy):
+    ax.text(*P(xy[0] + dx, xy[1] + dy), text, ha='center', va='center', fontsize=5.4, color=TEXT,
+            bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.92), zorder=8)
 
 # OptiTrack working area (schematic: hull of the triangle, enlarged)
-V = np.array([VERT[k] for k in 'ABC'], float); c = V.mean(0)
-area = c + (V - c) * 1.35
-ax.add_patch(Polygon([P(*p) for p in area], closed=True, fc=ACC['opti'], alpha=0.13, ec=ACC['opti'], lw=0.8, ls='--'))
-# triangle and vertices
-ax.add_patch(Polygon([P(*VERT[k]) for k in 'ABC'], closed=True, fc='none', ec=ACC['tri'], lw=1.4))
-for k, (x, y) in VERT.items():
-    ax.plot(*P(x, y), 'o', ms=4, color=ACC['tri'], mec='white', mew=0.6)
-    dx, dy = {'A': (28, 22), 'B': (-34, 18), 'C': (-34, -10)}[k]
-    ax.text(*P(x + dx, y + dy), k, fontsize=8, weight='bold', color=ACC['tri'], ha='center', va='center',
-            bbox=dict(boxstyle='circle,pad=0.12', fc='white', ec=ACC['tri'], lw=0.6))
-# out-and-back path: from C to the stops D and E outside the area and back to C
-path = [VERT['C'], OUT['D'], OUT['E'], VERT['C']]
-ax.plot(*zip(*[P(*p) for p in path]), ls=(0, (3, 2)), color=ACC['out'], lw=1.0)
-for k, (x, y) in OUT.items():
-    ax.plot(*P(x, y), 's', ms=4, color=ACC['out'], mec='white', mew=0.6)
-    dx, dy = {'D': (30, -18), 'E': (-30, -16)}[k]
-    ax.text(*P(x + dx, y + dy), k, fontsize=8, weight='bold', color=ACC['out'], ha='center', va='center',
-            bbox=dict(boxstyle='circle,pad=0.12', fc='white', ec=ACC['out'], lw=0.6))
-# beacons
+V = np.array([VERT[k] for k in 'ABC'], float); c = V.mean(0); area = c + (V - c) * 1.35
+ax.add_patch(Polygon([P(*p) for p in area], closed=True, fc=AREA, alpha=0.35, ec='none', zorder=2))
+# triangle and out-and-back path (from C to D, E and back)
+ax.add_patch(Polygon([P(*VERT[k]) for k in 'ABC'], closed=True, fc='none', ec=ARROW, lw=1.3, zorder=3))
+ax.plot(*zip(*[P(*p) for p in [VERT['C'], OUT['D'], OUT['E'], VERT['C']]]), ls=(0, (3, 2)), color=ARROW, lw=0.9, zorder=3)
+for k, (x, y) in {**VERT, **OUT}.items():
+    ax.plot(*P(x, y), 'o' if k in VERT else 's', ms=3.5, color=ARROW, mec='white', mew=0.6, zorder=4)
+    dx, dy = {'A': (30, 20), 'B': (-34, 16), 'C': (-34, -8), 'D': (32, -14), 'E': (-32, -14)}[k]
+    ax.text(*P(x + dx, y + dy), k, fontsize=7, weight='bold', color=ARROW, ha='center', va='center', zorder=5,
+            bbox=dict(boxstyle='circle,pad=0.15', fc=LABEL_FC, ec=LABEL_EC, lw=0.5))
+# beacons: small circles and name/height tags
 for k, ((x, y), h) in BEAC.items():
-    ax.plot(*P(x, y), 'o', ms=7, mfc='none', mec=ACC['beacon'], mew=1.0)
-callout(BEAC['B1'][0], 'B1  (h = 2.60 m)', (420, 120), ACC['beacon'])
-callout(BEAC['B2'][0], 'B2  (h = 2.50 m)', (215, 360), ACC['beacon'])
-callout(BEAC['B5'][0], 'B5  (h = 2.55 m)', (600, 455), ACC['beacon'])
-callout(BEAC['B4'][0], 'B4  (h = 2.40 m)', (1080, 400), ACC['beacon'])
-ax.text(*P(800, 255), 'Marvelmind stationary beacons', fontsize=6.3, color=ACC['beacon'], ha='center', style='italic')
-callout(OPTI, 'OptiTrack V120:Trio\n120 Hz, h = 1.93 m', (1440, 260), ACC['opti'])
-callout((1000, 880), 'KELO robot\nmobile beacon + rigid body', (1300, 1075), ACC['robot'])
-callout(tuple(area[1] * 0.5 + area[0] * 0.5), 'OptiTrack working area\n(about 2.5 m x 2.5 m)', (830, 1150), ACC['opti'])
-callout((520, 960), 'triangle A-B-C\n(inside the area)', (330, 1110), ACC['tri'])
-callout(((OUT['D'][0] + OUT['E'][0]) / 2, (OUT['D'][1] + OUT['E'][1]) / 2), 'out-and-back stops D, E\n(outside the area)', (300, 690), ACC['out'])
+    ax.plot(*P(x, y), 'o', ms=6.5, mfc='none', mec=ARROW, mew=0.9, zorder=4)
+tag(BEAC['B1'][0], 'B1 · 2.60 m', 120, 18)
+tag(BEAC['B2'][0], 'B2 · 2.50 m', 20, -42)
+tag(BEAC['B5'][0], 'B5 · 2.55 m', 15, -42)
+tag(BEAC['B4'][0], 'B4 · 2.40 m', -125, 5)
+
+# labels along the edges, aligned in rows
+label('Marvelmind stationary beacons', (780, 95),
+      [(BEAC['B1'][0], 0.25), (BEAC['B2'][0], 0.3), (BEAC['B5'][0], 0.15), (BEAC['B4'][0], -0.25)])
+label('OptiTrack V120:Trio\n120 Hz, 1.93 m', (1415, 95), [(OPTI, -0.2)])
+label('Out-and-back stops D, E\noutside the OptiTrack area', (215, 640),
+      [(((OUT['D'][0] + OUT['E'][0]) / 2, (OUT['D'][1] + OUT['E'][1]) / 2 - 8), 0.3)])
+label('Triangle A–B–C', (215, 1120), [((520, 960), -0.25)])
+label('OptiTrack area ≈ 2.5 m × 2.5 m', (745, 1140), [(tuple(area[0] * 0.55 + area[1] * 0.45), 0.25)])
+label('KELO robot: mobile beacon\nand OptiTrack rigid body', (1415, 1125), [((1060, 905), 0.3)])
+ax.text(*P(30, 30), '(a)', fontsize=8, weight='bold', ha='left', va='top', color=TEXT, zorder=7,
+        bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='none', alpha=0.85))
+
 # zoom box on the robot
 x0, y0, x1, y1 = ROBOT_BOX
-ax.add_patch(Rectangle(P(x0, y0), (x1 - x0) * S, (y1 - y0) * S, fc='none', ec='0.2', lw=0.8))
-ax.text(*P(30, 1170), '(a)', fontsize=8, weight='bold', ha='left', va='bottom', bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='none', alpha=0.9))
+ax.add_patch(Rectangle(P(x0, y0), (x1 - x0) * S, (y1 - y0) * S, fc='none', ec='0.25', lw=0.8, ls='--', zorder=4))
 
 # 3D view of the rigid body (robot body frame); Motive exports markers Y-up: plan = (x, -z), height = y
-ax3 = fig.add_axes([0.6, 0.12, 0.4, 0.86], projection='3d')
+ax3 = fig.add_axes([0.585, 0.13, 0.4, 0.8], projection='3d')
+ax3.set_facecolor('none')
+for pane in (ax3.xaxis.pane, ax3.yaxis.pane, ax3.zaxis.pane):
+    pane.set_facecolor((1, 1, 1, 0.6)); pane.set_edgecolor('0.8')
 mk = list(csv.DictReader(open(MARKERS)))
 MP = np.array([[float(r['x']), -float(r['z']), float(r['y'])] for r in mk]) * 100
 low = MP[:, 2] < -5; hz = float(MP[low, 2].mean()); zf = hz - 12
-for P_, m_, lab in [(MP[~low], 'o', 'mast markers (2 x 5)'), (MP[low], 's', 'lower markers (3)')]:
-    ax3.scatter(P_[:, 0], P_[:, 1], P_[:, 2], marker=m_, s=12, facecolors='none', edgecolors='k', linewidths=0.7, label=lab, depthshade=False)
-    for q in P_: ax3.plot([q[0]] * 2, [q[1]] * 2, [zf, q[2]], color='0.78', lw=0.4)
-ax3.scatter([0], [0], [0], marker='+', s=40, color='k', label='rigid body pivot', depthshade=False)
-for L, m_, col, lab in [(LEV1, 'v', '#e67e22', 'mobile beacon, M1'), (LEV2, '^', '#1f77b4', 'mobile beacon, M2')]:
+for P_, m_, lab in [(MP[~low], 'o', 'mast markers (2 × 5)'), (MP[low], 's', 'lower markers (3)')]:
+    ax3.scatter(P_[:, 0], P_[:, 1], P_[:, 2], marker=m_, s=12, facecolors='white', edgecolors=TEXT, linewidths=0.7, label=lab, depthshade=False)
+    for q in P_: ax3.plot([q[0]] * 2, [q[1]] * 2, [zf, q[2]], color='0.75', lw=0.4)
+ax3.scatter([0], [0], [0], marker='+', s=40, color=TEXT, label='rigid body pivot', depthshade=False)
+for L, m_, col, lab in [(LEV1, 'v', ARROW, 'mobile beacon, mounting M1'), (LEV2, '^', '#3d7fb0', 'mobile beacon, mounting M2')]:
     ax3.scatter([L[0] * 100], [L[1] * 100], [hz], marker=m_, s=34, color=col, label=lab, depthshade=False)
     ax3.plot([L[0] * 100] * 2, [L[1] * 100] * 2, [zf, hz], color=col, lw=0.6, ls='--')
-ax3.set_xlabel('x (cm)', labelpad=-7, fontsize=6.5); ax3.set_ylabel('y (cm)', labelpad=-7, fontsize=6.5); ax3.set_zlabel('z (cm)', labelpad=-8, fontsize=6.5)
-ax3.tick_params(labelsize=5.5, pad=-3)
-ax3.set_zlim(zf, 10); ax3.set_box_aspect((1, 1, 0.6), zoom=1.15); ax3.view_init(elev=20, azim=60)
-ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.02), ncol=3, fontsize=5.8, handletextpad=0.2, columnspacing=0.6, frameon=False)
-fig.text(0.6, 0.97, '(b) robot: OptiTrack markers and mobile beacon', fontsize=7, weight='bold', ha='left', va='top')
+ax3.set_xlabel('x (cm)', labelpad=-7, fontsize=6); ax3.set_ylabel('y (cm)', labelpad=-7, fontsize=6); ax3.set_zlabel('z (cm)', labelpad=-8, fontsize=6)
+ax3.tick_params(labelsize=5.3, pad=-3, colors=TEXT)
+ax3.set_zlim(zf, 10); ax3.set_box_aspect((1, 1, 0.6), zoom=1.1); ax3.view_init(elev=20, azim=60)
+ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.04), ncol=3, fontsize=5.6, handletextpad=0.2, columnspacing=0.7,
+           frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC)
+fig.text(0.59, 0.955, '(b) Robot: OptiTrack markers and mobile beacon', fontsize=7, weight='bold', ha='left', va='top', color=TEXT)
 
-# zoom connectors from the robot box to panel (b)
-for (px, py), (qx, qy) in [((x1, y0), (0.04, 0.78)), ((x1, y1), (0.04, 0.22))]:
+# dashed zoom lines from the robot box to panel (b)
+for (px, py), (qx, qy) in [((x1, y0), (0.03, 0.8)), ((x1, y1), (0.03, 0.2))]:
     fig.add_artist(ConnectionPatch(xyA=P(px, py), coordsA=ax.transData, xyB=(qx, qy), coordsB=ax3.transAxes,
-                                   color='0.35', lw=0.6, ls='-'))
+                                   color='0.45', lw=0.6, ls=(0, (3, 2))))
 
 out = os.path.join(ROOT, 'figures', 'fig1_photo.pdf')
 fig.savefig(out, dpi=300); fig.savefig(out.replace('.pdf', '.png'), dpi=200)
