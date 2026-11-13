@@ -93,12 +93,11 @@ evaluation~\cite{gum2008}; Allan deviation~\cite{allan1966statistics}.}
 % ~1 page
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=\textwidth]{fig1_setup.pdf}
-  \caption{Experimental setup. (a) Floor plan with the stationary beacons (height above the floor),
-  the area covered by OptiTrack, the triangle path and the out-and-back path. (b) OptiTrack markers
-  on the robot, rigid body pivot and position of the Marvelmind hedgehog in the two mountings (robot
-  body frame).
-  \todo{add the photo of the robot}}
+  \includegraphics[width=\textwidth]{fig1_photo.pdf}
+  \caption{Experimental setup. (a) Test room with the Marvelmind stationary beacons (height above the
+  floor), the OptiTrack bar and its working area, the robot, the triangle A--B--C and the stops D and E
+  of the out-and-back test. (b) OptiTrack markers on the robot, rigid body pivot and position of the
+  mobile beacon in the two mountings M1 and M2 (robot body frame).}
   \label{fig:setup}
 \end{figure*}
 
@@ -106,7 +105,7 @@ evaluation~\cite{gum2008}; Allan deviation~\cite{allan1966statistics}.}
 \todo{Four stationary beacons (B1, B2, B4, B5) at 2.40--2.60\,m, Super-Beacon hardware \todo{check},
 firmware 8.42, 3D navigation, update rate \SI{5.8}{Hz}, filters off, air temperature setting
 \SI{23}{\celsius}. Hedgehog on the robot, read through the modem (binary protocol, device time stamp).
-Fig.~\ref{fig:setup}(a).}
+Fig.~\ref{fig:setup}(a) and floor plan Fig.~\ref{fig:plan}.}
 
 \subsection{Reference: OptiTrack}
 \todo{V120:Trio, \SI{120}{Hz}, Motive 3.5; covered area about \SI{2.5 x 2.5}{m} in a corner of the
@@ -130,7 +129,16 @@ programme; it was recorded with an error in the Marvelmind map (the height of be
 was not applied and the map used \SI{0}{m}), found afterwards from the height reported for the
 mobile beacon. Campaign~2 repeats the rotations, the triangle and the rest with the correct map: it is
 the reference for the correction of campaign~1, and the two campaigns register each other
-(Section~IV-B).}
+(Section~IV-B). Triangle vertices A, B, C; out-and-back stops D and E outside the OptiTrack area
+(names as in Fig.~\ref{fig:setup} and Fig.~\ref{fig:plan}).}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_floorplan.pdf}
+  \caption{Floor plan in the Marvelmind map frame: stationary beacons with their height, area covered
+  by OptiTrack, triangle A--B--C and out-and-back stops D and E (names as in Fig.~\ref{fig:setup}).}
+  \label{fig:plan}
+\end{figure}
 
 \begin{table}[t]
   \centering
@@ -309,7 +317,7 @@ shading by the robot body and mast (the triple is inferred by the correction, ca
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig4_rest.pdf}
-  \caption{Offset at rest. (a) Offset at each stop on the three triangle vertices, campaign 1
+  \caption{Offset at rest. (a) Offset at each stop on the triangle vertices A, B, C, campaign 1
   corrected (open) and campaign 2 (filled). (b) Offset against the robot heading for the rotation in
   place, two runs per campaign.}
   \label{fig:rest}
@@ -337,7 +345,7 @@ no clear dependence on the speed up to \SI{0.6}{m/s} (Fig.~\ref{fig:speed}); del
   \centering
   \includegraphics[width=\columnwidth]{fig7_inout.pdf}
   \caption{Out-and-back test. (a) Marvelmind error over time; grey: outside the OptiTrack area.
-  (b) Paths and Marvelmind positions at the outside stops.}
+  (b) Paths and Marvelmind positions at the stops D and E outside the area.}
   \label{fig:inout}
 \end{figure}
 

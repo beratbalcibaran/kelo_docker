@@ -10,7 +10,8 @@ and readable in black and white.
 | Item | File | Paper section | Status |
 |---|---|---|---|
 | Table: test campaigns | in `main.tex` | III | keep |
-| Fig. 1: setup (floor plan, rigid body 3D) | `figures/fig1_setup.pdf` | III | keep, add the photo |
+| Fig. 1: annotated photo of the room + zoom on the robot (3D markers) | `figures/fig1_photo.pdf` | III | keep |
+| Floor plan with beacons, triangle A–B–C, stops D, E | `figures/fig_floorplan.pdf` | III | keep |
 | Table II: uncertainty budget | in `main.tex` | IV | keep |
 | Table I: C1 as recorded / z filter / corrected / C2, Monte Carlo intervals | in `main.tex` | V-A | keep |
 | Fig. 2: slow triangle as recorded vs corrected | `figures/fig2_correction.pdf` | V-A | optional |
@@ -216,7 +217,34 @@ most harmful setting.
 
 ---
 
-## Fig. 1: setup (two columns)
+## Fig. 1: annotated photo of the room (two columns)
+
+`figures/fig1_photo.pdf`, made by `scripts/fig_setup_photo.py` from `photos/room_IMG_4706.jpg`
+(run from `paper/`: `python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv>`).
+(a) Photo with callouts: stationary beacons B1 2.60 m, B2 2.50 m, B4 2.40 m, B5 2.55 m; OptiTrack
+V120:Trio on its tripod (120 Hz, 1.93 m) and its working area (schematic); KELO robot; triangle A–B–C
+on the tape marks; out-and-back stops D and E. (b) Lateral zoom on the robot: 3D view of the rigid
+body and of the mobile beacon in the two mountings.
+
+**Names used everywhere** (Marvelmind map frame, approximate): A (1.15, −3.30), B (1.20, −1.40),
+C (2.70, −1.85), D (4.40, −3.30), E (5.10, −1.90) m. Beacons in the photo: B1 ceiling near-left, B4
+above the window near the tripod, B2 left wall at the back, B5 on the mural wall near the window corner
+(deduced from the right-handed map frame; to be confirmed by Andrea).
+
+**Caption.** *Experimental setup. (a) Test room with the Marvelmind stationary beacons (height above the
+floor), the OptiTrack bar and its working area, the robot, the triangle A–B–C and the stops D and E of
+the out-and-back test. (b) OptiTrack markers on the robot, rigid body pivot and position of the mobile
+beacon in the two mountings M1 and M2 (robot body frame).*
+
+## Floor plan (single column)
+
+`figures/fig_floorplan.pdf` — Marvelmind map frame: beacons with heights, OptiTrack coverage, triangle
+A–B–C, stops D and E, out-and-back path.
+
+**Caption.** *Floor plan in the Marvelmind map frame: stationary beacons with their height, area covered
+by OptiTrack, triangle A–B–C and out-and-back stops D and E (names as in Fig. 1).*
+
+## Previous Fig. 1 (floor plan + 3D, two columns, no longer used in main.tex)
 
 `figures/fig1_setup.pdf` — (a) floor plan in the Marvelmind map frame: beacons with heights, OptiTrack
 coverage, triangle, out-and-back path. (b) 3D view of the rigid body in the robot body frame: two
@@ -246,14 +274,14 @@ and after the correction, and campaign 2 with the correct configuration.*
 
 ## Fig. 4: at rest, both campaigns
 
-(a) Offset at each stop on the three vertices (colour = vertex; open: C1 corrected, filled: C2).
+(a) Offset at each stop on the vertices A, B, C (colour and marker = vertex; open: C1 corrected, filled: C2).
 (b) Offset against heading, rotation in place, two runs per campaign.
 
 | Vertex | C1: stops, mean offset, spread (std x / y) | C2: stops, mean offset, spread |
 |---|---|---|
-| 1 | 6, 10.5 cm, 4.9 / 4.4 cm | 3, 2.7 cm, 1.2 / 2.6 cm |
-| 2 | 7, 3.7 cm, 8.9 / 3.5 cm | 3, 2.0 cm, 7.8 / 8.4 cm |
-| 3 | 9, 5.6 cm, 2.8 / 3.8 cm | 3, 4.2 cm, 7.7 / 4.4 cm |
+| A | 7, 3.7 cm, 8.9 / 3.5 cm | 3, 2.0 cm, 7.8 / 8.4 cm |
+| B | 9, 5.6 cm, 2.8 / 3.8 cm | 3, 4.2 cm, 7.7 / 4.4 cm |
+| C | 6, 10.5 cm, 4.9 / 4.4 cm | 3, 2.7 cm, 1.2 / 2.6 cm |
 
 Rotation in place, the same pattern in both campaigns: −44° gives 2.6–5.5 cm in all four runs,
 −134° gives 12.9–16.5 cm in the three runs that have it. Jitter within a stop about 1.4 mm.
@@ -281,11 +309,11 @@ Note that the offsets are within the registration uncertainty (Table II).
 ## Fig. 7: out-and-back test (C1)
 
 Error before leaving / after re-entry 5.4 / 4.4 cm (median, 10 re-entries); spread at the outside
-points C 5.8 / 6.9 cm, D 7.6 / 9.6 cm (std x / y, 4 stops each, upper bound). No absolute accuracy
+points D 5.8 / 6.9 cm, E 7.6 / 9.6 cm (std x / y, 4 stops each, upper bound). No absolute accuracy
 outside the OptiTrack area.
 
 **Caption.** *Out-and-back test. (a) Marvelmind error over time; grey: outside the OptiTrack area.
-(b) Paths and Marvelmind positions at the outside stops.*
+(b) Paths and Marvelmind positions at the stops D and E outside the area.*
 
 ## Fig. 8: Monte Carlo of beacon height errors
 
@@ -298,6 +326,6 @@ reported for the mobile beacon, with the 10 cm line of the height check.
 
 ## Which figures and tables in 6 pages
 
-Recommended: Fig. 1 (with the photo), 3, 4, 6, 7, 8, Table I (with the z-filter column and the Monte
+Recommended: Fig. 1 (photo), floor plan, 3, 4, 6, 7, 8, Table I (with the z-filter column and the Monte
 Carlo intervals) and Table II. Triple vs heading and sensitivity in the text. Fig. 2 and Fig. 5 only if
 space allows.
