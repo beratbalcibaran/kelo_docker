@@ -11,6 +11,7 @@
 \usepackage{booktabs}
 \usepackage{siunitx}
 \usepackage{xcolor}
+\usepackage{placeins}
 \graphicspath{{figures/}}
 
 % \todo{...}: open points, remove all of them before submission.
@@ -260,20 +261,9 @@ stable within \SI{1}{cm} for an assumed hedgehog height $\pm$\SI{5}{cm}, height 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig3_cdf.pdf}
-  \caption{Error distribution per test type: campaign 1 as recorded (dotted), with the height filter
-  only (dash-dot), after the correction (solid), and campaign 2 with the correct configuration
-  (dashed).}
+  \caption{Error distribution per test: campaign~1 as recorded, with the height filter only and after
+  the correction, and campaign~2 with the correct configuration.}
   \label{fig:cdf}
-\end{figure}
-
-% optional, if space allows
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig2_correction.pdf}
-  \caption{Campaign 1, slow triangle: Marvelmind positions (dots) against the OptiTrack reference
-  (line), (a) as recorded with the wrong height of beacon~1, (b) after the correction.
-  \todo{optional}}
-  \label{fig:correction}
 \end{figure}
 
 \subsection{Tolerance to beacon height errors (simulation)}
@@ -288,10 +278,9 @@ measure beacon heights within $\pm$\SI{5}{cm} and check the hedgehog height befo
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig8_montecarlo.pdf}
-  \caption{Monte Carlo of a wrong beacon height, for each beacon. (a) p95 position error against the
-  height error (filled: beacon set too low in the map, open: too high; dotted: after the correction;
-  star: campaign~1 measured). (b) Median error of the height reported for the mobile beacon; dashed:
-  \SI{10}{cm}.}
+  \caption{Monte Carlo simulation of a wrong beacon height. (a) p95 position error against the height
+  error (filled: beacon set too low in the map; open: too high; dotted: after the correction; star:
+  campaign~1). (b) Median error of the height reported for the mobile beacon; dashed: \SI{10}{cm}.}
   \label{fig:mc}
 \end{figure}
 
@@ -314,45 +303,38 @@ shading by the robot body and mast (the triple is inferred by the correction, ca
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig6_allan.pdf}
-  \caption{Allan deviation of the Marvelmind position at rest in the two campaigns, and of
-  OptiTrack. The dotted lines give the offset of each recording from the reference.}
+  \caption{Allan deviation of the Marvelmind position during the two long rests, and of OptiTrack.
+  Dotted: offset of each rest from the reference.}
   \label{fig:allan}
 \end{figure}
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig4_rest.pdf}
-  \caption{Offset at rest. (a) Offset at each stop on the triangle vertices A, B, C, campaign 1
-  corrected (open) and campaign 2 (filled). (b) Offset against the robot heading for the rotation in
-  place, two runs per campaign.}
+  \caption{Offset at rest. (a) Offset at each stop on the triangle vertices A, B, C, campaign~1
+  corrected (open) and campaign~2 (filled). (b) Offset against the robot
+  heading in the rotation in place, two runs per campaign.}
   \label{fig:rest}
+\end{figure}
+
+\begin{figure}[!b]
+  \centering
+  \includegraphics[width=\columnwidth]{fig7_inout.pdf}
+  \caption{Out-and-back test. (a) Marvelmind error over time; grey: robot outside the OptiTrack area.
+  (b) Paths and Marvelmind positions at the stops D and E outside the area.}
+  \label{fig:inout}
 \end{figure}
 
 \subsection{While moving}
 \todo{RMS 11.0 and \SI{11.1}{cm}, p95 21--\SI{23}{cm} in the two campaigns (Table~\ref{tab:summary});
-no clear dependence on the speed up to \SI{0.6}{m/s} (Fig.~\ref{fig:speed}); delay
+no clear dependence on the speed up to \SI{0.6}{m/s} (one sentence, no figure); delay
 \SI{0.105 +- 0.036}{s}. Temporal filters gained at most \SI{1}{cm}.}
-
-% optional, can become one sentence
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig5_speed.pdf}
-  \caption{RMS error of Marvelmind as a function of the speed measured by OptiTrack. \todo{optional}}
-  \label{fig:speed}
-\end{figure}
 
 \subsection{Outside the OptiTrack area}
 \todo{Campaign~1 out-and-back: error before leaving \SI{5.4}{cm}, after re-entry \SI{4.4}{cm}
 (median, 10 re-entries); spread at the outside points 6--10\,cm, an upper bound
 (Fig.~\ref{fig:inout}).}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig7_inout.pdf}
-  \caption{Out-and-back test. (a) Marvelmind error over time; grey: outside the OptiTrack area.
-  (b) Paths and Marvelmind positions at the stops D and E outside the area.}
-  \label{fig:inout}
-\end{figure}
+\FloatBarrier % keep Fig. 7 before the Conclusion
 
 % ---------------------------------------------------------------------------------------------------
 \section{Discussion and Conclusion}

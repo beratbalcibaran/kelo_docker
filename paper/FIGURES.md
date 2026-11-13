@@ -14,12 +14,12 @@ and readable in black and white.
 | Floor plan with beacons, triangle A–B–C, stops D, E | `figures/fig_floorplan.pdf` | III | keep |
 | Table II: uncertainty budget | in `main.tex` | IV | keep |
 | Table I: C1 as recorded / z filter / corrected / C2, Monte Carlo intervals | in `main.tex` | V-A | keep |
-| Fig. 2: slow triangle as recorded vs corrected | `figures/fig2_correction.pdf` | V-A | optional |
+| Fig. 2: slow triangle as recorded vs corrected | `figures/fig2_correction.pdf` | V-A | not in main.tex (file kept) |
 | Fig. 3: CDF per test type | `figures/fig3_cdf.pdf` | V-A | keep |
 | Fig. 8: Monte Carlo of beacon height errors | `figures/fig8_montecarlo.pdf` | V-B | keep |
 | Fig. 4: at rest (vertices, heading) | `figures/fig4_rest.pdf` | V-C | keep |
 | Fig. 6: Allan deviation | `figures/fig6_allan.pdf` | V-C | keep |
-| Fig. 5: error vs speed | `figures/fig5_speed.pdf` | V-D | optional |
+| Fig. 5: error vs speed | `figures/fig5_speed.pdf` | V-D | not in main.tex, one sentence in the text (file kept) |
 | Fig. 7: out-and-back | `figures/fig7_inout.pdf` | V-E | keep |
 
 In `main.tex` the results sections are: A. configuration error and correction; B. tolerance to beacon
@@ -347,5 +347,5 @@ reported for the mobile beacon, with the 10 cm line of the height check.
 ## Which figures and tables in 6 pages
 
 Recommended: Fig. 1 (photo), floor plan, 3, 4, 6, 7, 8, Table I (with the z-filter column and the Monte
-Carlo intervals) and Table II. Triple vs heading and sensitivity in the text. Fig. 2 and Fig. 5 only if
-space allows.
+Carlo intervals) and Table II. Triple vs heading and sensitivity in the text. Fig. 2 and Fig. 5 are
+no longer in main.tex (same figure set as Andrea's version); the files stay in `figures/`.
