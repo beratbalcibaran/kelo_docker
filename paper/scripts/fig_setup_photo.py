@@ -57,8 +57,8 @@ for k, (x, y) in VERT.items():
     dx, dy = {'A': (28, 22), 'B': (-34, 18), 'C': (-34, -10)}[k]
     ax.text(*P(x + dx, y + dy), k, fontsize=8, weight='bold', color=ACC['tri'], ha='center', va='center',
             bbox=dict(boxstyle='circle,pad=0.12', fc='white', ec=ACC['tri'], lw=0.6))
-# out-and-back path (A-B-D-E-B-A) and outside stops
-path = [VERT['B'], OUT['D'], OUT['E'], VERT['B']]
+# out-and-back path: from C to the stops D and E outside the area and back to C
+path = [VERT['C'], OUT['D'], OUT['E'], VERT['C']]
 ax.plot(*zip(*[P(*p) for p in path]), ls=(0, (3, 2)), color=ACC['out'], lw=1.0)
 for k, (x, y) in OUT.items():
     ax.plot(*P(x, y), 's', ms=4, color=ACC['out'], mec='white', mew=0.6)
