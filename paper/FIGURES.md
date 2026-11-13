@@ -221,9 +221,9 @@ most harmful setting.
 
 `figures/fig1_photo.pdf`, made by `scripts/fig_setup_photo.py` from `photos/room_IMG_4706.jpg`
 (run from `paper/`: `python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv>`).
-Left: photo with callouts: stationary beacons B1 2.60 m, B2 2.50 m, B4 2.40 m, B5 2.55 m; OptiTrack
+Photo with callouts: stationary beacons B1 2.60 m, B2 2.50 m, B4 2.40 m, B5 2.55 m; OptiTrack
 V120:Trio on its tripod (120 Hz, 1.93 m); one label with four arrows for the beacons, a tag with name and height next to each and its working area (schematic); KELO robot; triangle A–B–C
-on the tape marks; out-and-back stops D and E. Right: lateral zoom on the robot: 3D view of the rigid
+on the tape marks; out-and-back stops D and E. Lateral zoom on the robot: 3D view of the rigid
 body and of the mobile beacon in the two mountings.
 
 **Names used everywhere** (Marvelmind map frame, approximate): A (1.15, −3.30), B (1.20, −1.40),
@@ -231,10 +231,10 @@ C (2.70, −1.85), D (4.40, −3.30), E (5.10, −1.90) m. Beacons in the photo:
 above the window near the tripod, B2 left wall at the back, B5 on the mural wall near the window corner
 (deduced from the right-handed map frame; to be confirmed by Andrea).
 
-**Caption.** *Experimental setup. Left: test room with the Marvelmind stationary beacons (height above
-the floor), the OptiTrack bar and its working area, the robot, the triangle A–B–C and the stops D and E of
-the out-and-back test. Right: OptiTrack markers on the robot, rigid body pivot and position of the mobile
-beacon in the two mountings M1 and M2 (robot body frame).*
+**Caption.** *Experimental setup: test room with the Marvelmind stationary beacons (height above the
+floor), the OptiTrack bar and its working area, the triangle A–B–C and the stops D and E of the
+out-and-back test. The zoom on the KELO robot shows the OptiTrack markers, the rigid body pivot and the
+mobile beacon in the two mountings M1 and M2, in the robot body frame.*
 
 ## Floor plan (single column)
 
