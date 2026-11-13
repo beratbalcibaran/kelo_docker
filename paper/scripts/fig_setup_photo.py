@@ -18,7 +18,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Rectangle, ConnectionPatch, FancyBboxPatch
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 MARKERS = sys.argv[1]
@@ -38,8 +38,28 @@ CROP_X = 1460                                          # crop the photo right of
 img = Image.open(os.path.join(ROOT, 'photos', 'room_IMG_4706.jpg')).convert('RGB')
 img = img.crop((0, 0, round(img.width * CROP_X / 1600), img.height))
 S = 1.5                                                # points below are in the 1600 x 1200 frame
-img = img.resize((round(CROP_X * S), round(1200 * S)), Image.LANCZOS); W, H = img.size
 P = lambda x, y: (x * S, y * S)
+img = img.resize((round(CROP_X * S), round(1200 * S)), Image.LANCZOS); W, H = img.size
+
+# Focus mask: keep the test area sharp, fade the rest of the room, fade furniture more.
+FADE_ROOM, FADE_CLUTTER = 0.30, 0.62                  # fraction blended towards white
+KEEP = {'floor': [(300, 770), (720, 742), (1130, 790), (1185, 900), (900, 1200), (330, 1200), (225, 950)],
+        'robot': [(880, 720), (1095, 720), (1095, 930), (880, 930)],
+        'tripod': [(1225, 540), (1415, 540), (1415, 965), (1225, 965)]}
+KEEP_CIRCLES = [(185, 62), (155, 495), (521, 540), (1293, 513)]     # stationary beacons
+CLUTTER = {'chairs_left': [(0, 640), (175, 640), (290, 720), (290, 900), (175, 1200), (0, 1200)],
+           'tables_back': [(150, 640), (1110, 640), (1110, 790), (720, 742), (300, 770), (150, 790)],
+           'desk_right': [(1100, 735), (1460, 735), (1460, 1200), (900, 1200), (1185, 900), (1130, 790)]}
+def poly_mask(polys, circles=(), r=38):
+    m = Image.new('L', (W, H), 0); d = ImageDraw.Draw(m)
+    for pts in polys: d.polygon([P(*q) for q in pts], fill=255)
+    for (cx, cy) in circles: d.ellipse([*P(cx - r, cy - r), *P(cx + r, cy + r)], fill=255)
+    return np.asarray(m.filter(ImageFilter.GaussianBlur(radius=18 * S)), float) / 255.0
+keep = poly_mask(KEEP.values(), KEEP_CIRCLES); clutter = poly_mask(CLUTTER.values())
+fade = (FADE_ROOM + (FADE_CLUTTER - FADE_ROOM) * clutter) * (1.0 - keep)
+arr = np.asarray(img, float)
+arr = arr * (1 - fade[..., None]) + 255.0 * fade[..., None]
+img = Image.fromarray(arr.clip(0, 255).astype(np.uint8))
 
 BEAC = {'B1': ((185, 62), 2.60), 'B2': ((155, 495), 2.50), 'B5': ((521, 540), 2.55), 'B4': ((1293, 513), 2.40)}
 VERT = {'A': (1100, 860), 'B': (640, 1045), 'C': (585, 875)}
