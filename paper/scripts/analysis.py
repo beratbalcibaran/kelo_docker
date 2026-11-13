@@ -246,10 +246,11 @@ def med_diff_ci(a, b, nb=4000):
 coup = {}
 for typ, (c1, c2) in TYPES.items():
     so1r = np.concatenate([stop_offsets(n, True) for n in c1]); so1 = np.concatenate([stop_offsets(n) for n in c1]); so2 = np.concatenate([stop_offsets(n) for n in c2])
-    so1 = so1[so1 < 50]   # failed correction (reported separately)
+    so1_all = so1.copy(); so1 = so1[so1 < 50]   # failed correction (reported separately)
     d = {'stops_c1': int(len(so1)), 'stops_c2': int(len(so2)),
          'stop_offset_median_cm': {'c1_as_recorded': round(float(np.median(so1r)), 1), 'c1_corrected': round(float(np.median(so1)), 1), 'c2': round(float(np.median(so2)), 1)},
-         'stop_offset_p95_cm': {'c1_as_recorded': round(float(np.percentile(so1r, 95)), 1), 'c1_corrected': round(float(np.percentile(so1, 95)), 1), 'c2': round(float(np.percentile(so2, 95)), 1)}}
+         'stop_offset_p95_cm': {'c1_as_recorded': round(float(np.percentile(so1r, 95)), 1), 'c1_corrected': round(float(np.percentile(so1, 95)), 1), 'c2': round(float(np.percentile(so2, 95)), 1)},
+         'c1_corrected_including_failed_stops': {'stops': int(len(so1_all)), 'median_cm': round(float(np.median(so1_all)), 1), 'p95_cm': round(float(np.percentile(so1_all, 95)), 1)}}
     if len(so1) > 1 and len(so2) > 1:
         md, ci = med_diff_ci(so1, so2); d['c1_corrected_minus_c2_median_cm'] = round(md, 1); d['ci95_cm'] = [round(x, 1) for x in ci]
     if typ == 'triangle':
@@ -617,6 +618,35 @@ NUM['triple_vs_heading'] = {'note': 'triple inferred by the correction (closest 
                             'excluded_beacon_relative_bearing_hist': {'bin_edges_deg': list(range(-180, 181, 45)),
                                                                       'excluded_pct': [round(float(v) * 100 / hist_ex.sum(), 1) for v in hist_ex],
                                                                       'all_beacons_pct': [round(float(v) * 100 / hist_all.sum(), 1) for v in hist_all]}}
+
+# ---------- (E) heading-dependent offset in the rotation in place: registration or IPS?
+# A lever-arm error dl gives an offset R(theta) R(psi) dl that rotates WITH the heading (co-rotating term a e^{i psi});
+# translation and frame rotation give a constant at a fixed position; the delay vanishes at rest. A term that rotates
+# AGAINST the heading (b e^{-i psi}) cannot be produced by any registration error. Model per campaign, complex notation:
+# offset_k = c_run + a e^{i psi_k} + b e^{-i psi_k}, psi_k heading in the map frame.
+hdec = {}
+for camp, runs in [('C1', TYPES['rotation in place'][0]), ('C2', TYPES['rotation in place'][1])]:
+    A_, y_, per = [], [], []
+    for j, n in enumerate(runs):
+        th_, t_, l_ = PARAMS[n]
+        for s in ST[n]:
+            Hs = hedge(np.array([s['px']]), np.array([s['py']]), np.array([s['yaw']]), l_, th_, t_)[0]
+            o = complex(s['mx'] - Hs[0], s['my'] - Hs[1]) * 100; psi = s['yaw'] + th_
+            row = [0j] * len(runs) + [np.exp(1j * psi), np.exp(-1j * psi)]; row[j] = 1
+            A_.append(row); y_.append(o); per.append((j, math.degrees(s['yaw']), o))
+    A_ = np.array(A_); y_ = np.array(y_); x_, *_ = np.linalg.lstsq(A_, y_, rcond=None); r_ = y_ - A_ @ x_
+    dof = 2 * (len(y_) - A_.shape[1]); s2 = float(np.sum(np.abs(r_) ** 2) / dof)
+    se = np.sqrt(np.diag(np.linalg.inv((A_.conj().T @ A_).real)) * s2)
+    diffs = []                                   # same heading, different run
+    for i1 in range(len(per)):
+        for i2 in range(i1 + 1, len(per)):
+            if per[i1][0] != per[i2][0] and abs(((per[i1][1] - per[i2][1]) + 180) % 360 - 180) < 10:
+                diffs.append(abs(per[i1][2] - per[i2][2]))
+    hdec[camp] = {'co_rotating_a_cm': round(abs(x_[-2]), 1), 'counter_rotating_b_cm': round(abs(x_[-1]), 1),
+                  'standard_uncertainty_cm': round(float(se[-1]), 1), 'residual_per_axis_cm': round(math.sqrt(s2), 1), 'dof': dof,
+                  'same_heading_run_difference_cm': [round(float(min(diffs)), 1), round(float(max(diffs)), 1)]}
+NUM['heading_decomposition'] = {'note': 'offset = c_run + a e^{i psi} + b e^{-i psi}; a absorbs a lever-arm error, b cannot come from the registration',
+                                **hdec}
 
 # ---------- (D) sensitivity of the correction to its settings
 import importlib.util as _ilu

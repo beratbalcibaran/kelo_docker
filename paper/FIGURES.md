@@ -47,7 +47,8 @@ out-and-back and rest and all of C2. Lever arms (rigid body pivot → hedgehog):
    of beacons rebuilt from the recorded position and the wrong map, position recomputed with the
    correct map, triple chosen by the known hedgehog height (0.70 m) and continuity. One stop out of 23
    (C1 slow triangle, 39 samples, 167 cm) is corrected wrongly: reported, excluded from the per-stop
-   statistics.
+   statistics. Including it, the triangle stops of C1 corrected give median 8.2 cm and p95 19.8 cm
+   (instead of 7.8 / 14.2): write it in the paper, so that the exclusion is transparent.
 2. **Cross-campaign registration** (OptiTrack → Marvelmind map: rotation, translation, lever arm,
    robust least squares on stop medians). No recording is evaluated with parameters fitted on itself:
    - C1 recordings: registration fitted on the **C2 stops**; lever arm of mounting 1 fitted on the C1
@@ -194,8 +195,27 @@ directions lie; 12.5 % in −180…−135° (baseline 5.7 %).
 
 **Message.** Which beacon drops out depends strongly on the robot heading, and it is preferentially
 a beacon on one side/rear of the robot: consistent with the robot body and mast shading the hedgehog.
-This explains the repeatable heading effect of Fig. 4b. Say "consistent with", because the triple is
-inferred.
+Say "consistent with", because the triple is inferred.
+
+## Heading: registration or IPS? (text, `numbers.json` → `heading_decomposition`)
+
+A lever-arm error δℓ gives an offset R(θ)R(ψ)δℓ that **rotates with the heading**; translation and frame
+rotation give a constant offset at a fixed position; the delay vanishes at rest. So a heading pattern in
+Fig. 4b is not automatically a property of the IPS. The stop offsets of the rotation in place, as
+complex numbers, are fitted with `o_k = c_run + a·e^{iψ_k} + b·e^{−iψ_k}` (c_run: constant per run).
+A lever-arm error enters only `a`; `b` rotates **against** the heading and no registration error can
+produce it.
+
+| Campaign | Same heading, run 1 vs run 2 | \|a\| (lever-arm-like) | \|b\| (not from registration) | u (per axis) | Residual per axis |
+|---|---|---|---|---|---|
+| C1 (corrected) | 4.6–14.6 cm | 1.8 cm | 2.4 cm | 2.4 cm | 6.7 cm |
+| C2 (reference) | 0.5–6.2 cm | 7.6 cm | 6.9 cm | 1.3 cm | 3.6 cm |
+
+**Message.** In C2 the heading pattern is repeatable and has a 6.9 ± 1.3 cm component that the
+registration cannot explain: a real heading-dependent bias of the IPS. The 7.6 cm co-rotating part is
+compatible with a lever-arm error of the size of the 7 cm tape discrepancy. In C1 the two runs do not
+repeat (up to 14.6 cm at the same heading) and neither term is significant, so do **not** write "the
+same pattern in both campaigns".
 
 ## Sensitivity of the correction (text)
 

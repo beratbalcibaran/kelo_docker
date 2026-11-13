@@ -232,6 +232,11 @@
     "c1_corrected": 14.0,
     "c2": 16.1
    },
+   "c1_corrected_including_failed_stops": {
+    "stops": 8,
+    "median_cm": 4.3,
+    "p95_cm": 14.0
+   },
    "c1_corrected_minus_c2_median_cm": -4.0,
    "ci95_cm": [
     -11.8,
@@ -250,6 +255,11 @@
     "c1_as_recorded": 126.7,
     "c1_corrected": 14.2,
     "c2": 14.2
+   },
+   "c1_corrected_including_failed_stops": {
+    "stops": 23,
+    "median_cm": 8.2,
+    "p95_cm": 19.8
    },
    "c1_corrected_minus_c2_median_cm": 2.0,
    "ci95_cm": [
@@ -279,6 +289,11 @@
     "c1_as_recorded": 35.9,
     "c1_corrected": 2.6,
     "c2": 5.4
+   },
+   "c1_corrected_including_failed_stops": {
+    "stops": 1,
+    "median_cm": 2.6,
+    "p95_cm": 2.6
    }
   }
  },
@@ -774,6 +789,31 @@
     5.5,
     16.4,
     9.1
+   ]
+  }
+ },
+ "heading_decomposition": {
+  "note": "offset = c_run + a e^{i psi} + b e^{-i psi}; a absorbs a lever-arm error, b cannot come from the registration",
+  "C1": {
+   "co_rotating_a_cm": 1.8,
+   "counter_rotating_b_cm": 2.4,
+   "standard_uncertainty_cm": 2.4,
+   "residual_per_axis_cm": 6.7,
+   "dof": 8,
+   "same_heading_run_difference_cm": [
+    4.6,
+    14.6
+   ]
+  },
+  "C2": {
+   "co_rotating_a_cm": 7.6,
+   "counter_rotating_b_cm": 6.9,
+   "standard_uncertainty_cm": 1.3,
+   "residual_per_axis_cm": 3.6,
+   "dof": 8,
+   "same_heading_run_difference_cm": [
+    0.5,
+    6.2
    ]
   }
  },
