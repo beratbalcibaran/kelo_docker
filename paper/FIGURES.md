@@ -10,7 +10,7 @@ and readable in black and white.
 | Item | File | Paper section | Status |
 |---|---|---|---|
 | Table: test campaigns | in `main.tex` | III | keep |
-| Fig. 1: annotated photo of the room + zoom on the robot (3D markers) | `figures/fig1_photo.pdf` | III | keep |
+| Fig. 1: annotated photo of the room + zoom on the robot (3D markers), one column, first page | `figures/fig1_teaser.pdf` (two-column variant: `fig1_photo.pdf`) | before I | keep |
 | Floor plan with beacons, triangle A–B–C, stops D, E | `figures/fig_floorplan.pdf` | III | keep |
 | Table II: uncertainty budget | in `main.tex` | IV | keep |
 | Table I: C1 as recorded / z filter / corrected / C2, Monte Carlo intervals | in `main.tex` | V-A | keep |
@@ -220,7 +220,10 @@ most harmful setting.
 ## Fig. 1: annotated photo of the room (two columns)
 
 `figures/fig1_photo.pdf`, made by `scripts/fig_setup_photo.py` from `photos/room_IMG_4706.jpg`
-(run from `paper/`: `python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv>`).
+(run from `paper/`: `python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv> vertical` for the
+one-column teaser `fig1_teaser.pdf` used in `main.tex`, `horizontal` for the two-column variant `fig1_photo.pdf`).
+It is placed before the Introduction, so that it appears at the top of the second column of the first page,
+with the zoom on the robot below the photo.
 Photo with callouts: stationary beacons B1 2.60 m, B2 2.50 m, B4 2.40 m, B5 2.55 m; OptiTrack
 V120:Trio on its tripod (120 Hz, 1.93 m); one label with four arrows for the beacons, a tag with name and height next to each and its working area (schematic); KELO robot; triangle A–B–C
 on the tape marks; out-and-back stops D and E. Lateral zoom on the robot: 3D view of the rigid

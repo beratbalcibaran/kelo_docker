@@ -9,7 +9,8 @@ only in Andrea's draft folder) on the clean photo photos/room_IMG_4706.jpg. Beac
 Marvelmind map (right-handed frame): B1 near-left on the ceiling, B4 near-right above the window, B2
 far-left, B5 on the mural wall near the window corner.
 
-Usage (from the paper folder): python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv>
+Usage (from the paper folder): python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv> [vertical|horizontal]
+vertical -> figures/fig1_teaser.pdf (one column, first page); horizontal -> figures/fig1_photo.pdf (two columns).
 """
 import csv, json, os, sys
 import numpy as np
@@ -21,6 +22,8 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 MARKERS = sys.argv[1]
+LAYOUT = sys.argv[2] if len(sys.argv) > 2 else 'vertical'     # 'vertical' (teaser, one column) or 'horizontal' (two columns)
+VERTICAL = LAYOUT == 'vertical'
 plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': ['Helvetica', 'Arial', 'DejaVu Sans'],
                      'font.size': 6.5, 'savefig.bbox': 'tight', 'savefig.pad_inches': 0.02})
 
@@ -44,11 +47,16 @@ ROBOT_BOX = (895, 735, 1080, 915)                      # x0, y0, x1, y1
 num = json.load(open(os.path.join(ROOT, 'figures', 'numbers.json')))
 LEV1 = np.array(num['alignment']['lever_arm_before_move_m']); LEV2 = np.array(num['alignment']['lever_arm_after_move_m'])
 
-fig = plt.figure(figsize=(7.16, 2.8))
+if VERTICAL:   # photo on top, zoom on the robot below (one IEEE column)
+    fig = plt.figure(figsize=(3.5, 4.75))
+    PHOTO_RECT, AX3_RECT = [0.015, 0.49, 0.97, 0.5], [0.0, 0.1, 1.0, 0.4]
+else:          # photo on the left, zoom on the right (two columns)
+    fig = plt.figure(figsize=(7.16, 2.8))
+    PHOTO_RECT, AX3_RECT = [0.012, 0.03, 0.525, 0.94], [0.585, 0.13, 0.4, 0.8]
 bg = fig.add_axes([0, 0, 1, 1]); bg.set_axis_off(); bg.set_xlim(0, 1); bg.set_ylim(0, 1)
-bg.add_patch(FancyBboxPatch((0.005, 0.01), 0.99, 0.98, boxstyle='round,pad=0,rounding_size=0.04', fc=BACK, ec='none'))
+bg.add_patch(FancyBboxPatch((0.005, 0.005), 0.99, 0.99, boxstyle='round,pad=0,rounding_size=0.03', fc=BACK, ec='none'))
 
-ax = fig.add_axes([0.012, 0.03, 0.525, 0.94]); ax.imshow(img); ax.set_axis_off()
+ax = fig.add_axes(PHOTO_RECT); ax.imshow(img); ax.set_axis_off()
 ax.set_xlim(0, W); ax.set_ylim(H, 0)
 frame = FancyBboxPatch((0, 0), W, H, boxstyle='round,pad=0,rounding_size=70', transform=ax.transData, fc='none', ec='white', lw=1.2)
 ax.add_patch(frame); ax.images[0].set_clip_path(frame)
@@ -107,7 +115,7 @@ x0, y0, x1, y1 = ROBOT_BOX
 ax.add_patch(Rectangle(P(x0, y0), (x1 - x0) * S, (y1 - y0) * S, fc='none', ec='0.25', lw=0.8, ls='--', zorder=4))
 
 # 3D view of the rigid body (robot body frame); Motive exports markers Y-up: plan = (x, -z), height = y
-ax3 = fig.add_axes([0.585, 0.13, 0.4, 0.8], projection='3d')
+ax3 = fig.add_axes(AX3_RECT, projection='3d')
 ax3.set_facecolor('none')
 for pane in (ax3.xaxis.pane, ax3.yaxis.pane, ax3.zaxis.pane):
     pane.set_facecolor((1, 1, 1, 0.6)); pane.set_edgecolor('0.8')
@@ -123,16 +131,20 @@ for L, m_, col, lab in [(LEV1, 'v', ARROW, 'mobile beacon, mounting M1'), (LEV2,
     ax3.plot([L[0] * 100] * 2, [L[1] * 100] * 2, [zf, hz], color=col, lw=0.6, ls='--')
 ax3.set_xlabel('x (cm)', labelpad=-7, fontsize=6); ax3.set_ylabel('y (cm)', labelpad=-7, fontsize=6); ax3.set_zlabel('z (cm)', labelpad=-8, fontsize=6)
 ax3.tick_params(labelsize=5.3, pad=-3, colors=TEXT)
-ax3.set_zlim(zf, 10); ax3.set_box_aspect((1, 1, 0.6), zoom=1.1); ax3.view_init(elev=20, azim=60)
-ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.04), ncol=3, fontsize=5.6, handletextpad=0.2, columnspacing=0.7,
-           frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC)
-fig.text(0.59, 0.955, 'Robot: OptiTrack markers and mobile beacon', fontsize=7, weight='bold', ha='left', va='top', color=TEXT)
-
-# dashed zoom lines from the robot box to panel (b)
-for (px, py), (qx, qy) in [((x1, y0), (0.03, 0.8)), ((x1, y1), (0.03, 0.2))]:
+ax3.set_zlim(zf, 10); ax3.set_box_aspect((1.3, 1, 0.6) if VERTICAL else (1, 1, 0.6), zoom=1.25 if VERTICAL else 1.1); ax3.view_init(elev=20, azim=60)
+if VERTICAL:
+    ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.0), ncol=2, fontsize=5.6, handletextpad=0.2, columnspacing=0.8,
+               frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC)
+    zoom = [((x0, y1), (0.17, 0.85)), ((x1, y1), (0.83, 0.85))]            # dashed lines down to the zoom
+else:
+    ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.04), ncol=3, fontsize=5.6, handletextpad=0.2, columnspacing=0.7,
+               frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC)
+    fig.text(0.59, 0.955, 'Robot: OptiTrack markers and mobile beacon', fontsize=7, weight='bold', ha='left', va='top', color=TEXT)
+    zoom = [((x1, y0), (0.03, 0.8)), ((x1, y1), (0.03, 0.2))]
+for (px, py), (qx, qy) in zoom:
     fig.add_artist(ConnectionPatch(xyA=P(px, py), coordsA=ax.transData, xyB=(qx, qy), coordsB=ax3.transAxes,
                                    color='0.45', lw=0.6, ls=(0, (3, 2))))
 
-out = os.path.join(ROOT, 'figures', 'fig1_photo.pdf')
+out = os.path.join(ROOT, 'figures', 'fig1_teaser.pdf' if VERTICAL else 'fig1_photo.pdf')
 fig.savefig(out, dpi=300); fig.savefig(out.replace('.pdf', '.png'), dpi=200)
 print('written', out)
