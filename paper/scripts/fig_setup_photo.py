@@ -48,8 +48,8 @@ num = json.load(open(os.path.join(ROOT, 'figures', 'numbers.json')))
 LEV1 = np.array(num['alignment']['lever_arm_before_move_m']); LEV2 = np.array(num['alignment']['lever_arm_after_move_m'])
 
 if VERTICAL:   # photo on top, zoom on the robot below (one IEEE column)
-    fig = plt.figure(figsize=(3.5, 4.75))
-    PHOTO_RECT, AX3_RECT = [0.015, 0.49, 0.97, 0.5], [0.0, 0.1, 1.0, 0.4]
+    fig = plt.figure(figsize=(3.5, 3.95))
+    PHOTO_RECT, AX3_RECT = [0.015, 0.385, 0.97, 0.605], [0.02, 0.1, 0.96, 0.3]
 else:          # photo on the left, zoom on the right (two columns)
     fig = plt.figure(figsize=(7.16, 2.8))
     PHOTO_RECT, AX3_RECT = [0.012, 0.03, 0.525, 0.94], [0.585, 0.13, 0.4, 0.8]
@@ -131,10 +131,10 @@ for L, m_, col, lab in [(LEV1, 'v', ARROW, 'mobile beacon, mounting M1'), (LEV2,
     ax3.plot([L[0] * 100] * 2, [L[1] * 100] * 2, [zf, hz], color=col, lw=0.6, ls='--')
 ax3.set_xlabel('x (cm)', labelpad=-7, fontsize=6); ax3.set_ylabel('y (cm)', labelpad=-7, fontsize=6); ax3.set_zlabel('z (cm)', labelpad=-8, fontsize=6)
 ax3.tick_params(labelsize=5.3, pad=-3, colors=TEXT)
-ax3.set_zlim(zf, 10); ax3.set_box_aspect((1.3, 1, 0.6) if VERTICAL else (1, 1, 0.6), zoom=1.25 if VERTICAL else 1.1); ax3.view_init(elev=20, azim=60)
+ax3.set_zlim(zf, 10); ax3.set_xlim(-25, 25); ax3.set_ylim(-22, 28); ax3.set_box_aspect((1.5, 1, 0.5) if VERTICAL else (1, 1, 0.6), zoom=1.3 if VERTICAL else 1.1); ax3.view_init(elev=20, azim=60)
 if VERTICAL:
-    ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.0), ncol=2, fontsize=5.6, handletextpad=0.2, columnspacing=0.8,
-               frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC)
+    ax3.legend(loc='upper center', bbox_to_anchor=(0.5, -0.06), ncol=3, fontsize=5.3, handletextpad=0.15, columnspacing=0.6,
+               frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC, borderpad=0.3)
     zoom = [((x0, y1), (0.17, 0.85)), ((x1, y1), (0.83, 0.85))]            # dashed lines down to the zoom
 else:
     ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.04), ncol=3, fontsize=5.6, handletextpad=0.2, columnspacing=0.7,
