@@ -62,9 +62,14 @@ def label(text, xy_text, targets, ha='center'):
                                     connectionstyle=f'arc3,rad={r}', patchA=t.get_bbox_patch()))
     return t
 
-def tag(xy, text, dx, dy):
-    ax.text(*P(xy[0] + dx, xy[1] + dy), text, ha='center', va='center', fontsize=5.4, color=TEXT,
-            bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.92), zorder=8)
+def tag(xy, text, side):
+    """Name/height tag next to a beacon circle, never touching it (gap of 34 px in the 1600 frame)."""
+    x, y = xy; g = 34
+    pos = {'right': ((x + g, y), 'left', 'center'), 'left': ((x - g, y), 'right', 'center'),
+           'above': ((x, y - g), 'center', 'bottom'), 'below': ((x, y + g), 'center', 'top')}[side]
+    (tx, ty), ha, va = pos
+    ax.text(*P(tx, ty), text, ha=ha, va=va, fontsize=5.6, color=TEXT,
+            bbox=dict(boxstyle='round,pad=0.2', fc='white', ec=LABEL_EC, lw=0.4, alpha=0.95), zorder=8)
 
 # OptiTrack working area (schematic: hull of the triangle, enlarged)
 V = np.array([VERT[k] for k in 'ABC'], float); c = V.mean(0); area = c + (V - c) * 1.35
@@ -80,20 +85,21 @@ for k, (x, y) in {**VERT, **OUT}.items():
 # beacons: small circles and name/height tags
 for k, ((x, y), h) in BEAC.items():
     ax.plot(*P(x, y), 'o', ms=6.5, mfc='none', mec=ARROW, mew=0.9, zorder=4)
-tag(BEAC['B1'][0], 'B1 · 2.60 m', 120, 18)
-tag(BEAC['B2'][0], 'B2 · 2.50 m', 20, -42)
-tag(BEAC['B5'][0], 'B5 · 2.55 m', 15, -42)
-tag(BEAC['B4'][0], 'B4 · 2.40 m', -125, 5)
+tag(BEAC['B1'][0], 'B1 · 2.60 m', 'right')
+tag(BEAC['B2'][0], 'B2 · 2.50 m', 'above')
+tag(BEAC['B5'][0], 'B5 · 2.55 m', 'above')
+tag(BEAC['B4'][0], 'B4 · 2.40 m', 'left')
 
 # labels along the edges, aligned in rows
-label('Marvelmind stationary beacons', (780, 95),
-      [(BEAC['B1'][0], 0.25), (BEAC['B2'][0], 0.3), (BEAC['B5'][0], 0.15), (BEAC['B4'][0], -0.25)])
-label('OptiTrack V120:Trio\n120 Hz, 1.93 m', (1415, 95), [(OPTI, -0.2)])
+# beacons: legend-like label with a circle glyph, no arrows (the tags name each beacon)
+lb = label('       Marvelmind stationary beacons', (545, 95), [], ha='left')
+ax.plot(*P(580, 95), 'o', ms=6.5, mfc='none', mec=ARROW, mew=0.9, zorder=7)
+label('OptiTrack V120:Trio\n120 Hz, 1.93 m', (1440, 95), [((OPTI[0] + 30, OPTI[1] - 8), -0.3)])
 label('Out-and-back stops D, E\noutside the OptiTrack area', (215, 640),
       [(((OUT['D'][0] + OUT['E'][0]) / 2, (OUT['D'][1] + OUT['E'][1]) / 2 - 8), 0.3)])
 label('Triangle A–B–C', (215, 1120), [((520, 960), -0.25)])
 label('OptiTrack area ≈ 2.5 m × 2.5 m', (745, 1140), [(tuple(area[0] * 0.55 + area[1] * 0.45), 0.25)])
-label('KELO robot: mobile beacon\nand OptiTrack rigid body', (1415, 1125), [((1060, 905), 0.3)])
+label('KELO robot: mobile beacon\nand OptiTrack rigid body', (905, 625), [((975, 775), 0.15)])
 ax.text(*P(30, 30), '(a)', fontsize=8, weight='bold', ha='left', va='top', color=TEXT, zorder=7,
         bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='none', alpha=0.85))
 
