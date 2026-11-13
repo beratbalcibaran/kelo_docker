@@ -240,7 +240,7 @@ most harmful setting.
 ## Fig. 1: annotated photo of the room (two columns)
 
 `figures/fig1_photo.pdf`, made by `scripts/fig_setup_photo.py` from `photos/room_IMG_4706.jpg`
-(run from `paper/`: `python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv> vertical` for the
+(run from `paper/`: `python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv> vertical nofade` for the
 one-column teaser `fig1_teaser.pdf` used in `main.tex`, `horizontal` for the two-column variant `fig1_photo.pdf`).
 It is placed before the Introduction, so that it appears at the top of the second column of the first page,
 with the zoom on the robot below the photo.

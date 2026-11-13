@@ -9,7 +9,7 @@ only in Andrea's draft folder) on the clean photo photos/room_IMG_4706.jpg. Beac
 Marvelmind map (right-handed frame): B1 near-left on the ceiling, B4 near-right above the window, B2
 far-left, B5 on the mural wall near the window corner.
 
-Usage (from the paper folder): python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv> [vertical|horizontal]
+Usage (from the paper folder): python scripts/fig_setup_photo.py <optitrack_rigid_body_markers.csv> [vertical|horizontal] [nofade]
 vertical -> figures/fig1_teaser.pdf (one column, first page); horizontal -> figures/fig1_photo.pdf (two columns).
 """
 import csv, json, os, sys
@@ -24,6 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 MARKERS = sys.argv[1]
 LAYOUT = sys.argv[2] if len(sys.argv) > 2 else 'vertical'     # 'vertical' (teaser, one column) or 'horizontal' (two columns)
 VERTICAL = LAYOUT == 'vertical'
+FADE = 'nofade' not in sys.argv[3:]                          # 'nofade': original photo, no focus mask
 plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': ['Helvetica', 'Arial', 'DejaVu Sans'],
                      'font.size': 6.5, 'savefig.bbox': 'tight', 'savefig.pad_inches': 0.02})
 
@@ -55,11 +56,12 @@ def poly_mask(polys, circles=(), r=38):
     for pts in polys: d.polygon([P(*q) for q in pts], fill=255)
     for (cx, cy) in circles: d.ellipse([*P(cx - r, cy - r), *P(cx + r, cy + r)], fill=255)
     return np.asarray(m.filter(ImageFilter.GaussianBlur(radius=18 * S)), float) / 255.0
-keep = poly_mask(KEEP.values(), KEEP_CIRCLES); clutter = poly_mask(CLUTTER.values())
-fade = (FADE_ROOM + (FADE_CLUTTER - FADE_ROOM) * clutter) * (1.0 - keep)
-arr = np.asarray(img, float)
-arr = arr * (1 - fade[..., None]) + 255.0 * fade[..., None]
-img = Image.fromarray(arr.clip(0, 255).astype(np.uint8))
+if FADE:
+    keep = poly_mask(KEEP.values(), KEEP_CIRCLES); clutter = poly_mask(CLUTTER.values())
+    fade = (FADE_ROOM + (FADE_CLUTTER - FADE_ROOM) * clutter) * (1.0 - keep)
+    arr = np.asarray(img, float)
+    arr = arr * (1 - fade[..., None]) + 255.0 * fade[..., None]
+    img = Image.fromarray(arr.clip(0, 255).astype(np.uint8))
 
 BEAC = {'B1': ((185, 62), 2.60), 'B2': ((155, 495), 2.50), 'B5': ((521, 540), 2.55), 'B4': ((1293, 513), 2.40)}
 VERT = {'A': (1100, 860), 'B': (640, 1045), 'C': (585, 875)}
