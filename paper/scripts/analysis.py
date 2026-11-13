@@ -43,6 +43,11 @@ TYPES = {'rotation in place': (['test1', 'test2'], ['deneme_2025', 'deneme_2028'
          'triangle': (['test2_triangle', 'test4_triangle'], ['deneme_triangle_2031']),
          'rest': (['test6_wait'], ['denemenew_wait_2040'])}
 BEACONS = {1: (0.204, 0.124, 2.6), 2: (6.672, 0.169, 2.5), 4: (0.116, -5.484, 2.4), 5: (9.65, -3.83, 2.55)}
+# names used in the paper and in the room photo (approximate positions in the Marvelmind map frame, m)
+VERTEX_NAMES = {'A': (1.15, -3.30), 'B': (1.20, -1.40), 'C': (2.70, -1.85)}
+OUTSIDE_NAMES = {'D': (4.40, -3.30), 'E': (5.10, -1.90)}
+def nearest_name(xy, names):
+    return min(names, key=lambda k: np.hypot(xy[0] - names[k][0], xy[1] - names[k][1]))
 MAX_MARKER_ERR = 0.003   # m: OptiTrack frames with a larger mean marker error are discarded
 FAILED_CM = 100          # corrected samples further than this from the reference count as a failed correction (reported, excluded from RMS per bin and per vertex)
 
@@ -296,6 +301,28 @@ NUM['rigid_body'] = {'low_markers_height_cm': round(hz, 1), 'upper_markers_heigh
                      'mounting2_to_low_markers_cm': round(float(np.hypot(*(LEV_LATE * 100 - MP[low, :2].mean(0)))), 1)}
 save(fig, 'fig1_setup')
 
+# ------------------------------------------------------------------ floor plan (single column), names as in the photo
+fig, ax = plt.subplots(figsize=(W1, 2.4))
+for k, (x, y, z) in BEACONS.items():
+    right = x > 5
+    ax.plot(x, y, 's', ms=6, color='#c0392b')
+    ax.annotate(f'B{k}  {z:.2f} m', (x, y), xytext=(-6 if right else 6, -2), textcoords='offset points', fontsize=6.5, va='top', ha='right' if right else 'left')
+ax.plot(Mi['x'], Mi['y'], '.', ms=0.5, color='0.65', rasterized=True, label='Marvelmind, out-and-back')
+Hall = np.vstack([hedge(REC[n]['O']['x'], REC[n]['O']['y'], REC[n]['O']['yaw'], PARAMS[n][2], TH, TT)[::20] for n in CAMPAIGN1])
+ax.plot(Hall[:, 0], Hall[:, 1], '.', ms=0.5, color='#1f77b4', alpha=0.5, rasterized=True, label='OptiTrack coverage')
+tri = np.array([VERTEX_NAMES[k] for k in 'ABCA'])
+ax.plot(tri[:, 0], tri[:, 1], '-', color='#e67e22', lw=1.2, label='triangle')
+for k, (x, y) in {**VERTEX_NAMES, **OUTSIDE_NAMES}.items():
+    col = '#e67e22' if k in VERTEX_NAMES else '#8e44ad'
+    ax.plot(x, y, 'o' if k in VERTEX_NAMES else 's', ms=4, color=col, mec='white', mew=0.5)
+    off = {'A': (-11, -8), 'B': (-10, 3), 'C': (4, 4), 'D': (-11, 2), 'E': (5, 3)}[k]
+    ax.annotate(k, (x, y), xytext=off, textcoords='offset points', fontsize=7.5, weight='bold', color=col)
+ax.set_xlim(-1.0, 10.8); ax.set_ylim(-6.3, 1.0); ax.set_aspect('equal', adjustable='datalim')
+ax.set_xlabel('x (m)'); ax.set_ylabel('y (m)')
+fig.subplots_adjust(bottom=0.28); h_, l_ = ax.get_legend_handles_labels()
+fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=3, markerscale=10, fontsize=6.5)
+save(fig, 'fig_floorplan')
+
 # ------------------------------------------------------------------ Fig. 2: as recorded vs corrected (slow triangle)
 n = 'test4_triangle'; r = REC[n]
 fig, axs = plt.subplots(1, 2, figsize=(W1, 2.2), sharex=True, sharey=True)
@@ -348,17 +375,20 @@ for row in rows:                      # vertices = same robot pose (pivot), comm
         if np.hypot(*(row[1] - c[0][1])) < 0.45: c.append(row); break
     else: cent.append([row])
 vert = []
+VCOL = {'A': 'C0', 'B': 'C1', 'C': 'C2'}; VMK = {'A': 'o', 'B': 's', 'C': 'd'}
 for k, c in enumerate(sorted([c for c in cent if len(c) >= 3], key=lambda c: c[0][1][0])):
+    name = nearest_name(np.mean([x[1] for x in c], 0) @ rot(TH).T + TT, VERTEX_NAMES)
     for camp, filled in [('C1', False), ('C2', True)]:
         d = np.array([[x[2], x[3]] for x in c if (x[0] == 'deneme_triangle_2031') == filled])
         if not len(d): continue
-        axs[0].plot(d[:, 0], d[:, 1], 'osd^'[k % 4], ms=3.2, mfc=(f'C{k}' if filled else 'none'), mew=0.7, color=f'C{k}')
-        vert.append({'vertex': k + 1, 'campaign': camp, 'stops': len(d), 'mean_offset_cm': round(float(np.hypot(*d.mean(0))), 1),
+        axs[0].plot(d[:, 0], d[:, 1], VMK[name], ms=3.2, mfc=(VCOL[name] if filled else 'none'), mew=0.7, color=VCOL[name])
+        vert.append({'vertex': name, 'campaign': camp, 'stops': len(d), 'mean_offset_cm': round(float(np.hypot(*d.mean(0))), 1),
                      'mean_cm': [round(float(v), 1) for v in d.mean(0)],
                      'std_cm': [round(float(v), 1) for v in d.std(0, ddof=1)] if len(d) > 1 else None})
 NUM['vertices'] = vert
-axs[0].plot([], [], 'o', color='0.3', mfc='none', ms=3.2, label='C1 corrected'); axs[0].plot([], [], 'o', color='0.3', ms=3.2, label='C2')
-axs[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.32), ncol=1, fontsize=6.5)
+for name in 'ABC': axs[0].plot([], [], VMK[name], color=VCOL[name], ms=3.2, label=name)
+axs[0].plot([], [], 'o', color='0.3', mfc='none', ms=3.2, label='C1 corr.'); axs[0].plot([], [], 'o', color='0.3', ms=3.2, label='C2')
+axs[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.32), ncol=3, fontsize=6.5, handletextpad=0.2, columnspacing=0.6)
 axs[0].axhline(0, color='k', lw=0.4); axs[0].axvline(0, color='k', lw=0.4); axs[0].set_aspect('equal', adjustable='datalim')
 axs[0].set_xlabel(r'$\Delta x$ (cm)'); axs[0].set_ylabel(r'$\Delta y$ (cm)'); axs[0].set_title('(a) triangle vertices', fontsize=8)
 hd = []
@@ -457,8 +487,9 @@ NUM['in_out'] = {'reentries': len(reent), 'error_before_exit_median_cm': round(f
                  'error_after_reentry_median_cm': round(float(np.median([q for p, q in reent])), 1) if reent else None, 'outside_points': []}
 for k, c in enumerate(clusters[:2]):
     P = np.array([[o[0], o[1]] for o in c]); sd = P.std(0, ddof=1) * 100
-    axs[1].plot(P[:, 0], P[:, 1], 'x', ms=3, color=f'C{k + 3}', label=f"outside point {'CD'[k]} ({len(P)} stops)")
-    NUM['in_out']['outside_points'].append({'point': 'CD'[k], 'stops': len(P), 'std_cm': [round(float(s_), 1) for s_ in sd],
+    name = nearest_name(P.mean(0), OUTSIDE_NAMES)
+    axs[1].plot(P[:, 0], P[:, 1], 'x', ms=3, color=f'C{k + 3}', label=f"outside point {name} ({len(P)} stops)")
+    NUM['in_out']['outside_points'].append({'point': name, 'stops': len(P), 'std_cm': [round(float(s_), 1) for s_ in sd],
                                             'max_from_mean_cm': round(float(np.hypot(*(P - P.mean(0)).T).max() * 100), 1)})
 axs[1].set_aspect('equal', adjustable='datalim'); axs[1].set_xlabel('x (m)'); axs[1].set_ylabel('y (m)')
 axs[1].legend(loc='upper center', bbox_to_anchor=(0.5, -0.3), ncol=2, markerscale=3, fontsize=6.5)

@@ -296,7 +296,7 @@
  ],
  "vertices": [
   {
-   "vertex": 1,
+   "vertex": "C",
    "campaign": "C1",
    "stops": 6,
    "mean_offset_cm": 10.5,
@@ -310,7 +310,7 @@
    ]
   },
   {
-   "vertex": 1,
+   "vertex": "C",
    "campaign": "C2",
    "stops": 3,
    "mean_offset_cm": 2.7,
@@ -324,7 +324,7 @@
    ]
   },
   {
-   "vertex": 2,
+   "vertex": "A",
    "campaign": "C1",
    "stops": 7,
    "mean_offset_cm": 3.7,
@@ -338,7 +338,7 @@
    ]
   },
   {
-   "vertex": 2,
+   "vertex": "A",
    "campaign": "C2",
    "stops": 3,
    "mean_offset_cm": 2.0,
@@ -352,7 +352,7 @@
    ]
   },
   {
-   "vertex": 3,
+   "vertex": "B",
    "campaign": "C1",
    "stops": 9,
    "mean_offset_cm": 5.6,
@@ -366,7 +366,7 @@
    ]
   },
   {
-   "vertex": 3,
+   "vertex": "B",
    "campaign": "C2",
    "stops": 3,
    "mean_offset_cm": 4.2,
@@ -585,7 +585,7 @@
   "error_after_reentry_median_cm": 4.4,
   "outside_points": [
    {
-    "point": "C",
+    "point": "D",
     "stops": 4,
     "std_cm": [
      5.8,
@@ -594,7 +594,7 @@
     "max_from_mean_cm": 10.8
    },
    {
-    "point": "D",
+    "point": "E",
     "stops": 4,
     "std_cm": [
      7.6,
