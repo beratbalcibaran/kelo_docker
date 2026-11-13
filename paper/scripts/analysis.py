@@ -436,7 +436,7 @@ def allan2d(t, x, y, taus):
         out.append(math.sqrt(0.5 * np.mean(np.diff(ax_) ** 2 + np.diff(ay_) ** 2)))
     return np.array(out)
 tl = np.logspace(np.log10(0.2), np.log10(300), 25)
-fig, ax = plt.subplots(figsize=(W1, 2.3)); NUM['rest'] = {}
+fig, ax = plt.subplots(figsize=(W1, 2.5)); NUM['rest'] = {}
 for i, n in enumerate(['test6_wait', 'denemenew_wait_2040']):
     r = REC[n]; M = r['M']; (a, b) = max(stops(r['O']), key=lambda s: s[1] - s[0])
     sm = (M['t'] >= a) & (M['t'] <= b)
@@ -452,7 +452,7 @@ for i, n in enumerate(['test6_wait', 'denemenew_wait_2040']):
                       'offset_to_reference_cm': round(off, 1)}
 ax.text(0.25, NUM['rest']['test6_wait']['offset_to_reference_cm'] * 10 * 1.15, 'offset to OptiTrack (dotted)', fontsize=6.5)
 ax.set_xlabel(r'averaging time $\tau$ (s)'); ax.set_ylabel('Allan deviation, 2D (mm)')
-fig.subplots_adjust(bottom=0.3); h_, l_ = ax.get_legend_handles_labels(); fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=2, fontsize=6.5)
+fig.subplots_adjust(bottom=0.36); h_, l_ = ax.get_legend_handles_labels(); fig.legend(h_, l_, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=2, fontsize=6.5)
 save(fig, 'fig6_allan')
 
 # ------------------------------------------------------------------ Fig. 7: in/out
