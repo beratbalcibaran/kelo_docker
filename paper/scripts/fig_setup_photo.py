@@ -85,23 +85,22 @@ for k, (x, y) in {**VERT, **OUT}.items():
 # beacons: small circles and name/height tags
 for k, ((x, y), h) in BEAC.items():
     ax.plot(*P(x, y), 'o', ms=6.5, mfc='none', mec=ARROW, mew=0.9, zorder=4)
-tag(BEAC['B1'][0], 'B1 · 2.60 m', 'right')
-tag(BEAC['B2'][0], 'B2 · 2.50 m', 'above')
-tag(BEAC['B5'][0], 'B5 · 2.55 m', 'above')
+tag(BEAC['B1'][0], 'B1 · 2.60 m', 'below')
+tag(BEAC['B2'][0], 'B2 · 2.50 m', 'below')
+tag(BEAC['B5'][0], 'B5 · 2.55 m', 'left')
 tag(BEAC['B4'][0], 'B4 · 2.40 m', 'left')
 
 # labels along the edges, aligned in rows
-# beacons: legend-like label with a circle glyph, no arrows (the tags name each beacon)
-lb = label('       Marvelmind stationary beacons', (545, 95), [], ha='left')
-ax.plot(*P(580, 95), 'o', ms=6.5, mfc='none', mec=ARROW, mew=0.9, zorder=7)
+# beacons: one label, one curved arrow per beacon (arrows fan out without crossing)
+label('Marvelmind stationary beacons', (760, 95),
+      [((BEAC['B1'][0][0] + 14, BEAC['B1'][0][1] + 4), 0.05), ((BEAC['B2'][0][0] + 10, BEAC['B2'][0][1] - 12), 0.2),
+       ((BEAC['B5'][0][0] + 4, BEAC['B5'][0][1] - 16), 0.1), ((BEAC['B4'][0][0] - 6, BEAC['B4'][0][1] - 15), -0.25)])
 label('OptiTrack V120:Trio\n120 Hz, 1.93 m', (1440, 95), [((OPTI[0] + 30, OPTI[1] - 8), -0.3)])
 label('Out-and-back stops D, E\noutside the OptiTrack area', (215, 640),
       [(((OUT['D'][0] + OUT['E'][0]) / 2, (OUT['D'][1] + OUT['E'][1]) / 2 - 8), 0.3)])
 label('Triangle A–B–C', (215, 1120), [((520, 960), -0.25)])
 label('OptiTrack area ≈ 2.5 m × 2.5 m', (745, 1140), [(tuple(area[0] * 0.55 + area[1] * 0.45), 0.25)])
 label('KELO robot: mobile beacon\nand OptiTrack rigid body', (905, 625), [((975, 775), 0.15)])
-ax.text(*P(30, 30), '(a)', fontsize=8, weight='bold', ha='left', va='top', color=TEXT, zorder=7,
-        bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='none', alpha=0.85))
 
 # zoom box on the robot
 x0, y0, x1, y1 = ROBOT_BOX
@@ -127,7 +126,7 @@ ax3.tick_params(labelsize=5.3, pad=-3, colors=TEXT)
 ax3.set_zlim(zf, 10); ax3.set_box_aspect((1, 1, 0.6), zoom=1.1); ax3.view_init(elev=20, azim=60)
 ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.04), ncol=3, fontsize=5.6, handletextpad=0.2, columnspacing=0.7,
            frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC)
-fig.text(0.59, 0.955, '(b) Robot: OptiTrack markers and mobile beacon', fontsize=7, weight='bold', ha='left', va='top', color=TEXT)
+fig.text(0.59, 0.955, 'Robot: OptiTrack markers and mobile beacon', fontsize=7, weight='bold', ha='left', va='top', color=TEXT)
 
 # dashed zoom lines from the robot box to panel (b)
 for (px, py), (qx, qy) in [((x1, y0), (0.03, 0.8)), ((x1, y1), (0.03, 0.2))]:
