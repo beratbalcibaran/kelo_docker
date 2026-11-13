@@ -411,17 +411,34 @@ NUM['rotation_in_place'] = hd
 save(fig, 'fig4_rest')
 
 # ------------------------------------------------------------------ Fig. 5: error vs speed
-edges = np.array([0, 0.02, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7])
-fig, ax = plt.subplots(figsize=(W1, 1.9)); NUM['error_vs_speed'] = {'edges_m_s': edges.tolist()}
-for i, n in enumerate(['test4_triangle', 'test2_triangle', 'deneme_triangle_2031', 'test5_in_out1']):
-    e, ok, v, _ = errors(n, TAU); xs, ys, ns = [], [], []
+def speed_ot(O, t, h=0.15, max_gap=0.05):
+    """Speed from OptiTrack (central difference over 2h) at t; NaN where OptiTrack has a gap, so that the
+    tracking losses of several seconds (robot moving out of view) do not produce fake low speeds."""
+    x1, y1, _, ok1 = ot_at(O, t - h, max_gap); x0, y0, _, ok0 = ot_at(O, t, max_gap); x2, y2, _, ok2 = ot_at(O, t + h, max_gap)
+    return np.where(ok1 & ok0 & ok2, np.hypot(x2 - x1, y2 - y1) / (2 * h), np.nan)
+
+SPEED_RECS = ['test4_triangle', 'test2_triangle', 'deneme_triangle_2031', 'test5_in_out1']
+edges = np.array([0, 0.02, 0.2, 0.4, 0.6, 0.8, 1.1]); MIN_BIN = 30
+fig, ax = plt.subplots(figsize=(W1, 1.9))
+NUM['error_vs_speed'] = {'edges_m_s': edges.tolist(), 'min_samples_per_bin': MIN_BIN,
+                         'note': 'speed from OptiTrack (0.3 s central difference), only where OptiTrack tracks the robot'}
+for i, n in enumerate(SPEED_RECS):
+    e, ok, _, _ = errors(n, TAU); v = speed_ot(REC[n]['O'], REC[n]['M']['t'] - TAU)
+    good = ok & np.isfinite(v) & (e < FAILED_CM); xs, ys, ns = [], [], []
     for k in range(len(edges) - 1):
-        sel = ok & (v >= edges[k]) & (v < edges[k + 1]) & (e < FAILED_CM)
-        if sel.sum() < 30: continue
-        xs.append((edges[k] + edges[k + 1]) / 2); ys.append(rms(e[sel])); ns.append(int(sel.sum()))
-    ax.plot(xs, ys, 'o-s^'[i * 1 if i else 0] if False else ['o-', 's--', 'D-.', '^:'][i], ms=3, color=f'C{i}', label=REC[n]['label'])
-    NUM['error_vs_speed'][n] = {'rms_cm': [round(v_, 1) for v_ in ys], 'n': ns, 'centres': xs}
-ax.set_xlabel('speed from OptiTrack (m/s)'); ax.set_ylabel('RMS error (cm)'); ax.set_ylim(0, 18); ax.legend(loc='lower right', ncol=2, fontsize=6.5)
+        sel = good & (v >= edges[k]) & (v < edges[k + 1])
+        if sel.sum() < MIN_BIN: continue
+        xs.append(float(np.median(v[sel]))); ys.append(rms(e[sel])); ns.append(int(sel.sum()))
+    ax.plot(xs, ys, ['o-', 's--', 'D-.', '^:'][i], ms=3, color=f'C{i}', label=REC[n]['label'])
+    # speed actually driven, on a regular grid where OptiTrack tracks the robot
+    O = REC[n]['O']; g = np.arange(O['t'][0] + 0.2, O['t'][-1] - 0.2, 0.05); vg = speed_ot(O, g); vg = vg[np.isfinite(vg)]
+    mv = vg[vg > 0.02]
+    NUM['error_vs_speed'][n] = {'rms_cm': [round(v_, 1) for v_ in ys], 'n': ns, 'median_speed_in_bin_m_s': [round(x, 2) for x in xs],
+                                'moving_time_pct': round(100 * len(mv) / len(vg), 1),
+                                'moving_speed_m_s': {'median': round(float(np.median(mv)), 2), 'p90': round(float(np.percentile(mv, 90)), 2),
+                                                     'max': round(float(mv.max()), 2)}}
+ax.set_xlabel('speed from OptiTrack (m/s)'); ax.set_ylabel('RMS error (cm)'); ax.set_ylim(0, 18); ax.set_xlim(-0.03, 1.05)
+ax.legend(loc='lower right', ncol=2, fontsize=6.5)
 save(fig, 'fig5_speed')
 
 # ------------------------------------------------------------------ Fig. 6: Allan deviation at rest

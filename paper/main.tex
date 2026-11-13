@@ -317,6 +317,16 @@ shading by the robot body and mast (the triple is inferred by the correction, ca
   \label{fig:rest}
 \end{figure}
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig5_speed.pdf}
+  \caption{RMS error of Marvelmind per speed bin, at the median speed of the bin. Speed from
+  OptiTrack, only where it tracks the robot; bin edges 0.02, 0.2, 0.4, 0.6, 0.8 and
+  \SI{1.1}{\metre\per\second}. First point of each curve: stops, below
+  \SI{2}{\centi\metre\per\second}. Bins with fewer than 30 samples are omitted.}
+  \label{fig:speed}
+\end{figure}
+
 \begin{figure}[!b]
   \centering
   \includegraphics[width=\columnwidth]{fig7_inout.pdf}
@@ -327,7 +337,8 @@ shading by the robot body and mast (the triple is inferred by the correction, ca
 
 \subsection{While moving}
 \todo{RMS 11.0 and \SI{11.1}{cm}, p95 21--\SI{23}{cm} in the two campaigns (Table~\ref{tab:summary});
-no clear dependence on the speed up to \SI{0.6}{m/s} (one sentence, no figure); delay
+no monotonic trend with the speed up to about \SI{1}{m/s} (Fig.~\ref{fig:speed}; the robot went faster
+than \SI{0.6}{m/s}, check Setup); delay
 \SI{0.105 +- 0.036}{s}. Temporal filters gained at most \SI{1}{cm}.}
 
 \subsection{Outside the OptiTrack area}

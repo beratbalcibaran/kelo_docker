@@ -104,7 +104,7 @@ All archives are in `experiments/archives/2026-11-12/`, described in `experiment
 - **Sensitivity.** Median error stable within 1 cm for hedgehog height ±5 cm, tolerance 7–15 cm, with
   or without the continuity term.
 - **While moving (Fig. 5).** About 11 cm RMS, p95 18–23 cm in both campaigns; no clear dependence on
-  the speed up to 0.6 m/s. Delay 0.105 ± 0.036 s.
+  the speed up to about 1 m/s (measured by OptiTrack; Fig. 5 redone on 13/11). Delay 0.105 ± 0.036 s.
 - **Out-and-back (Fig. 7).** Error before leaving 5.4 cm, after re-entry 4.4 cm (median, 10
   re-entries); spread at the outside points 6–10 cm (upper bound).
 

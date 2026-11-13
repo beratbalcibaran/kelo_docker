@@ -19,7 +19,7 @@ and readable in black and white.
 | Fig. 8: Monte Carlo of beacon height errors | `figures/fig8_montecarlo.pdf` | V-B | keep |
 | Fig. 4: at rest (vertices, heading) | `figures/fig4_rest.pdf` | V-C | keep |
 | Fig. 6: Allan deviation | `figures/fig6_allan.pdf` | V-C | keep |
-| Fig. 5: error vs speed | `figures/fig5_speed.pdf` | V-D | not in main.tex, one sentence in the text (file kept) |
+| Fig. 5: error vs speed | `figures/fig5_speed.pdf` | V-D | keep |
 | Fig. 7: out-and-back | `figures/fig7_inout.pdf` | V-E | keep |
 
 In `main.tex` the results sections are: A. configuration error and correction; B. tolerance to beacon
@@ -310,10 +310,21 @@ not (up to 14.6 cm apart at the same heading). See "Heading: registration or IPS
 corrected (open) and campaign 2 (filled). (b) Offset against the robot heading for the rotation in
 place, two runs per campaign.*
 
-## Fig. 5: error vs speed (optional)
+## Fig. 5: error vs speed
 
-No clear dependence on the speed up to 0.6 m/s: 7–16 cm RMS in both campaigns. Can become one
-sentence. The "fast" C1 triangle has few samples above 0.2 m/s: check the speeds with Berat.
+Speed from OptiTrack (0.3 s central difference) computed only where OptiTrack tracks the robot: the
+tracking losses of several seconds (up to 25 s in the triangles, robot moving 1.5–1.9 m out of view)
+used to be interpolated and gave fake low speeds. Bins 0.02 / 0.2 / 0.4 / 0.6 / 0.8 / 1.1 m/s, at least
+30 samples per bin, each point at the median speed of its bin (`numbers.json` → `error_vs_speed`).
+
+Speeds actually driven (moving samples, > 2 cm/s): C1 slow triangle almost constant 0.38 m/s (max
+0.44); C1 fast triangle median 0.23, p90 0.76, max 1.0 m/s; C2 triangle p90 0.77, max 1.02; C1
+out-and-back p90 0.67, max 1.06. The robot moves for 10–13 % of the time. So the robot went up to about
+1 m/s, not 0.6 m/s as written before.
+
+Result: RMS 7–16 cm per bin with no monotonic trend; above 0.2 m/s 9–13 cm in all tests; the largest
+values are in the 0.02–0.2 m/s bin (accelerating and decelerating near the stops). Bins above 0.2 m/s
+hold 30–320 samples, so a weak dependence cannot be excluded.
 
 ## Fig. 6: Allan deviation at rest, both campaigns
 
@@ -347,5 +358,5 @@ reported for the mobile beacon, with the 10 cm line of the height check.
 ## Which figures and tables in 6 pages
 
 Recommended: Fig. 1 (photo), floor plan, 3, 4, 6, 7, 8, Table I (with the z-filter column and the Monte
-Carlo intervals) and Table II. Triple vs heading and sensitivity in the text. Fig. 2 and Fig. 5 are
-no longer in main.tex (same figure set as Andrea's version); the files stay in `figures/`.
+Carlo intervals) and Table II. Triple vs heading and sensitivity in the text. Fig. 2 is
+no longer in main.tex (same figure set as Andrea's version); the file stays in `figures/`. Fig. 5 (speed) is back.
