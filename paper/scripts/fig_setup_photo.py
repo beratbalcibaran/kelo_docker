@@ -34,9 +34,11 @@ AREA = '#9cc3dd'                       # light blue for the OptiTrack area
 BACK = '#e3eef6'                       # backdrop
 LBOX = dict(boxstyle='round,pad=0.35,rounding_size=0.5', fc=LABEL_FC, ec=LABEL_EC, lw=0.6)
 
+CROP_X = 1460                                          # crop the photo right of the OptiTrack tripod (1600 x 1200 frame)
 img = Image.open(os.path.join(ROOT, 'photos', 'room_IMG_4706.jpg')).convert('RGB')
-img = img.resize((2400, 1800), Image.LANCZOS); W, H = img.size
-S = W / 1600.0                                         # points below are in the 1600 x 1200 frame
+img = img.crop((0, 0, round(img.width * CROP_X / 1600), img.height))
+S = 1.5                                                # points below are in the 1600 x 1200 frame
+img = img.resize((round(CROP_X * S), round(1200 * S)), Image.LANCZOS); W, H = img.size
 P = lambda x, y: (x * S, y * S)
 
 BEAC = {'B1': ((185, 62), 2.60), 'B2': ((155, 495), 2.50), 'B5': ((521, 540), 2.55), 'B4': ((1293, 513), 2.40)}
@@ -48,11 +50,11 @@ num = json.load(open(os.path.join(ROOT, 'figures', 'numbers.json')))
 LEV1 = np.array(num['alignment']['lever_arm_before_move_m']); LEV2 = np.array(num['alignment']['lever_arm_after_move_m'])
 
 if VERTICAL:   # photo on top, zoom on the robot below (one IEEE column)
-    fig = plt.figure(figsize=(3.5, 3.95))
-    PHOTO_RECT, AX3_RECT = [0.015, 0.385, 0.97, 0.605], [0.02, 0.1, 0.96, 0.3]
+    fig = plt.figure(figsize=(3.5, 4.5))
+    PHOTO_RECT, AX3_RECT = [0.015, 0.378, 0.97, 0.615], [0.02, 0.09, 0.96, 0.3]
 else:          # photo on the left, zoom on the right (two columns)
     fig = plt.figure(figsize=(7.16, 2.8))
-    PHOTO_RECT, AX3_RECT = [0.012, 0.03, 0.525, 0.94], [0.585, 0.13, 0.4, 0.8]
+    PHOTO_RECT, AX3_RECT = [0.012, 0.03, 0.48, 0.94], [0.54, 0.13, 0.45, 0.8]
 bg = fig.add_axes([0, 0, 1, 1]); bg.set_axis_off(); bg.set_xlim(0, 1); bg.set_ylim(0, 1)
 bg.add_patch(FancyBboxPatch((0.005, 0.005), 0.99, 0.99, boxstyle='round,pad=0,rounding_size=0.03', fc=BACK, ec='none'))
 
@@ -103,7 +105,7 @@ tag(BEAC['B4'][0], 'B4 · 2.40 m', 'left')
 label('Marvelmind stationary beacons', (760, 95),
       [((BEAC['B1'][0][0] + 14, BEAC['B1'][0][1] + 4), 0.05), ((BEAC['B2'][0][0] + 10, BEAC['B2'][0][1] - 12), 0.2),
        ((BEAC['B5'][0][0] + 4, BEAC['B5'][0][1] - 16), 0.1), ((BEAC['B4'][0][0] - 6, BEAC['B4'][0][1] - 15), -0.25)])
-label('OptiTrack V120:Trio\n120 Hz, 1.93 m', (1440, 95), [((OPTI[0] + 30, OPTI[1] - 8), -0.3)])
+label('OptiTrack V120:Trio\n120 Hz, 1.93 m', (1265, 95), [((OPTI[0] + 30, OPTI[1] - 8), -0.3)])
 label('Out-and-back stops D, E\noutside the OptiTrack area', (215, 640),
       [((OUT['E'][0] * 0.3 + OUT['D'][0] * 0.7, OUT['E'][1] * 0.3 + OUT['D'][1] * 0.7 - 6), -0.3)])   # lands between E and D, bowing away from E
 label('Triangle A–B–C', (215, 1120), [((520, 960), -0.25)])
@@ -131,7 +133,7 @@ for L, m_, col, lab in [(LEV1, 'v', ARROW, 'mobile beacon, mounting M1'), (LEV2,
     ax3.plot([L[0] * 100] * 2, [L[1] * 100] * 2, [zf, hz], color=col, lw=0.6, ls='--')
 ax3.set_xlabel('x (cm)', labelpad=-7, fontsize=6); ax3.set_ylabel('y (cm)', labelpad=-7, fontsize=6); ax3.set_zlabel('z (cm)', labelpad=-8, fontsize=6)
 ax3.tick_params(labelsize=5.3, pad=-3, colors=TEXT)
-ax3.set_zlim(zf, 10); ax3.set_xlim(-25, 25); ax3.set_ylim(-22, 28); ax3.set_box_aspect((1.5, 1, 0.5) if VERTICAL else (1, 1, 0.6), zoom=1.3 if VERTICAL else 1.1); ax3.view_init(elev=20, azim=60)
+ax3.set_zlim(zf, 10); ax3.set_xlim(-25, 25); ax3.set_ylim(-22, 28); ax3.set_box_aspect((1.25, 1, 0.65) if VERTICAL else (1, 1, 0.6), zoom=1.2 if VERTICAL else 1.1); ax3.view_init(elev=20, azim=60)
 if VERTICAL:
     ax3.legend(loc='upper center', bbox_to_anchor=(0.5, -0.06), ncol=3, fontsize=5.3, handletextpad=0.15, columnspacing=0.6,
                frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC, borderpad=0.3)
@@ -139,7 +141,7 @@ if VERTICAL:
 else:
     ax3.legend(loc='upper center', bbox_to_anchor=(0.5, 0.04), ncol=3, fontsize=5.6, handletextpad=0.2, columnspacing=0.7,
                frameon=True, facecolor=LABEL_FC, edgecolor=LABEL_EC)
-    fig.text(0.59, 0.955, 'Robot: OptiTrack markers and mobile beacon', fontsize=7, weight='bold', ha='left', va='top', color=TEXT)
+    fig.text(0.545, 0.955, 'Robot: OptiTrack markers and mobile beacon', fontsize=7, weight='bold', ha='left', va='top', color=TEXT)
     zoom = [((x1, y0), (0.03, 0.8)), ((x1, y1), (0.03, 0.2))]
 for (px, py), (qx, qy) in zoom:
     fig.add_artist(ConnectionPatch(xyA=P(px, py), coordsA=ax.transData, xyB=(qx, qy), coordsB=ax3.transAxes,
