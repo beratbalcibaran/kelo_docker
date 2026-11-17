@@ -1,0 +1,42 @@
+Changes in the paper draft (since 290be88)
+
+I filled the TODOs and checked the numbers in the text against numbers.json
+and analysis.py. Some of them were different from the notes, see below.
+
+Text
+All sections are written, based on the TODO notes. I added references to the
+related work and checked them on Crossref. Neuber 2022, Moreno 2019,
+El Mawas 2023 and Popovici 2022 I read in full. El Mawas 2023 is new, they
+used Marvelmind and OptiTrack together but for fault diagnosis, there is no
+Marvelmind error in the paper.
+
+Numbers different from the notes
+- MC of the height errors: 3078 samples (len(TRUTH)), the note said 3009
+- corrected p95 in the simulation: 1.1-1.5 cm, not 1.2-1.5
+- stop offsets with the wrong B1 height: 2.7 to 8.9 times larger, not 3-10
+- p95 with the wrong map: up to 1.5 m (max is 150.9 cm)
+- offsets at rest 2.6 and 5.5 cm: 5.5 is above u = 5.4 cm, so I wrote
+  "within the expanded uncertainty, 10.8 cm"
+- temporal filters: idee.md says they were tried on the Exp 0 data, I wrote
+  it like that (Kalman + RTS, at most 1 cm)
+- firmware v8.451, there is no 8.42 on the Marvelmind page
+- lever arm: only 52 cm from the data, no tape value
+
+analysis.py
+V_REF was 0.3 m/s but the robot went up to about 1 m/s. Now it is the RMS
+OptiTrack speed of the moving samples, 0.445 m/s (p90 0.72, max 1.04).
+In Table I: delay 1.1 to 1.6 cm, sync 0.15 to 0.2 cm, combined moving
+5.5 to 5.6 cm, expanded 11.0 to 11.3 cm. Everything else in numbers.json is
+the same, I ran the script again and compared.
+
+Table II
+Triangle, all now has C1 rec. and C2. New p75 row (EvAAL score):
+46.0 / 31.8 / 12.2 / 12.4 cm.
+
+Length
+It is 6 pages now. I removed the campaigns table (it is in the text now) and
+some background references, 29 left. FloatBarrier removed, Fig. 8 at the top.
+All figures are still in, same order. I also removed the % comments from
+main.tex and refs.bib, the old ones are in 290be88.
+
+Berat
