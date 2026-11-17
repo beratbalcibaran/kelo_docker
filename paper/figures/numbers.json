@@ -676,13 +676,19 @@
    "test5_in_out1": 0.04
   },
   "u_delay_s": 0.036,
-  "u_delay_at_0.3_m_s_cm": 1.07,
-  "u_sync_at_0.3_m_s_cm": 0.15,
+  "v_ref_rms_moving_m_s": 0.445,
+  "moving_speed_m_s": {
+   "p90": 0.72,
+   "max": 1.04
+  },
+  "u_delay_at_v_ref_cm": 1.59,
+  "u_delay_at_1_m_s_cm": 3.57,
+  "u_sync_at_v_ref_cm": 0.22,
   "temperature_effect_on_marvelmind_cm": 1.8,
   "u_reference_rest_cm": 5.41,
   "U_reference_rest_k2_cm": 10.83,
-  "u_reference_moving_cm": 5.52,
-  "U_reference_moving_k2_cm": 11.04,
+  "u_reference_moving_cm": 5.65,
+  "U_reference_moving_k2_cm": 11.29,
   "lever_arm_tape_check_cm": {
    "mounting_1_to_low_markers_data_vs_tape": [
     42.3,

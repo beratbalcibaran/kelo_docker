@@ -550,7 +550,14 @@ for n in ['test6_wait', 'denemenew_wait_2040']:
     ot_static.append(float(np.hypot(O['x'][so].std(), O['y'][so].std())) * 1000)
 # delay: standard uncertainty of the median of the four per-recording estimates
 u_tau = float(np.std(list(tau_each.values()), ddof=1) / math.sqrt(len(tau_each)))
-V_REF = 0.3   # m/s, typical speed
+# speed used to convert the delay into position: RMS OptiTrack speed of the moving samples (> 5 cm/s) of the
+# four recordings with motion, at the Marvelmind sample times and only where OptiTrack tracks the robot
+_vm = []
+for _n in tau_each:
+    _r = REC[_n]; _e, _ok, _, _ = errors(_n, TAU); _v = speed_ot(_r['O'], _r['M']['t'] - TAU)
+    _vm.append(_v[_ok & np.isfinite(_v) & (_v > 0.05)])
+_vm = np.concatenate(_vm)
+V_REF = float(np.sqrt(np.mean(np.square(_vm))))   # m/s
 u_delay = u_tau * V_REF * 100
 # synchronisation: Marvelmind transport jitter (device time stamp vs PC arrival) from the recording summaries
 u_sync = 0.005 * V_REF * 100
@@ -578,8 +585,10 @@ NUM['uncertainty'] = {
     'optitrack_mean_marker_error_mm': round(ot_err, 2), 'optitrack_static_std_mm': [round(v, 3) for v in ot_static],
     'alignment_and_lever_arm_cm': {'C1_mounting_1': round(u_align_m1, 2), 'C1_mounting_2': round(u_align_m2, 2), 'C2': round(u_align_c2, 2)},
     'lever_arm_std_cm': {'mounting_1': [round(float(v), 2) for v in lev1.std(0)], 'mounting_2': [round(float(v), 2) for v in lev2.std(0)]},
-    'delay_s': TAU, 'delay_per_recording_s': tau_each, 'u_delay_s': round(u_tau, 3), 'u_delay_at_0.3_m_s_cm': round(u_delay, 2),
-    'u_sync_at_0.3_m_s_cm': round(u_sync, 2), 'temperature_effect_on_marvelmind_cm': round(u_temp, 2),
+    'delay_s': TAU, 'delay_per_recording_s': tau_each, 'u_delay_s': round(u_tau, 3), 'v_ref_rms_moving_m_s': round(V_REF, 3),
+    'moving_speed_m_s': {'p90': round(float(np.percentile(_vm, 90)), 2), 'max': round(float(_vm.max()), 2)},
+    'u_delay_at_v_ref_cm': round(u_delay, 2), 'u_delay_at_1_m_s_cm': round(u_tau * 100, 2),
+    'u_sync_at_v_ref_cm': round(u_sync, 2), 'temperature_effect_on_marvelmind_cm': round(u_temp, 2),
     'u_reference_rest_cm': round(u_ref_rest, 2), 'U_reference_rest_k2_cm': round(2 * u_ref_rest, 2),
     'u_reference_moving_cm': round(u_ref_moving, 2), 'U_reference_moving_k2_cm': round(2 * u_ref_moving, 2),
     'lever_arm_tape_check_cm': {'mounting_1_to_low_markers_data_vs_tape': [NUM['rigid_body']['mounting1_to_low_markers_cm'], 40],

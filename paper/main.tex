@@ -1,8 +1,3 @@
-% I2MTC 2027 paper: Marvelmind vs OptiTrack on the KELO.
-% Limit: 6 pages including references. Plan: ../idee.md. Figures and numbers: FIGURES.md,
-% figures/numbers.json (made by scripts/analysis.py).
-% Build: pdflatex main && bibtex main && pdflatex main && pdflatex main (TeX Live, Texifier or Overleaf).
-% Check the I2MTC 2027 author instructions (template, PDF eXpress) before submission.
 \documentclass[conference]{IEEEtran}
 \IEEEoverridecommandlockouts
 \usepackage{cite}
@@ -10,12 +5,9 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{siunitx}
-\usepackage{xcolor}
 \usepackage{placeins}
+\usepackage{url}
 \graphicspath{{figures/}}
-
-% \todo{...}: open points, remove all of them before submission.
-\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 
 \begin{document}
 
@@ -44,24 +36,25 @@ marcello.bonfe@unife.it}
 
 \maketitle
 
-% ---------------------------------------------------------------------------------------------------
 \begin{abstract}
-\todo{150--200 words, write last. Problem: low-cost ultrasonic indoor positioning on a mobile robot,
-reference only in part of the area. What was done: Marvelmind on a KELO robot against OptiTrack in two
-campaigns at the same robot poses (rotations, triangles at two speeds, rests; out-and-back test).
-Main numbers: precision \SI{1.6}{mm} (Allan, \SI{1}{s}) vs accuracy 3--7\,cm at rest; about 11\,cm
-RMS while moving; comparison uncertainty dominated by the registration (5\,cm). A wrong height of one
-beacon raised the p95 error up to 1.4\,m; discarding inconsistent samples is not enough; recomputing
-the recorded positions with the correct map, without the reference, made the first campaign agree
-with the second one, recorded with the correct configuration.}
+Low-cost ultrasonic indoor positioning systems are attractive for mobile robots, but their error on a
+moving robot is rarely measured against a better reference, and they are configured by hand. We characterise a Marvelmind system on an omnidirectional KELO robot against an OptiTrack motion
+capture system that covers only part of the beacon area. Two campaigns were recorded at the same robot
+poses, with rotations in place, a triangle driven at two speeds, long rests and an out-and-back path
+that leaves the reference area. At rest the position is precise to \SI{1.6}{mm} over \SI{1}{s},
+while its offset from the reference is 2.6 and \SI{5.5}{cm} in the two long rests. While moving at up
+to \SI{1}{m/s} the error is about \SI{11}{cm} RMS. The uncertainty of the comparison, about \SI{5}{cm},
+comes mainly from the registration of the two frames. In the first campaign the height of one
+beacon was missing from the map, which raised the 95th percentile of the error up to \SI{1.5}{m}.
+Discarding the samples with an implausible height did not remove the bias. Recomputing the recorded
+positions with the corrected map, without using the reference, brought the first campaign into
+agreement with the second one, recorded with the correct configuration.
 \end{abstract}
 
 \begin{IEEEkeywords}
 indoor positioning, ultrasonic positioning, motion capture, measurement uncertainty, mobile robots
 \end{IEEEkeywords}
 
-% Teaser figure: placed before the Introduction so that it appears at the top of the second column
-% of the first page.
 \begin{figure}[!t]
   \centering
   \includegraphics[width=\columnwidth]{fig1_teaser.pdf}
@@ -71,133 +64,180 @@ indoor positioning, ultrasonic positioning, motion capture, measurement uncertai
   \label{fig:setup}
 \end{figure}
 
-% ---------------------------------------------------------------------------------------------------
 \section{Introduction}
-% ~0.75 page
-\todo{Low-cost indoor positioning systems (IPS) for mobile robots; their accuracy must be measured on
-the robot. Motion capture gives sub-millimetre reference positions, but only in a small volume.}
+Mobile robots in factories, warehouses and laboratories need their position indoors, where GNSS is
+not available. Indoor positioning systems (IPS) based on ultrasound, ultra-wideband radio or Bluetooth
+fill this gap at very different levels of cost and accuracy~\cite{mautz2012indoor,zafari2019survey}.
+Low-cost ultrasonic systems reach centimetre-level positions in a room with a few battery-powered
+beacons, but independent tests on robots report errors from a few centimetres to several
+decimetres~\cite{amsters2019evaluation,rebelo2024performance,wang2026performance}. To use such a system
+as a sensor, its error has to be measured on the moving robot against a more accurate reference.
+Optical motion capture provides one with sub-millimetre accuracy~\cite{merriaux2017vicon}, but only in a
+small volume.
 
-\todo{Configuration of ultrasonic IPS (beacon positions and heights) is done by hand; a single wrong
-parameter is easy to miss and degrades the measurement. Can the data be saved afterwards?}
+The configuration is a second source of error. An ultrasonic IPS measures the distances between its
+beacons and builds its own map, but the height of each stationary beacon is entered by hand, and the
+manufacturer warns that a small mistake there causes errors in the location~\cite{marvelmind2026manual}.
+A single wrong number is easy to miss, and the recorded data may look plausible in 2D while being wrong
+by decimetres. Methods that handle anchor errors work on the raw distances at measurement
+time~\cite{ho2007source}. We found no study on whether positions that were already computed and logged
+with a wrong map can be saved afterwards.
 
-Contributions:
+This paper characterises a commercial ultrasonic IPS, Marvelmind, on an omnidirectional KELO robot
+against OptiTrack motion capture. The contributions are:
 \begin{itemize}
-  \item \todo{characterisation of Marvelmind on a mobile robot against OptiTrack: at rest (precision
-        vs accuracy, repeated visits, heading), while moving, outside the reference area;}
-  \item \todo{effect of a wrong beacon height on the measurement;}
-  \item \todo{a method to recompute the recorded positions with the corrected map, without the
-        reference, using the known height of the mobile beacon as a check, validated by a second
-        campaign at the same robot poses with the correct configuration.}
+  \item a characterisation against motion capture without fitting each trajectory to the reference, at
+        rest, while moving at up to \SI{1}{m/s} and outside the reference area, with an uncertainty
+        budget of the comparison;
+  \item the effect of a wrong height of one stationary beacon, measured in a real campaign and
+        simulated over a range of errors;
+  \item a method that recomputes the recorded positions with the corrected map without the reference,
+        validated by a second campaign recorded with the correct configuration.
 \end{itemize}
 
-% ---------------------------------------------------------------------------------------------------
 \section{Related Work}
-% ~0.5 page
-\todo{Indoor positioning technologies and surveys~\cite{mautz2012indoor,zafari2019survey}.}
-\todo{Published evaluations of Marvelmind and other ultrasonic IPS: search IEEE Xplore and add.}
-\todo{Motion capture as reference and its own accuracy~\cite{merriaux2017vicon}.}
-\todo{Trajectory error metrics (ATE)~\cite{sturm2012benchmark}; uncertainty
-evaluation~\cite{gum2008}; Allan deviation~\cite{allan1966statistics}.}
+Surveys rank ultrasound among the most accurate low-cost indoor
+technologies~\cite{mautz2012indoor,zafari2019survey}. Research systems with broadband or coded signals
+reach millimetres to a few centimetres in small, controlled areas~\cite{prieto2009performance}, and
+ultrasonic positioning has been studied as a measurement system in this
+community~\cite{carotenuto2019indoor,comuniello2020ultrasound}.
 
-% ---------------------------------------------------------------------------------------------------
+Published evaluations of Marvelmind use references of very different quality. Amsters et al.\ tested it
+on a mobile robot against an optical coordinate measuring machine and found a mean error of about
+\SI{20}{mm} at speeds up to \SI{0.2}{m/s}~\cite{amsters2019evaluation}. Other studies take the robot's
+own localisation, its commanded positions, a line on the floor or RTK-GNSS as reference, and report
+errors from about \SI{10}{cm} RMS to several
+decimetres~\cite{rebelo2024performance,wang2026performance,exposito2019evaluation}. In most of these works the
+Marvelmind trajectory is fitted to the reference before the error is computed, which hides any rigid
+offset of the map. El Mawas et al.\ recorded Marvelmind together with OptiTrack on three small robots,
+but used the data to diagnose synthetic sensor faults and did not report the error of Marvelmind
+itself~\cite{elmawas2023comparative}. Popovici et al.\ recomputed Marvelmind positions from the raw
+distances to a subset of beacons, because some beacons received only reflected signals~\cite{popovici2022kinematics}.
+
+ISO/IEC~18305~\cite{iso2016rtls} and the EvAAL framework of the Indoor Positioning and Indoor Navigation (IPIN)
+competitions, which ranks systems
+by the third quartile of the 2D error~\cite{potorti2017comparing}, standardise the evaluation of indoor
+positioning. Trajectory errors are usually reported after an alignment whose choice changes the
+result~\cite{sturm2012benchmark}. Uncertainty, when reported, is mostly the scatter of the errors, with
+the reference taken as exact~\cite{neuber2022evaluation}; the Guide to the Expression of Uncertainty in
+Measurement (GUM)~\cite{gum2008} and its Monte Carlo
+supplement~\cite{jcgm101} also cover the registration and the time delay. The Allan
+deviation~\cite{allan1966statistics} is standard for inertial sensors~\cite{elsheimy2008analysis}, but we
+found no application to the position output of an IPS.
+
+Estimators that model errors in the anchor positions assume small random errors and access to the raw
+ranges~\cite{ho2007source}, and self-calibration still needs known reference
+points~\cite{moreno2019easily}. Choosing among candidate solutions over time by dynamic programming is
+established in map matching~\cite{newson2009hidden}. To
+the best of our knowledge, no work repairs already computed positions after a gross error in the anchor
+map without a reference.
+
 \section{Experimental Setup}
-% ~1 page
 \subsection{Marvelmind}
-\todo{Four stationary beacons (B1, B2, B4, B5) at 2.40--2.60\,m, Super-Beacon hardware \todo{check},
-firmware 8.42, 3D navigation, update rate \SI{5.8}{Hz}, filters off, air temperature setting
-\SI{23}{\celsius}. Hedgehog on the robot, read through the modem (binary protocol, device time stamp).
-Fig.~\ref{fig:setup} and floor plan Fig.~\ref{fig:plan}.}
+Four stationary beacons, B1, B2, B4 and B5, were mounted 2.40--\SI{2.60}{m} above the floor around a
+room of about \SI{10}{m}~$\times$~\SI{6}{m} (Figs.~\ref{fig:setup} and~\ref{fig:plan}). They are
+Super-Beacons with software v8.451, in 3D mode at about \SI{5.8}{Hz}. The manufacturer specifies
+\SI{\pm 2}{cm} for differential and 1--3\,\% of the distance to the beacons for absolute
+positions~\cite{marvelmind2024superbeacon}. All temporal filters were off, as the manual recommends for
+low latency~\cite{marvelmind2026manual}, and the air temperature setting was \SI{23}{\celsius}. The
+mobile beacon on the robot, the hedgehog, was read through the USB modem, which gives the position and a
+device time stamp for each sample.
 
 \subsection{Reference: OptiTrack}
-\todo{V120:Trio, \SI{120}{Hz}, Motive 3.5; covered area about \SI{2.5}{m}~$\times$~\SI{2.5}{m} in a corner of the
-beacon area; rigid body with 13 markers; static noise below \SI{0.1}{mm}, mean marker error about
-\SI{1}{mm}.}
+The reference is an OptiTrack V120:Trio, a factory-calibrated bar with three cameras at
+\SI{120}{Hz}, with Motive 3.5. It covers about
+\SI{2.5}{m}~$\times$~\SI{2.5}{m} in a corner of the beacon area. The rigid body on the robot has 13
+markers; the mean marker error was \SI{1.1}{mm} and the static noise below \SI{0.1}{mm}, so the
+reference does not limit the comparison (Section~\ref{sec:budget}).
 
 \subsection{Robot and mounting}
-\todo{KELO driven with a joystick. Two hedgehog mountings; lever arm with respect to the rigid
-body pivot (\num{-0.144}, \num{-0.141})\,m and (\num{0.214}, \num{0.241})\,m, estimated from the data
-(\SI{52}{cm} apart; tape: about \SI{45}{cm}). Rigid body: two groups of 5 markers on the mast
-and 3 markers \SI{18.5}{cm} lower, at the height of the hedgehog (\SI{0.69}{m} from the floor,
-\SI{0.70}{m} reported by Marvelmind). Zoom in Fig.~\ref{fig:setup}.}
+The robot is an omnidirectional KELO platform~\cite{kelo2026technologies}, driven with a joystick
+through ROS~2. The rigid body has two groups of five markers on the mast and three markers
+\SI{18.5}{cm} lower, at the height of the hedgehog, \SI{0.69}{m} above the floor; Marvelmind reports
+\SI{0.70}{m}. The hedgehog was used in two mountings, M1 and M2, \SI{52}{cm} apart
+(Fig.~\ref{fig:setup}). Their lever arms to the rigid body pivot, $(-0.144, -0.141)$\,m and
+$(0.214, 0.241)$\,m, are estimated from the data.
 
 \subsection{Logging and synchronisation}
-\todo{Both systems on the same PC (\texttt{record.py}); Marvelmind device clock drift corrected;
-residual delay \SI{0.105}{s} (Section~IV-B).}
+Both systems were logged on the same PC by one script, with the PC arrival time and, for Marvelmind,
+the device time stamp, whose drift against the PC was removed. The remaining delay of Marvelmind,
+\SI{0.105 +- 0.036}{s}, is estimated from the data (Section~\ref{sec:registration}) and is of the same
+order as the latency given by the manufacturer~\cite{marvelmind2026manual}. The raw beacon distances
+were not logged.
 
 \subsection{Test campaigns}
-\todo{Two campaigns at the same robot poses (Table~\ref{tab:campaigns}). Campaign~1 is the main test
-programme; it was recorded with an error in the Marvelmind map (the height of beacon~1, \SI{2.6}{m},
-was not applied and the map used \SI{0}{m}), found afterwards from the height reported for the
-mobile beacon. Campaign~2 repeats the rotations, the triangle and the rest with the correct map: it is
-the reference for the correction of campaign~1, and the two campaigns register each other
-(Section~IV-B). Triangle vertices A, B, C; out-and-back stops D and E outside the OptiTrack area
-(names as in Fig.~\ref{fig:setup} and Fig.~\ref{fig:plan}).}
+Two campaigns were recorded on the same day at the same robot poses. Each has two runs of rotations in
+place at four headings, a triangle with stops at the vertices A, B and C, and a long rest, \SI{18}{min}
+in campaign~1 and \SI{10}{min} in campaign~2. In campaign~1 the triangle was driven fast and slow, and
+an out-and-back test with ten laps to the stops D and E outside the OptiTrack area was added. After
+campaign~1 we noticed that the height reported for the hedgehog was wrong, because the Marvelmind map used
+\SI{0}{m} instead of \SI{2.6}{m} for B1. Campaign~2 was recorded with the corrected map. It is the
+reference for the correction of campaign~1 (Section~\ref{sec:correction}), and each campaign is used to
+register the other.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{fig_floorplan.pdf}
   \caption{Floor plan in the Marvelmind map frame: stationary beacons with their height, area covered
-  by OptiTrack, triangle A--B--C and out-and-back stops D and E (names as in Fig.~\ref{fig:setup}).}
+  by OptiTrack, triangle A--B--C and out-and-back stops D and E.}
   \label{fig:plan}
 \end{figure}
 
-\begin{table}[t]
-  \centering
-  \caption{Test campaigns. The robot poses (triangle vertices and headings) are the same in both.}
-  \label{tab:campaigns}
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{lcc}
-    \toprule
-    Test & Campaign 1 & Campaign 2 \\
-    \midrule
-    Rotation in place, 4 headings & 2 runs & 2 runs \\
-    Triangle, 3 vertices          & fast + slow & 1 run \\
-    Rest                          & 18 min & 10 min \\
-    Out-and-back, 10 laps         & yes & -- \\
-    Marvelmind map                & B1 height wrong & correct \\
-    Use                           & characterisation & validation \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-% ---------------------------------------------------------------------------------------------------
 \section{Method}
-% ~1 page
-\subsection{Correction of the beacon height error}
-\todo{Each Marvelmind position comes from three beacons. From the recorded position and the wrong
-map, the distances to each triple are rebuilt; the position is recomputed with the corrected map for
-every triple; the triple whose height matches the known hedgehog height is kept, with a continuity
-term between samples (dynamic programming). The reference is not used. Checks: the four distances of
-one sample shown by the Marvelmind software fit the corrected map within \SI{4}{mm}; the corrected
-campaign~1 is compared with campaign~2 (Section~V-A).}
+\subsection{Correction of the beacon height error}\label{sec:correction}
+Each Marvelmind position is computed from the distances to three beacons. The measured distances were
+correct and only the map was wrong, so they can be rebuilt from the recorded position $\mathbf{p}$ and
+the wrong beacon positions $\mathbf{b}'_i$ as $d_i = \lVert \mathbf{p} - \mathbf{b}'_i \rVert$. The
+triple used by the system is not logged, so the position is recomputed with the corrected map for each
+of the four triples by closed-form trilateration, keeping the solution below the
+beacons~\cite{manolakis1996efficient}. With three ranges there is no redundancy and the residual cannot
+identify the right triple. The height can, since the hedgehog height is known, \SI{0.70}{m}, and a wrong
+triple moves the solution strongly in $z$. The triple is chosen over the whole recording by the Viterbi
+algorithm, with the cost $|z_k - 0.70\,\mathrm{m}|$ for each sample plus twice the 2D jump between
+consecutive samples, as in map matching~\cite{newson2009hidden}.
+Samples whose best height is more than \SI{10}{cm} off are marked invalid. The reference is not used. As
+a check, the four distances of one sample shown by the Marvelmind software fit the corrected map within
+\SI{4}{mm}.
 
-\subsection{Cross-campaign registration and delay}
-\todo{2D rotation, translation and lever arm between the OptiTrack and Marvelmind frames, robust
-least squares on the stop medians~\cite{umeyama1991least}. No recording is evaluated with parameters
-fitted on itself: campaign~1 is evaluated with the registration fitted on campaign~2; campaign~2 with
-the one fitted on the campaign~1 stops with the same hedgehog mounting; the lever arm of the first
-mounting is fitted on the other rotation run. Delay: median of the per-recording estimates,
-\SI{0.105 +- 0.036}{s}.}
+\subsection{Cross-campaign registration and delay}\label{sec:registration}
+The OptiTrack positions are mapped into the Marvelmind frame by a 2D rotation, a translation and the
+lever arm of the hedgehog, estimated by robust least squares on the median positions of the
+stops~\cite{umeyama1991least}. No recording is evaluated with parameters fitted on itself: campaign~1
+uses the registration fitted on campaign~2, campaign~2 the one fitted on the corrected campaign~1 stops
+with the same mounting, and the lever arm of M1 comes from the other rotation run. The delay is the time
+shift that minimises the error of each recording with motion; the four values lie between 0.04 and
+\SI{0.21}{s}, and their median, \SI{0.105}{s}, is applied to all recordings.
 
 \subsection{Monte Carlo of beacon height errors}
-\todo{With the true beacon geometry and the true hedgehog trajectories (C1 slow triangle and
-out-and-back, 3009 samples), each beacon height is offset by $\pm$0.05 to $-2.6$\,m; the map the
-Marvelmind software would build from the true beacon distances with that height is recomputed; ranges
-get \SI{3}{mm} noise; the solver uses a random triple (pessimistic). Outputs: position error after
-rigid registration, error of the reported hedgehog height, and the result of the correction.}
+To see how large a height error must be to matter, and whether the correction always works, the error
+of campaign~1 is simulated with the true beacon geometry and the true hedgehog paths of the slow
+triangle and the out-and-back test, 3078 samples. The height of each beacon is offset by $\pm$0.05 to
+$-2.6$\,m, and the map that the Marvelmind software would build from the true beacon-to-beacon
+distances with that height is computed; as in campaign~1, the other beacons then move in plan. Ranges
+get \SI{3}{mm} Gaussian noise and the solver uses a random triple, a pessimistic choice. The outputs
+are the position error after a rigid registration, the error of the hedgehog height and the error after
+the correction.
 
 \subsection{Data selection and metrics}
-\todo{Stops: OptiTrack speed below \SI{2}{cm/s} and rotation below \SI{3}{\degree/s} for at least
-\SI{10}{s}; frames with marker error above \SI{3}{mm} discarded. Metrics: 2D error, median, RMS, p95,
-CDF, per-stop offset and jitter, Allan deviation~\cite{allan1966statistics}.}
+OptiTrack frames with a mean marker error above \SI{3}{mm} are discarded. A stop is a period of at least
+\SI{10}{s} with OptiTrack speed below \SI{2}{cm/s} and rotation below \SI{3}{\degree/s}, trimmed by
+2\,s at both ends. Errors are 2D. We report the median, RMS and 95th percentile (p95), the offset and
+jitter of each stop and, at rest, the Allan deviation~\cite{allan1966statistics}, which separates
+precision from accuracy. Table~\ref{tab:summary} also gives the third quartile (p75) of the triangle
+samples, the score used by the EvAAL framework~\cite{potorti2017comparing}.
 
-\subsection{Uncertainty budget and Monte Carlo propagation}
-\todo{Table~\ref{tab:budget}~\cite{gum2008}. The intervals of Table~\ref{tab:summary} come from a
-Monte Carlo propagation~\cite{jcgm101}: 300 draws of the registration (stop bootstrap), the delay
-($\mathcal{N}(0.105, 0.036)$\,s), OptiTrack noise and a resampling of the stops. The OptiTrack instrument is not the limit; the
-registration is, mainly through the lever arm (bootstrap over the stops). It is a common-mode term:
-differences between campaigns and the effect of the configuration error are well resolved, absolute
-offsets of a few cm at rest are not. Temperature acts on Marvelmind, not on the reference.}
+\subsection{Uncertainty budget and Monte Carlo propagation}\label{sec:budget}
+Table~\ref{tab:budget} lists the standard uncertainties of the reference hedgehog position, combined
+according to the GUM~\cite{gum2008}. The OptiTrack term comes from the mean marker error. The
+registration term, from a bootstrap over the stops used for the fit, is the largest, mainly through the
+lever arm. The delay and synchronisation terms are converted to position with the RMS speed of the
+moving samples, \SI{0.44}{m/s}; at \SI{1}{m/s} the delay term would be \SI{3.6}{cm}. Temperature acts on
+Marvelmind, not on the reference: \SI{\pm 3}{\celsius} change the speed of sound by about
+0.17\,\%/\si{\celsius}~\cite{cramer1993variation}, about \SI{1.8}{cm} here. The intervals in
+Table~\ref{tab:summary} come from a Monte Carlo propagation~\cite{jcgm101} with 300 draws of the
+registration, the delay, the OptiTrack noise and the stops. The registration shifts all samples of a
+recording together, so differences between the campaigns are well resolved, while absolute offsets of a
+few centimetres at rest are of the same order as the uncertainty of the comparison.
 
 \begin{table}[t]
   \centering
@@ -211,35 +251,44 @@ offsets of a few cm at rest are not. Temperature acts on Marvelmind, not on the 
     OptiTrack position (mean marker error)            & 0.11 \\
     Registration: rotation, translation, lever arm    & 3.1--5.4 \\
     \quad of which lever arm (per axis)               & 1.8--2.9 \\
-    Delay, \SI{0.105 +- 0.036}{s} at \SI{0.3}{m/s}   & 1.1 \\
-    Synchronisation jitter at \SI{0.3}{m/s}           & 0.15 \\
+    Delay, \SI{0.105 +- 0.036}{s} at \SI{0.44}{m/s}  & 1.6 \\
+    Synchronisation jitter at \SI{0.44}{m/s}          & 0.2 \\
     \midrule
-    Combined, at rest / moving                        & 5.4 / 5.5 \\
-    Expanded ($k=2$), at rest / moving                & 10.8 / 11.0 \\
+    Combined, at rest / moving                        & 5.4 / 5.6 \\
+    Expanded ($k=2$), at rest / moving                & 10.8 / 11.3 \\
     \midrule
     Temperature $\pm$\SI{3}{\celsius} (on Marvelmind) & 1.8 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-% ---------------------------------------------------------------------------------------------------
 \section{Results}
-% ~2 pages
 \subsection{Effect of the configuration error and its correction}
-\todo{Table~\ref{tab:summary}, Fig.~\ref{fig:cdf}: the configuration error multiplies the errors by
-3--10. Discarding the samples with a wrong height removes the worst outliers but keeps the bias (rest
-\SI{35.8}{cm}) and only 55--88\,\% of the samples. After the correction (81--100\,\% of the samples
-kept) campaign~1 agrees with campaign~2 within the resolution of the comparison: median differences
-$-4.0$ and \SI{2.0}{cm}, moving RMS 11.0 vs \SI{11.1}{cm}, all with 95\,\% Monte Carlo intervals
-that include zero. One stop out of 23 failed the correction (\SI{167}{cm}). Sensitivity: median error
-stable within \SI{1}{cm} for an assumed hedgehog height $\pm$\SI{5}{cm}, height tolerance
-7--\SI{15}{cm}, with or without the continuity term.}
+Table~\ref{tab:summary} and Fig.~\ref{fig:cdf} compare campaign~1 as recorded, with a height filter
+only and after the correction, with campaign~2. With the wrong height of B1 the stop offsets are 2.7 to
+8.9 times larger than after the correction, and the 18-minute rest is \SI{35.9}{cm} away from the
+reference instead of \SI{2.6}{cm}. Depending on the recording, 4 to 49\,\% of the samples have a wrong
+height.
+
+A simple remedy is to discard every sample whose height differs from the known \SI{0.70}{m} by more
+than \SI{10}{cm}. This removes the largest outliers but not the bias. The rest is still
+\SI{35.8}{cm} off, and only 55 to 88\,\% of the samples of the other tests survive. The samples that
+pass are computed without B1, but on a map built with its wrong height, so they are shifted as well.
+
+After the correction 81 to 100\,\% of the samples are kept and campaign~1 agrees with campaign~2
+within the resolution of the comparison. The median stop offsets differ by $-4.0$\,cm in the
+rotations and by \SI{2.0}{cm} on the triangle, the RMS errors while moving are 11.0 and
+\SI{11.1}{cm}, and every 95\,\% Monte Carlo interval of the differences includes zero. One triangle
+stop out of 23 could not be corrected and remains \SI{167}{cm} off; it is left out of
+Table~\ref{tab:summary}, and including it raises the p95 of the triangle stops from 14.2 to
+\SI{19.8}{cm}. A hedgehog height of 0.65 or \SI{0.75}{m}, a height tolerance of 7 or
+\SI{15}{cm}, or no continuity term change the median error by less than \SI{1}{cm}.
 
 \begin{table*}[t]
   \centering
   \caption{Marvelmind error (cm): campaign 1 as recorded (C1 rec.), with the height filter only
   (C1 filt.), corrected (C1 corr.), and campaign 2 (C2). Stops: median / p95 of the per-stop offset;
-  moving: RMS / p95; all: median / p95 of all samples. Last column: difference C1 corr.\ $-$ C2 with
+  moving: RMS / p95; all: median / p95 of all samples, and their third quartile (p75). Last column: difference C1 corr.\ $-$ C2 with
   the 95\,\% Monte Carlo interval.}
   \label{tab:summary}
   \setlength{\tabcolsep}{6pt}
@@ -250,7 +299,8 @@ stable within \SI{1}{cm} for an assumed hedgehog height $\pm$\SI{5}{cm}, height 
     Rotation, stops  & 16.6 / 85.8  & --          & 4.3 / 14.0  & 8.4 / 16.1  & $-4.0$ [$-12.8$, 2.4] \\
     Triangle, stops  & 20.7 / 126.7 & --          & 7.8 / 14.2  & 5.8 / 14.2  & 2.0 [$-3.9$, 10.6] \\
     Triangle, moving & 65.6 / 141.5 & 20.4 (RMS)  & 11.0 / 21.1 & 11.1 / 23.4 & $-0.1$ [$-2.4$, 3.7] \\
-    Triangle, all    & --           & 12.4 / 50.4 & 7.7 / 19.9  & --          & -- \\
+    Triangle, all    & 21.6 / 135.8 & 12.4 / 50.4 & 7.7 / 19.9  & 6.1 / 15.4  & -- \\
+    \quad p75 (EvAAL) & 46.0         & 31.8        & 12.2        & 12.4        & -- \\
     Rest             & 35.9         & 35.8        & 2.6         & 5.5         & $-2.9$ [$-7.4$, 7.3] \\
     \midrule
     Kept samples     & 100\,\%     & 55--100\,\% & 81--100\,\% & 100\,\%   & \\
@@ -267,13 +317,16 @@ stable within \SI{1}{cm} for an assumed hedgehog height $\pm$\SI{5}{cm}, height 
 \end{figure}
 
 \subsection{Tolerance to beacon height errors (simulation)}
-\todo{Fig.~\ref{fig:mc}. Check: B1 at $-2.6$\,m gives p95 \SI{181}{cm} and 58\,\% wrong 3D
-solutions, same order as campaign~1 (p95 51--\SI{151}{cm}, 4--49\,\%). Height errors up to
-$\pm$\SI{0.1}{m} add at most about \SI{5}{cm} (p95) and hardly show in $z$; between 0.1 and
-\SI{0.5}{m} the position error is already 5--\SI{30}{cm} but only part of the samples show a height
-error above \SI{10}{cm}; above \SI{0.5}{m} the height check reveals it almost always. The
-correction restores the no-error level in every simulated case (p95 1.2--\SI{1.5}{cm}). Advice:
-measure beacon heights within $\pm$\SI{5}{cm} and check the hedgehog height before recording.}
+The simulation reproduces campaign~1. With B1 set \SI{2.6}{m} too low it gives a p95 error of
+\SI{181}{cm} and a wrong height in 58\,\% of the solutions, the same order as the recorded data
+(Fig.~\ref{fig:mc}). Height errors up to \SI{0.1}{m} add at most \SI{5}{cm} to the p95 and change the
+height of the mobile beacon by less than \SI{4}{cm}, so they cannot be seen in the data. Errors of 0.25
+to \SI{0.5}{m} are harder to notice. The p95 is already 6 to \SI{29}{cm}, while the median height
+error of the mobile beacon is 5 to \SI{20}{cm} and is easily taken for noise. From \SI{1}{m} upwards
+the reported height is off by more than \SI{20}{cm}, which is easy to see. In every simulated
+case the correction brings the p95 back to 1.1--\SI{1.5}{cm}, the level without error. Beacon heights
+should therefore be measured to about $\pm$\SI{5}{cm}, and the height reported for the mobile beacon
+checked before recording.
 
 \begin{figure}[t]
   \centering
@@ -285,20 +338,29 @@ measure beacon heights within $\pm$\SI{5}{cm} and check the hedgehog height befo
 \end{figure}
 
 \subsection{At rest}
-\todo{Precision vs accuracy (Fig.~\ref{fig:allan}): same noise in both campaigns, jitter
-\SI{4}{mm}, Allan deviation \SI{1.6}{mm} at \SI{1}{s} and \SI{0.2}{mm} at \SI{60}{s}; offset 2.6
-and 5.5\,cm, within the registration uncertainty. Repeated visits (Fig.~\ref{fig:rest}a): offset per
-vertex 2--10\,cm, spread between visits 1--9\,cm, jitter within a stop \SI{1.4}{mm}. Heading
-(Fig.~\ref{fig:rest}b): careful, a lever-arm error also gives an offset that changes with the heading
-(it rotates with the robot in the reference model). FIGURES.md, section ``Heading: registration or
-IPS?'': split the offsets into a term that rotates with the heading (where a lever-arm error goes) and
-one that rotates against it (no registration error can produce it). Campaign~2: runs repeat within
-0.5--6.2\,cm, $|a|=7.6$, $|b|=6.9$\,cm, $u=1.3$\,cm, so $b$ is a real heading bias of the IPS.
-Campaign~1: runs differ by up to 14.6\,cm at the same heading, neither term significant. Do not write
-``the same pattern in both campaigns''. Possible cause: the beacon left out of the position solution
-depends strongly on the heading (e.g.\ B1 in 62\,\% of the samples with heading 90--180$^\circ$,
-1\,\% with $-90$--90$^\circ$) and lies preferentially on one side/rear of the robot, consistent with
-shading by the robot body and mast (the triple is inferred by the correction, campaign~1).}
+Fig.~\ref{fig:allan} separates precision from accuracy. In the two long rests the jitter of the
+position is 4.0 and \SI{4.1}{mm}, and the Allan deviation falls from \SI{1.6}{mm} at \SI{1}{s} to
+\SI{0.2}{mm} at \SI{60}{s} in both campaigns, so the noise of the system does not depend on the
+configuration. The offset from the reference, 2.6 and \SI{5.5}{cm}, is much larger than this
+noise but lies within the expanded uncertainty of the comparison, \SI{10.8}{cm} (Table~\ref{tab:budget}).
+Averaging for longer improves the precision, not the accuracy.
+
+On the triangle the robot stopped several times at each vertex (Fig.~\ref{fig:rest}a). The mean offset
+per vertex is 2 to \SI{10}{cm}, and the spread between visits, 1 to \SI{9}{cm} per axis, is far larger
+than the jitter within a stop, \SI{1.4}{mm}. The position reported by Marvelmind is stable during a
+stop but differs slightly from one visit to the next.
+
+The offset also changes with the heading of the robot (Fig.~\ref{fig:rest}b). However, an error in
+the lever arm also produces an offset that turns with the robot. We therefore
+split the offsets of each rotation run into a term that turns with the heading, which absorbs a
+lever-arm error, and one that turns against it, which no registration error can produce. In
+campaign~2 the two runs repeat within 0.5 to \SI{6.2}{cm} at the same heading, and the
+counter-rotating term is \SI{6.9}{cm} with a standard uncertainty of \SI{1.3}{cm}. This is a real
+heading-dependent bias of Marvelmind. In campaign~1 the two runs differ by up to \SI{14.6}{cm} at the
+same heading and neither term is significant. A likely cause is shading by the robot body and mast:
+the beacon left out of the solution, as inferred by the correction, depends strongly on the heading.
+B1 is left out in 62\,\% of the samples with a heading between 90 and \SI{180}{\degree}, but in only
+1\,\% of those between $-90$ and \SI{90}{\degree}.
 
 \begin{figure}[t]
   \centering
@@ -327,7 +389,7 @@ shading by the robot body and mast (the triple is inferred by the correction, ca
   \label{fig:speed}
 \end{figure}
 
-\begin{figure}[!b]
+\begin{figure}[!t]
   \centering
   \includegraphics[width=\columnwidth]{fig7_inout.pdf}
   \caption{Out-and-back test. (a) Marvelmind error over time; grey: robot outside the OptiTrack area.
@@ -336,25 +398,40 @@ shading by the robot body and mast (the triple is inferred by the correction, ca
 \end{figure}
 
 \subsection{While moving}
-\todo{RMS 11.0 and \SI{11.1}{cm}, p95 21--\SI{23}{cm} in the two campaigns (Table~\ref{tab:summary});
-no monotonic trend with the speed up to about \SI{1}{m/s} (Fig.~\ref{fig:speed}; the robot went faster
-than \SI{0.6}{m/s}, check Setup); delay
-\SI{0.105 +- 0.036}{s}. Temporal filters gained at most \SI{1}{cm}.}
+While moving, the RMS error is \SI{11.0}{cm} in the corrected campaign~1 and \SI{11.1}{cm} in
+campaign~2, with a p95 of 21 and \SI{23}{cm} (Table~\ref{tab:summary}). The error does not grow
+steadily with speed up to about \SI{1}{m/s} (Fig.~\ref{fig:speed}). The residual delay of
+\SI{0.105}{s} would be worth about \SI{5}{cm} at the RMS speed of \SI{0.44}{m/s}; it is removed before
+the comparison, and its uncertainty contributes \SI{1.6}{cm} (Table~\ref{tab:budget}). In earlier
+recordings, a Kalman filter and a Rauch--Tung--Striebel (RTS) smoother reduced the error by at most \SI{1}{cm}.
 
 \subsection{Outside the OptiTrack area}
-\todo{Campaign~1 out-and-back: error before leaving \SI{5.4}{cm}, after re-entry \SI{4.4}{cm}
-(median, 10 re-entries); spread at the outside points 6--10\,cm, an upper bound
-(Fig.~\ref{fig:inout}).}
-\FloatBarrier % keep Fig. 7 before the Conclusion
+In the out-and-back test of campaign~1 the robot left the OptiTrack area ten times. The median error
+was \SI{5.4}{cm} before leaving and \SI{4.4}{cm} after re-entering, so the excursions did not degrade
+the position (Fig.~\ref{fig:inout}). At the stops D and E, where no reference is available, the
+positions of the four visits scatter by 6 to \SI{10}{cm} per axis. This is an upper bound on the error
+outside the area, since it also contains how precisely the robot was driven back to the same point.
 
-% ---------------------------------------------------------------------------------------------------
 \section{Discussion and Conclusion}
-% ~0.5 page
-\todo{Lessons for users: check that the mobile beacon reports its real height before recording; log
-the raw distances so that configuration errors can be corrected exactly. Limits: one room, 2D only,
-joystick paths, small OptiTrack area in a corner of the beacon area, temperature not measured.}
+On a moving robot the low-cost ultrasonic system reached about \SI{11}{cm} RMS, and a few centimetres
+at rest with millimetre precision. These figures hold only for a correct configuration. A single
+missing beacon height produced errors of up to \SI{1.5}{m} while the trajectories still looked
+plausible in 2D, and filtering out the implausible samples left a bias of several decimetres. Since
+the measured distances are not affected by a wrong map, the recorded positions could be recomputed
+afterwards. The known height of the mobile beacon was enough to choose the right beacon triple without
+any reference, and the corrected campaign matched a second campaign recorded with the correct map.
 
-% ---------------------------------------------------------------------------------------------------
+We recommend two checks to users. Before recording, the height reported by the mobile beacon should be compared with its real height;
+in our simulation every height error above about \SI{0.5}{m} shows up there. The raw distances should
+also be logged, so that a wrong map can be corrected exactly, without inferring the triple used by the
+system.
+
+The study has limits. It was carried out in one room, in 2D, on paths driven with a joystick, and the
+reference covers only a \SI{2.5}{m}~$\times$~\SI{2.5}{m} corner of the beacon area. The air
+temperature was not measured, and the uncertainty of the comparison, about \SI{5}{cm}, is of the same
+order as the offsets at rest. Future campaigns will log the raw distances and the temperature and
+cover the whole beacon area with the reference.
+
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
 

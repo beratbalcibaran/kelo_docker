@@ -107,9 +107,9 @@ Standard uncertainties (k = 1) of the reference hedgehog position, 2D.
 | OptiTrack position (mean marker error) | 0.11 cm | Motive, all recordings; static noise 0.05 mm |
 | Registration (rotation, translation, lever arm) | 3.1–5.4 cm | bootstrap over the stops used for the fit (300 resamples); C2: 3.1 cm, C1 mounting 1: 4.9 cm, mounting 2: 5.4 cm |
 | of which lever arm alone | 1.8–2.9 cm per axis | same bootstrap; check with the tape: 42.3 vs 40 cm (mounting 1), move 52 vs 45 cm |
-| Delay, 0.105 ± 0.036 s, at 0.3 m/s | 1.1 cm | spread of the four per-recording estimates |
-| Synchronisation (transport jitter 5 ms) at 0.3 m/s | 0.15 cm | device time stamp vs PC arrival |
-| **Combined, at rest / moving** | **5.4 / 5.5 cm** (U, k = 2: 10.8 / 11.0 cm) | root sum of squares |
+| Delay, 0.105 ± 0.036 s, at 0.44 m/s | 1.6 cm | spread of the four per-recording estimates; speed = RMS OptiTrack speed of the moving samples (p90 0.72, max 1.04 m/s); 3.6 cm at 1 m/s |
+| Synchronisation (transport jitter 5 ms) at 0.44 m/s | 0.2 cm | device time stamp vs PC arrival |
+| **Combined, at rest / moving** | **5.4 / 5.6 cm** (U, k = 2: 10.8 / 11.3 cm) | root sum of squares |
 | Temperature (affects Marvelmind, not the reference) | 1.8 cm | ±3 °C around the 23 °C setting, 0.17 %/°C, simulated on the beacon geometry |
 
 **Message.** The OptiTrack instrument is not the limit; the **registration** is. It is a common-mode
