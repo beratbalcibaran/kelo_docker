@@ -254,8 +254,8 @@ the shift that minimises the RMS error while moving; the four values lie between
 
 \subsection{Monte Carlo of beacon height errors}
 The error of campaign~1 is simulated with the true beacon geometry and the true hedgehog paths of the slow
-triangle and the out-and-back test, 3078 samples. The height of each beacon is offset by $\pm$0.05 to
-$-2.6$\,m, and the map that the Marvelmind software would build from the true beacon-to-beacon
+triangle and the out-and-back test, 3078 samples. The height of each beacon is offset by $-2.6$ to
+$+0.5$\,m, and the map that the Marvelmind software would build from the true beacon-to-beacon
 distances with that height is computed; as in campaign~1, the other beacons then move in plan. Ranges
 get \SI{3}{mm} Gaussian noise and the solver uses a random triple, a pessimistic choice. The outputs
 are the position error after a rigid registration, the error of the hedgehog height and the error after
@@ -265,8 +265,8 @@ the correction.
 OptiTrack frames with a mean marker error above \SI{3}{mm} are discarded. A stop is a period of at least
 \SI{10}{s} with OptiTrack speed below \SI{2}{cm/s} and rotation below \SI{3}{\degree/s}, trimmed by
 2\,s at both ends. Errors are 2D. We report the median, RMS and 95th percentile (p95), the offset and
-jitter of each stop and, at rest, the Allan deviation~\cite{allan1966statistics}, which separates
-precision from accuracy. Table~\ref{tab:summary} also gives the third quartile (p75) of the triangle
+jitter (2D standard deviation) of each stop and, at rest, the Allan deviation~\cite{allan1966statistics}, which shows the
+stability of the position with the averaging time. Table~\ref{tab:summary} also gives the third quartile (p75) of the triangle
 samples, the score used by the EvAAL framework~\cite{potorti2017comparing}.
 
 \subsection{Uncertainty budget and Monte Carlo propagation}\label{sec:budget}
@@ -274,11 +274,11 @@ Table~\ref{tab:budget} lists the standard uncertainties of the reference hedgeho
 according to the GUM~\cite{gum2008}. The registration term, from a bootstrap over the stops used for the fit, is the largest, mainly through the
 lever arm. The delay and synchronisation terms are converted to position with the RMS speed of the
 moving samples, \SI{0.44}{m/s}; at \SI{1}{m/s} the delay term would be \SI{3.6}{cm}. Temperature acts on
-Marvelmind, not on the reference: \SI{\pm 3}{\celsius} change the speed of sound by about
-0.17\,\%/\si{\celsius}~\cite{cramer1993variation}, about \SI{1.8}{cm} here. The intervals in
-Table~\ref{tab:summary} come from a Monte Carlo propagation~\cite{jcgm101} with 300 draws of the
-registration, the delay, the OptiTrack noise and the stops. The registration shifts all samples of a
-recording together, so differences between the campaigns are well resolved, while absolute offsets of a
+Marvelmind, not on the reference: the speed of sound changes by about
+0.17\,\%/\si{\celsius}~\cite{cramer1993variation}, so a rectangular distribution of \SI{\pm 3}{\celsius} gives a standard uncertainty of about \SI{1.8}{cm} here. The coverage intervals in
+Table~\ref{tab:summary} come from a Monte Carlo propagation following~\cite{jcgm101}, with only 300 draws of the
+registration, the delay, the OptiTrack noise and the stops, so their limits are approximate. The registration shifts all samples of a
+recording together, so absolute offsets of a
 few centimetres at rest are of the same order as the uncertainty of the comparison.
 
 \begin{table}[t]
@@ -297,7 +297,7 @@ few centimetres at rest are of the same order as the uncertainty of the comparis
     Synchronisation jitter at \SI{0.44}{m/s}          & 0.2 \\
     \midrule
     Combined, at rest / moving                        & 5.4 / 5.6 \\
-    Expanded ($k=2$), at rest / moving                & 10.8 / 11.3 \\
+    Expanded ($k=2$, about 98\,\% in 2D), at rest / moving& 10.8 / 11.3 \\
     \midrule
     Temperature $\pm$\SI{3}{\celsius} (on Marvelmind) & 1.8 \\
     \bottomrule
@@ -313,28 +313,28 @@ larger in the 18-minute rest, which is \SI{35.9}{cm} away from the reference ins
 \SI{2.6}{cm}. Depending on the recording, 4 to 49\,\% of the samples have a wrong height.
 
 A simple remedy is to discard the samples with an implausible height, keeping only those with
-$|z|<\SI{0.4}{m}$ around the level reported for the mobile beacon, which is about \SI{0.07}{m} with the
+$|z|<\SI{0.4}{m}$, a band that contains the level reported for the mobile beacon at rest, about \SI{0.07}{m} with the
 wrong map. This removes the largest outliers but not the bias. The rest is still
-\SI{35.8}{cm} off, and only 55 to 88\,\% of the samples of the other tests survive. The samples that
+\SI{35.8}{cm} off, and only 51 to 96\,\% of the samples of the other tests survive. The samples that
 pass are computed without B1, but on a map built with its wrong height, so they are shifted as well.
 
 After the correction 81 to 100\,\% of the samples are kept and the results of campaign~1 are close
 to those of campaign~2. The median stop offsets differ by $-4.0$\,cm in the
 rotations and by \SI{2.0}{cm} on the triangle, the RMS errors while moving are 11.0 and
-\SI{11.1}{cm}, and every 95\,\% Monte Carlo interval of the differences includes zero. With 8 to 22
-stops per test, however, the intervals of the stop offsets are about \SI{15}{cm} wide: the two
-campaigns agree within the resolution of the comparison, but they are not proven equivalent. One triangle
+\SI{11.1}{cm}, and every 95\,\% coverage interval of the differences includes zero. With 8 to 22
+stops per test, however, the intervals of the stop offsets are about \SI{15}{cm} wide: the error
+levels of the two campaigns agree within the uncertainty of the comparison, but they are not proven equivalent. One triangle
 stop out of 23 could not be corrected and remains \SI{167}{cm} off; it is left out of
 Table~\ref{tab:summary}, and including it raises the p95 of the triangle stops from 14.2 to
-\SI{19.8}{cm}. A hedgehog height of 0.65 or \SI{0.75}{m}, a height tolerance of 7 or
-\SI{15}{cm}, or no continuity term change the median error by less than \SI{1}{cm}.
+\SI{19.8}{cm}. One moving sample above \SI{1}{m} is also left out; with it the RMS error of campaign~1 is \SI{13.5}{cm}. A hedgehog height of 0.65 or \SI{0.75}{m}, a height tolerance of 7 or
+\SI{15}{cm}, or no continuity term change the median error by less than \SI{1}{cm}, although with \SI{0.65}{m} the p95 rises from 20.1 to \SI{25.9}{cm}.
 
 \begin{table*}[t]
   \centering
   \caption{Marvelmind error (cm): campaign 1 as recorded (C1 rec.), with the height filter only
   (C1 filt.), corrected (C1 corr.), and campaign 2 (C2). Stops: median / p95 of the per-stop offset;
   moving: RMS / p95; all: median / p95 of all samples, and their third quartile (p75). Number of stops
-  in C1 / C2 in brackets. Last column: difference C1 corr.\ $-$ C2 with the 95\,\% Monte Carlo interval.}
+  in C1 / C2 in brackets. Last column: difference C1 corr.\ $-$ C2 with the 95\,\% coverage interval.}
   \label{tab:summary}
   \setlength{\tabcolsep}{6pt}
   \begin{tabular}{lccccc}
@@ -365,7 +365,7 @@ The simulation reproduces campaign~1. With B1 set \SI{2.6}{m} too low it gives a
 (Fig.~\ref{fig:mc}). Height errors up to \SI{0.1}{m} are invisible and harmless, since they add at most
 \SI{5}{cm} to the p95. Between 0.1 and \SI{1}{m} the error is partly silent. At \SI{0.5}{m} the p95
 already reaches \SI{29}{cm}, while the median height error of the mobile beacon, 10 to \SI{20}{cm}, is
-easily taken for noise. From \SI{1}{m} upwards the error is visible in the height, with a median height
+easily taken for noise. For a beacon set \SI{1}{m} or more too low the error is visible in the height, with a median height
 error of the mobile beacon of \SI{22}{cm} or more. In every simulated case the correction brings the
 p95 back to 1.1--\SI{1.5}{cm}, the level without error. Beacon heights should therefore be measured to
 about $\pm$\SI{5}{cm}, and the height reported for the mobile beacon checked before recording.
@@ -380,7 +380,7 @@ about $\pm$\SI{5}{cm}, and the height reported for the mobile beacon checked bef
 \end{figure}
 
 \subsection{At rest}\label{sec:rest}
-Fig.~\ref{fig:allan} separates precision from accuracy. In the two long rests the jitter of the
+Fig.~\ref{fig:allan} shows the stability of the position at rest. In the two long rests the jitter of the
 position is 4.0 and \SI{4.1}{mm}, and the Allan deviation falls from \SI{1.6}{mm} at \SI{1}{s} to
 \SI{0.2}{mm} at \SI{60}{s} in both campaigns, so the noise of the system does not depend on the
 configuration. The offset from the reference, 2.6 and \SI{5.5}{cm}, is much larger than this
@@ -389,7 +389,7 @@ Averaging for longer reduces the noise but does not remove this offset.
 
 On the triangle the robot stopped several times at each vertex (Fig.~\ref{fig:rest}a). The mean offset
 per vertex is 2 to \SI{10}{cm}, and the spread between visits, 1 to \SI{9}{cm} per axis, is far larger
-than the jitter within a stop, \SI{1.4}{mm}.
+than the jitter within a stop, \SI{3.8}{mm}.
 
 The offset also changes with the heading of the robot (Fig.~\ref{fig:rest}b). Part of this change
 could come from the registration, since a lever-arm error turns with the robot in~\eqref{eq:ref}. We
@@ -455,19 +455,19 @@ Kalman filter and a Rauch--Tung--Striebel (RTS) smoother reduced the error by at
 In the out-and-back test of campaign~1 the robot left the OptiTrack area ten times. The median error
 was \SI{5.4}{cm} before leaving and \SI{4.4}{cm} after re-entering, so the excursions did not degrade
 the position (Fig.~\ref{fig:inout}). At the stops D and E, where no reference is available, the
-positions of the four visits scatter by 6 to \SI{10}{cm} per axis. This is an upper bound on the error
+positions of the four visits scatter by 6 to \SI{10}{cm} per axis. This is an upper bound on the repeatability
 outside the area, since it also contains how precisely the robot was driven back to the same point.
 
 \section{Discussion and Conclusion}
-A single missing beacon height produced errors of up to \SI{1.5}{m} while the trajectories still looked
+A single missing beacon height produced a p95 error of up to \SI{1.5}{m} while the trajectories still looked
 plausible in 2D, and filtering out the implausible samples left a bias of several decimetres. Since the
 measured ranges were not affected, the known height of the mobile beacon was enough to recompute the
-logged positions without any reference, and the corrected campaign matched a second campaign recorded
+logged positions without any reference, and the error level of the corrected campaign matched that of a second campaign recorded
 with the correct map. With a correct configuration the system reached about \SI{11}{cm} RMS on the
 moving robot, and a few centimetres at rest with millimetre precision.
 
 We recommend two checks to users. Before recording, the height reported by the mobile beacon should be
-compared with its real height; in our simulation every height error of \SI{1}{m} or more shows up
+compared with its real height; in our simulation every beacon set \SI{1}{m} or more too low shows up
 there, with a median height error of \SI{22}{cm} or more. The raw distances should
 also be logged, so that a wrong map can be corrected exactly, without inferring the triple used by the
 system.
